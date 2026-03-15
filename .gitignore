@@ -2,6 +2,14 @@
 node_modules/
 .pnpm-store/
 
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
 # Build outputs
 dist/
 build/

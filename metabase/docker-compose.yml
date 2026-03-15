@@ -1,0 +1,71 @@
+services:
+  rcq_metabase:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rcq_metabase
+    ports:
+      - "3000:3000"
+    environment:
+      # Metabase application database (MySQL)
+      MB_DB_TYPE: mysql
+      MB_DB_DBNAME: ${MB_DB_DBNAME:-rcq_metabase_db}
+      MB_DB_PORT: ${MB_DB_PORT:-3306}
+      MB_DB_USER: ${MB_DB_USER}
+      MB_DB_PASS: ${MB_DB_PASS}
+      MB_DB_HOST: ${MB_DB_HOST:-rcq_mysql}
+      
+      # Java heap size (adjust for Cloud Run memory limits)
+      JAVA_OPTS: "-Xmx1g"
+      
+      # Metabase site settings
+      MB_SITE_NAME: "RedCrossQuest Dashboards"
+      MB_SITE_URL: ${MB_SITE_URL:-http://localhost:3000}
+      
+      # Embedding settings (will be configured via UI or API)
+      MB_EMBEDDING_SECRET_KEY: ${MB_EMBEDDING_SECRET_KEY}
+    depends_on:
+      rcq_mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - rcq_network
+
+  rcq_mysql:
+    image: mysql:8.0
+    container_name: rcq_mysql_dev
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MB_DB_DBNAME:-rcq_metabase_db}
+      MYSQL_USER: ${MB_DB_USER}
+      MYSQL_PASSWORD: ${MB_DB_PASS}
+    volumes:
+      - rcq_mysql_data:/var/lib/mysql
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - rcq_network
+
+volumes:
+  rcq_mysql_data:
+    name: rcq_mysql_data
+
+networks:
+  rcq_network:
+    name: rcq_network
+    driver: bridge
+
