@@ -1,0 +1,87 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore, with the addition of
+# "#!include" directives (which insert the entries of the given .gitignore-style
+# file at that point).
+
+# Default ignores
+.gcloudignore
+.git
+.gitignore
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files - NEVER upload
+.env
+.env.*
+.env.local
+.env.*.local
+
+# Credentials - NEVER upload
+*.pem
+*.key
+service-account*.json
+*-credentials.json
+credentials.json
+secrets/
+.secrets/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Documentation (except main README)
+*.md
+!README.md
+
+# Tests
+tests/
+*_test.py
+test_*.py
+*.spec.ts
+*.spec.js
+conftest.py
+
+# Docker dev files
+Dockerfile.dev
+docker-compose.yml
+docker-compose.*.yml
+
+# Intent workspace files
+.intent/

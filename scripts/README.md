@@ -2,6 +2,37 @@
 
 This directory contains utility scripts for managing the RedCrossQuest V2 infrastructure.
 
+## setup-git-hooks.sh
+
+Bootstraps the repository pre-commit hooks used as a second line of defense against accidentally committing secrets.
+
+### What it does
+
+- Installs backend dev dependencies with Poetry (`pre-commit`, `detect-secrets`)
+- Installs the repository `pre-commit` hook from the root `.pre-commit-config.yaml`
+- Generates `.secrets.baseline` from tracked files when it does not exist yet
+
+### Usage
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+### Prerequisites
+
+- Poetry installed
+- Backend dependencies installable via `cd backend && poetry install --with dev`
+
+### Verifying secret detection
+
+```bash
+echo 'AWS_SECRET_ACCESS_KEY=EXAMPLESECRET1234567890' > test-secret.txt
+git add test-secret.txt
+cd backend && poetry run pre-commit run detect-secrets --config ../.pre-commit-config.yaml --files ../test-secret.txt
+rm test-secret.txt
+git restore --staged test-secret.txt
+```
+
 ## setup_metabase_db.sh
 
 Interactive script to create the Metabase database schema and user in Cloud SQL MySQL.
@@ -19,7 +50,7 @@ Interactive script to create the Metabase database schema and user in Cloud SQL 
    ```bash
    # Install Cloud SQL Proxy
    gcloud components install cloud-sql-proxy
-   
+
    # Or download from: https://cloud.google.com/sql/docs/mysql/sql-proxy
    ```
 
@@ -27,7 +58,7 @@ Interactive script to create the Metabase database schema and user in Cloud SQL 
    ```bash
    # macOS
    brew install mysql-client
-   
+
    # Ubuntu/Debian
    sudo apt-get install mysql-client
    ```
@@ -174,4 +205,3 @@ Next steps:
 2. Store the username in Secret Manager:
    echo -n 'rcq_metabase' | gcloud secrets versions add rcq_metabase_db_user_dev --data-file=-
 ```
-

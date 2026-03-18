@@ -18,12 +18,15 @@ pydantic-settings = "^2.6.1"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 python-multipart = "^0.0.17"
+pyjwt = "^2.12.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
 pytest-asyncio = "^0.24.0"
 httpx = "^0.28.1"
 pytest-cov = "^6.0.0"
+pre-commit = "^4.5.1"
+detect-secrets = "^1.5.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -35,4 +38,3 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-
