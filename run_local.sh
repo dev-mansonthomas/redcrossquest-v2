@@ -20,7 +20,7 @@ PIDS=()
 cleanup() {
     echo -e "\n${YELLOW}Shutting down services...${NC}"
     # Stop docker services
-    docker compose -f metabase/docker-compose.yml down 2>/dev/null || true
+    docker compose -f superset/docker-compose.yml down 2>/dev/null || true
     # Kill background processes
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
@@ -48,16 +48,16 @@ check_prereqs() {
     echo -e "${GREEN}✅ Prerequisites OK${NC}"
 }
 
-# Start Metabase
-start_metabase() {
-    echo -e "\n${GREEN}🐳 Starting Metabase...${NC}"
-    if [ ! -f metabase/.env ]; then
-        echo -e "${YELLOW}⚠️  metabase/.env not found. Copying from .env.example${NC}"
-        cp metabase/.env.example metabase/.env
-        echo -e "${YELLOW}   Please edit metabase/.env with your credentials${NC}"
+# Start Superset (MySQL + Superset + Celery + Valkey)
+start_superset() {
+    echo -e "\n${GREEN}🐳 Starting Superset stack...${NC}"
+    if [ ! -f superset/.env ]; then
+        echo -e "${YELLOW}⚠️  superset/.env not found. Copying from .env.example${NC}"
+        cp superset/.env.example superset/.env
+        echo -e "${YELLOW}   Please edit superset/.env with your credentials${NC}"
     fi
-    docker compose -f metabase/docker-compose.yml up -d --build
-    echo -e "${GREEN}   Metabase started in background${NC}"
+    docker compose -f superset/docker-compose.yml up -d --build
+    echo -e "${GREEN}   Superset stack started in background${NC}"
 }
 
 # Start Backend
@@ -96,14 +96,15 @@ start_frontend() {
 
 # Main
 check_prereqs
-start_metabase
+start_superset
 start_backend
 start_frontend
 
 echo ""
 echo "=========================================="
 echo -e "${GREEN}✅ Services running:${NC}"
-echo "   🐳 Metabase:  http://localhost:3010"
+echo "   🐳 Superset:  http://localhost:8088"
+echo "   🐬 MySQL:     localhost:3316"
 echo "   🐍 Backend:   http://localhost:8010"
 echo "   📚 API Docs:  http://localhost:8010/docs"
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then

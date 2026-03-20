@@ -1,0 +1,106 @@
+# RCQ V2 — MySQL + Apache Superset + Celery + Valkey
+# Usage: cd superset && docker compose up -d
+
+services:
+  # -------------------------------------------------------
+  # Phase 1: MySQL 8.0 — available immediately
+  # -------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: rcq_mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --max-allowed-packet=256M
+      - --innodb-buffer-pool-size=512M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rcq_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-rcq_fr_dev_db}
+      MYSQL_USER: ${MYSQL_USER:-rcq_readonly}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-rcq_password}
+    ports:
+      - "3316:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql-imports:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rcq_root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # -------------------------------------------------------
+  # Phase 2: Valkey 8 (Redis-compatible) — Base 1 for Superset
+  # -------------------------------------------------------
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: rcq_valkey
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # -------------------------------------------------------
+  # Phase 2: Apache Superset — Web UI
+  # -------------------------------------------------------
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rcq_superset
+    command: /app/superset_init.sh
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-CHANGE_ME_TO_A_RANDOM_SECRET_KEY}
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@rcq.local}
+      SUPERSET_ADMIN_FIRST_NAME: ${SUPERSET_ADMIN_FIRST_NAME:-Admin}
+      SUPERSET_ADMIN_LAST_NAME: ${SUPERSET_ADMIN_LAST_NAME:-User}
+      SUPERSET_CORS_ORIGINS: ${SUPERSET_CORS_ORIGINS:-http://localhost:4210,http://localhost:8010}
+      VALKEY_HOST: valkey
+      VALKEY_PORT: "6379"
+    ports:
+      - "8088:8088"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # -------------------------------------------------------
+  # Phase 2: Celery Worker — async queries & alerts
+  # -------------------------------------------------------
+  superset-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rcq_superset_worker
+    command: celery --app=superset.tasks.celery_app:app worker --loglevel=INFO
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-CHANGE_ME_TO_A_RANDOM_SECRET_KEY}
+      VALKEY_HOST: valkey
+      VALKEY_PORT: "6379"
+    depends_on:
+      valkey:
+        condition: service_healthy
+      superset:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  valkey_data:

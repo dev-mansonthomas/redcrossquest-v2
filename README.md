@@ -21,7 +21,8 @@ This will launch:
 
 | Service    | URL                          | Notes                        |
 |------------|------------------------------|------------------------------|
-| Metabase   | http://localhost:3010         | Analytics dashboards         |
+| Superset   | http://localhost:8088         | Analytics dashboards         |
+| MySQL      | localhost:3316               | Database                     |
 | Backend    | http://localhost:8010         | FastAPI REST API             |
 | API Docs   | http://localhost:8010/docs    | Swagger UI                   |
 | Frontend   | http://localhost:4210         | Angular (when available)     |
@@ -31,8 +32,11 @@ Press **Ctrl+C** to stop all services.
 ### Running individual services
 
 ```bash
-# Metabase only
-./metabase/run_metabase_only.sh
+# MySQL only
+cd superset && docker compose up -d mysql
+
+# Superset full stack
+cd superset && docker compose up -d --build
 
 # Backend only
 cd backend && poetry run uvicorn src.main:app --reload --host 0.0.0.0 --port 8010
@@ -41,5 +45,5 @@ cd backend && poetry run uvicorn src.main:app --reload --host 0.0.0.0 --port 801
 ### Environment files
 
 Each service has its own `.env` file (auto-copied from `.env.example` on first run):
-- `metabase/.env` — Metabase & database credentials
+- `superset/.env` — MySQL, Superset & Valkey credentials
 - `backend/.env` — Backend configuration
