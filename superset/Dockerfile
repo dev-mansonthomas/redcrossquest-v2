@@ -11,8 +11,8 @@ RUN apt-get update && \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install mysqlclient in Superset's virtualenv
-RUN /app/.venv/bin/pip install --no-cache-dir mysqlclient
+# Install mysqlclient into Superset's virtualenv site-packages
+RUN pip install --no-cache-dir --target=/app/.venv/lib/python3.10/site-packages mysqlclient
 
 # Clean up build dependencies
 RUN apt-get remove -y gcc pkg-config && \
