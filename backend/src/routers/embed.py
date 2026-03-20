@@ -1,4 +1,4 @@
-"""Metabase embed endpoints."""
+"""Superset embed endpoints."""
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -18,13 +18,13 @@ EMBED_TOKEN_TTL_MINUTES = 10
 
 
 class EmbedResponse(BaseModel):
-    """Metabase embed URL response."""
+    """Superset embed URL response."""
 
     embed_url: str
 
 
 class AuthenticatedEmbedUser(BaseModel):
-    """Authenticated user information required for Metabase embed."""
+    """Authenticated user information required for Superset embed."""
 
     email: str
     role: str | None = None
@@ -47,11 +47,14 @@ def get_current_embed_user(
 
 
 def build_embed_url(dashboard_id: int, params: dict[str, str | int]) -> str:
-    """Build a signed Metabase embed URL."""
-    if not settings.metabase_site_url or not settings.metabase_secret_key:
+    """Build a signed Superset embed URL.
+
+    Note: This will be replaced by Superset Guest Token in task 2.4.
+    """
+    if not settings.superset_url:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Metabase embed settings are not configured",
+            detail="Superset embed settings are not configured",
         )
 
     payload = {
@@ -59,8 +62,8 @@ def build_embed_url(dashboard_id: int, params: dict[str, str | int]) -> str:
         "params": params,
         "exp": datetime.now(tz=UTC) + timedelta(minutes=EMBED_TOKEN_TTL_MINUTES),
     }
-    token = jwt.encode(payload, settings.metabase_secret_key, algorithm=EMBED_ALGORITHM)
-    return f"{settings.metabase_site_url.rstrip('/')}/embed/dashboard/{token}"
+    token = jwt.encode(payload, settings.superset_admin_password, algorithm=EMBED_ALGORITHM)
+    return f"{settings.superset_url.rstrip('/')}/embed/dashboard/{token}"
 
 
 @router.get("/embed/{dashboard_key}", response_model=EmbedResponse)
@@ -70,7 +73,9 @@ async def get_embed_url(
     current_user: AuthenticatedEmbedUser = Depends(get_current_embed_user),
 ):
     """
-    Generate signed Metabase embed URL for a dashboard.
+    Generate signed Superset embed URL for a dashboard.
+
+    Note: Will be replaced by Superset Guest Token in task 2.4.
 
     Args:
         dashboard_key: Dashboard identifier (e.g., 'kpi_yearly')

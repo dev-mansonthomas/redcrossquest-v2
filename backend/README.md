@@ -6,7 +6,7 @@ FastAPI backend for RedCrossQuest V2 Dashboards application.
 
 - **Health Check**: `/health` endpoint for Cloud Run health monitoring
 - **Authentication**: `/api/me` endpoint (Google OAuth in Wave 2)
-- **Metabase Embed**: `/api/embed/{dashboard_key}` endpoint (JWT signing in Wave 2)
+- **Superset Embed**: `/api/embed/{dashboard_key}` endpoint (Guest Token in Wave 2)
 - **MySQL Integration**: SQLAlchemy with read-only access to RCQ database
 - **Environment Configuration**: Multi-environment support (dev/test/prod)
 - **Cloud Run Ready**: Optimized Dockerfile with health checks
@@ -96,8 +96,8 @@ docker run -p 8080:8080 --env-file .env rcq-api
 ### Authentication (Wave 1: Mock Data)
 - `GET /api/me` - Get current user information
 
-### Metabase Embed (Wave 1: Placeholder)
-- `GET /api/embed/{dashboard_key}` - Get signed embed URL for dashboard
+### Superset Embed (Wave 1: Placeholder)
+- `GET /api/embed/{dashboard_key}` - Get embed URL for dashboard
 
 Valid dashboard keys:
 - `cumul-journalier`
@@ -119,7 +119,6 @@ Key variables:
 ## Wave 2 Features (Upcoming)
 
 - Google OAuth 2.0 authentication
-- JWT-signed Metabase embed URLs
+- Superset Guest Token embed URLs
 - UL-based filtering in embed URLs
 - Role-based access control
-

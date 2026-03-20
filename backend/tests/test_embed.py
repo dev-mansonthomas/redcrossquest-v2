@@ -1,4 +1,4 @@
-"""Tests for Metabase embed endpoints."""
+"""Tests for Superset embed endpoints."""
 import pytest
 import jwt
 from fastapi.testclient import TestClient
@@ -8,7 +8,7 @@ from src.routers import auth as auth_router
 from src.routers import embed as embed_router
 
 client = TestClient(app)
-METABASE_TEST_SIGNING_KEY = ("metabase-test-key-" * 2) + "1234"  # pragma: allowlist secret
+SUPERSET_TEST_SIGNING_KEY = ("superset-test-key-" * 2) + "1234"  # pragma: allowlist secret
 SESSION_TEST_SIGNING_KEY = ("session-test-key-" * 2) + "12345"  # pragma: allowlist secret
 TEST_USER_PROFILES: dict[str, dict[str, object]] = {}
 
@@ -16,8 +16,8 @@ TEST_USER_PROFILES: dict[str, dict[str, object]] = {}
 @pytest.fixture(autouse=True)
 def configure_embed_settings(monkeypatch):
     """Configure JWT secrets for embed tests."""
-    monkeypatch.setattr(embed_router.settings, "metabase_secret_key", METABASE_TEST_SIGNING_KEY)
-    monkeypatch.setattr(embed_router.settings, "metabase_site_url", "https://metabase.rcq.fr")
+    monkeypatch.setattr(embed_router.settings, "superset_admin_password", SUPERSET_TEST_SIGNING_KEY)
+    monkeypatch.setattr(embed_router.settings, "superset_url", "https://superset.rcq.fr")
     monkeypatch.setattr(embed_router.settings, "jwt_secret_key", SESSION_TEST_SIGNING_KEY)
     TEST_USER_PROFILES.clear()
 
@@ -59,10 +59,10 @@ def test_get_embed_url_locks_ul_id_from_session():
 
     assert response.status_code == 200
     data = response.json()
-    assert data["embed_url"].startswith("https://metabase.rcq.fr/embed/dashboard/")
+    assert data["embed_url"].startswith("https://superset.rcq.fr/embed/dashboard/")
 
     embed_token = data["embed_url"].rsplit("/", maxsplit=1)[-1]
-    payload = jwt.decode(embed_token, METABASE_TEST_SIGNING_KEY, algorithms=["HS256"])
+    payload = jwt.decode(embed_token, SUPERSET_TEST_SIGNING_KEY, algorithms=["HS256"])
 
     assert payload["resource"] == {"dashboard": 1}
     assert payload["params"]["year"] == "2026"

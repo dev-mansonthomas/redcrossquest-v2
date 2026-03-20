@@ -7,16 +7,16 @@ Terraform configuration for deploying RedCrossQuest V2 on Google Cloud Platform.
 This infrastructure deploys:
 
 - **Cloud Run Services**:
-  - `rcq_metabase`: Metabase analytics platform
+  - `rcq_superset`: Apache Superset analytics platform
   - `rcq_api`: FastAPI backend
   - `rcq_frontend`: Angular 21 frontend
 
-- **Cloud SQL**: MySQL 8 database (existing instance, new schema for Metabase)
+- **Cloud SQL**: MySQL 8 database (existing instance)
 
 - **Secret Manager**: Secure storage for:
   - Database credentials
   - OAuth client secrets
-  - Metabase encryption key
+  - Superset secret key
 
 - **IAM**: Service accounts and permissions for inter-service communication
 
@@ -28,7 +28,7 @@ This infrastructure deploys:
    ```bash
    # macOS
    brew install terraform
-   
+
    # Or download from: https://www.terraform.io/downloads
    ```
 
@@ -46,10 +46,7 @@ This infrastructure deploys:
 
 5. **Cloud SQL Instance**: Ensure the MySQL instance exists and note its connection name
 
-6. **Metabase Database**: Run the setup script to create the database schema
-   ```bash
-   ../scripts/setup_metabase_db.sh
-   ```
+6. **Superset**: See `superset/README.md` for setup instructions
 
 ## Directory Structure
 
@@ -80,7 +77,7 @@ infra/
    ```bash
    # Get your Cloud SQL instance connection name
    gcloud sql instances describe rcq-mysql-instance --format="value(connectionName)"
-   
+
    # Update in env/dev.tfvars, env/test.tfvars, env/prod.tfvars
    cloud_sql_connection_name = "rcq-fr-dev:europe-west1:rcq-mysql-instance"
    ```
@@ -112,17 +109,13 @@ infra/
 
 3. **Store secrets** in Secret Manager:
    ```bash
-   # Metabase DB credentials (from setup script)
-   echo -n 'rcq_metabase' | gcloud secrets versions add rcq_metabase_db_user_dev --data-file=-
-   echo -n 'YOUR_PASSWORD' | gcloud secrets versions add rcq_metabase_db_password_dev --data-file=-
-   
-   # Metabase encryption key (generate a random key)
-   openssl rand -base64 32 | gcloud secrets versions add rcq_metabase_encryption_key_dev --data-file=-
-   
+   # Superset secret key (generate a random key)
+   openssl rand -base64 32 | gcloud secrets versions add rcq_superset_secret_key_dev --data-file=-
+
    # API DB credentials
    echo -n 'rcq_api_user' | gcloud secrets versions add rcq_api_db_user_dev --data-file=-
    echo -n 'YOUR_API_PASSWORD' | gcloud secrets versions add rcq_api_db_password_dev --data-file=-
-   
+
    # Google OAuth credentials
    echo -n 'YOUR_CLIENT_ID' | gcloud secrets versions add rcq_google_oauth_client_id_dev --data-file=-
    echo -n 'YOUR_CLIENT_SECRET' | gcloud secrets versions add rcq_google_oauth_client_secret_dev --data-file=-
@@ -156,15 +149,15 @@ All resources follow the naming convention:
 - **Labels**: `app=rcq`, `environment=dev|test|prod`
 
 Examples:
-- Cloud Run: `rcq_metabase`, `rcq_api`, `rcq_frontend`
-- Secrets: `rcq_metabase_db_user_dev`, `rcq_api_db_password_prod`
-- Service Accounts: `rcq-metabase-sa`, `rcq-api-sa`
+- Cloud Run: `rcq_superset`, `rcq_api`, `rcq_frontend`
+- Secrets: `rcq_superset_secret_key_dev`, `rcq_api_db_password_prod`  <!-- pragma: allowlist secret -->
+- Service Accounts: `rcq-superset-sa`, `rcq-api-sa`
 
 ## Outputs
 
 After deployment, Terraform outputs:
 
-- `metabase_url`: Metabase service URL
+- `superset_url`: Superset service URL
 - `api_url`: API service URL
 - `frontend_url`: Frontend service URL
 - Service account emails for each service
@@ -217,6 +210,5 @@ After infrastructure is deployed:
 1. Build and push Docker images for each service
 2. Update image tags in tfvars files
 3. Re-run `terraform apply` to deploy new images
-4. Configure Metabase dashboards
+4. Configure Superset dashboards
 5. Set up CI/CD pipeline for automated deployments
-

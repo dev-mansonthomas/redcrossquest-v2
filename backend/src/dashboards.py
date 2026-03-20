@@ -1,4 +1,4 @@
-"""Metabase dashboard configuration."""
+"""Superset dashboard configuration."""
 from typing import TypedDict
 
 

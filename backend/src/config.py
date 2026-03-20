@@ -38,9 +38,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
 
-    # Metabase (Wave 2)
-    metabase_secret_key: str = ""
-    metabase_site_url: str = ""
+    # Superset (Wave 2)
+    superset_url: str = "http://localhost:8088"
+    superset_admin_username: str = "admin"
+    superset_admin_password: str = ""
 
     @property
     def rcq_database_url(self) -> str:
