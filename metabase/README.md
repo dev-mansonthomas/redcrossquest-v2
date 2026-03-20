@@ -4,9 +4,12 @@ This directory contains the Docker configuration for running Metabase with MySQL
 
 ## Architecture
 
-- **Metabase Application Database**: `rcq_metabase_db` schema in MySQL 8
-- **RCQ Data Source**: Read-only connection to `rcq_fr_*_db` schemas
+- **Metabase Application Database**: `rcq_metabase_db` schema in MySQL 8.0
+- **RCQ Data Source**: Read-only connection to `rcq_fr_*_db` schemas (imported manually from production dump)
 - **Deployment Target**: Google Cloud Run with Cloud SQL MySQL instance
+
+> **Note** : Le schéma RCQ n'est pas créé automatiquement. Vous devez importer votre propre dump.
+> Voir [IMPORT_DATA.md](IMPORT_DATA.md) pour les instructions.
 
 ## Local Development Setup
 
@@ -38,18 +41,24 @@ This directory contains the Docker configuration for running Metabase with MySQL
    docker compose up -d
    ```
 
-4. **Access Metabase**:
+4. **Import RCQ data** (see [IMPORT_DATA.md](IMPORT_DATA.md)):
+   ```bash
+   cp /path/to/your/dump.sql sql-imports/
+   docker exec -i rcq_mysql_dev mysql -u root -p"${MYSQL_ROOT_PASSWORD}" < sql-imports/dump.sql
+   ```
+
+5. **Access Metabase**:
    - Open http://localhost:3010
    - Complete initial setup wizard
    - Create admin account
 
-5. **Create read-only user** (for RCQ data access):
+6. **Create read-only user** (for RCQ data access):
    ```bash
    chmod +x init-scripts/03-create-readonly-user.sh
    ./init-scripts/03-create-readonly-user.sh
    ```
 
-6. **Configure RCQ data source in Metabase**:
+7. **Configure RCQ data source in Metabase**:
    - Go to Settings → Admin → Databases → Add Database
    - Type: MySQL
    - Host: `rcq_mysql` (or Cloud SQL instance for production)
