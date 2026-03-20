@@ -1,4 +1,4 @@
-FROM metabase/metabase:v0.49.3
+FROM metabase/metabase:v0.59.3
 
 # Cloud Run requires the container to listen on PORT env var
 ENV MB_JETTY_PORT=${PORT:-3000}
@@ -20,4 +20,3 @@ EXPOSE ${PORT:-3000}
 
 # Use the default entrypoint from the base image
 # No CMD needed - base image handles it
-

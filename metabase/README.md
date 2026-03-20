@@ -29,7 +29,13 @@ This directory contains the Docker configuration for running Metabase with MySQL
 
 3. **Start services**:
    ```bash
-   docker-compose up -d
+   ./run_local.sh
+   ```
+   This script stops any existing containers, rebuilds images (pulling latest base images), starts services in background, and tails the logs.
+
+   Alternatively, you can run the steps manually:
+   ```bash
+   docker compose up -d
    ```
 
 4. **Access Metabase**:
@@ -55,13 +61,33 @@ This directory contains the Docker configuration for running Metabase with MySQL
 ### Stopping Services
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 To remove volumes (⚠️ deletes all data):
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MB_DB_DBNAME` | Metabase application database name | `rcq_metabase_db` |
+| `MB_DB_USER` | Metabase database user | — |
+| `MB_DB_PASS` | Metabase database password | — |
+| `MB_DB_HOST` | MySQL host | `rcq_mysql` |
+| `MB_DB_PORT` | MySQL port | `3306` |
+| `MYSQL_ROOT_PASSWORD` | MySQL root password (local dev) | — |
+| `MB_SITE_URL` | Metabase public URL | `http://localhost:3000` |
+| `MB_EMBEDDING_SECRET_KEY` | Secret for embedding | — |
+
+### Ports
+
+| Service | Port | URL |
+|---------|------|-----|
+| Metabase | 3000 | http://localhost:3000 |
+| MySQL | 3306 | `mysql -h localhost -P 3306` |
 
 ## Cloud Run Deployment
 
@@ -140,7 +166,7 @@ Read-only access to RCQ operational data:
 
 Check logs:
 ```bash
-docker-compose logs rcq_metabase
+docker compose logs rcq_metabase
 ```
 
 Common issues:
@@ -167,4 +193,3 @@ After Metabase is running:
 1. Configure Google OAuth integration (Task 2.1)
 2. Set up embed signing (Task 2.2)
 3. Create the 4 priority dashboards (Tasks 3.1-3.4)
-
