@@ -29,7 +29,7 @@ This directory contains the Docker configuration for running Metabase with MySQL
 
 3. **Start services**:
    ```bash
-   ./run_local.sh
+   ./run_metabase_only.sh
    ```
    This script stops any existing containers, rebuilds images (pulling latest base images), starts services in background, and tails the logs.
 
@@ -39,7 +39,7 @@ This directory contains the Docker configuration for running Metabase with MySQL
    ```
 
 4. **Access Metabase**:
-   - Open http://localhost:3000
+   - Open http://localhost:3010
    - Complete initial setup wizard
    - Create admin account
 
@@ -79,15 +79,15 @@ docker compose down -v
 | `MB_DB_HOST` | MySQL host | `rcq_mysql` |
 | `MB_DB_PORT` | MySQL port | `3306` |
 | `MYSQL_ROOT_PASSWORD` | MySQL root password (local dev) | — |
-| `MB_SITE_URL` | Metabase public URL | `http://localhost:3000` |
+| `MB_SITE_URL` | Metabase public URL | `http://localhost:3010` |
 | `MB_EMBEDDING_SECRET_KEY` | Secret for embedding | — |
 
 ### Ports
 
 | Service | Port | URL |
 |---------|------|-----|
-| Metabase | 3000 | http://localhost:3000 |
-| MySQL | 3306 | `mysql -h localhost -P 3306` |
+| Metabase | 3010 | http://localhost:3010 |
+| MySQL | 3316 | `mysql -h localhost -P 3316` |
 
 ## Cloud Run Deployment
 
@@ -184,7 +184,7 @@ mysql -h localhost -u rcq_readonly_user -p rcq_fr_dev_db
 
 Test manually:
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:3010/api/health
 ```
 
 ## Next Steps

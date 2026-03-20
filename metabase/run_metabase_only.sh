@@ -14,7 +14,7 @@ docker compose up -d
 
 echo ""
 echo "✅ Metabase is starting up!"
-echo "   URL: http://localhost:3000"
+echo "   URL: http://localhost:3010"
 echo ""
 echo "📋 Logs (Ctrl+C to exit logs, services continue running):"
 docker compose logs -f

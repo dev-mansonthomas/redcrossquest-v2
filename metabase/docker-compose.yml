@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: rcq_metabase
     ports:
-      - "3000:3000"
+      - "3010:3000"
     environment:
       # Metabase application database (MySQL)
       MB_DB_TYPE: mysql
@@ -20,7 +20,7 @@ services:
 
       # Metabase site settings
       MB_SITE_NAME: "RedCrossQuest Dashboards"
-      MB_SITE_URL: ${MB_SITE_URL:-http://localhost:3000}
+      MB_SITE_URL: ${MB_SITE_URL:-http://localhost:3010}
 
       # Embedding settings (will be configured via UI or API)
       MB_EMBEDDING_SECRET_KEY: ${MB_EMBEDDING_SECRET_KEY}
@@ -41,7 +41,7 @@ services:
     image: mysql:8.4
     container_name: rcq_mysql_dev
     ports:
-      - "3306:3306"
+      - "3316:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MB_DB_DBNAME:-rcq_metabase_db}
