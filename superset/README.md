@@ -35,16 +35,26 @@ docker compose up -d --build
 |------------------|----------------------------|
 | MySQL            | `localhost:3316`           |
 | Superset         | http://localhost:8088      |
-| Valkey (Redis)   | `localhost:6379`           |
+| Valkey (Redis)   | `localhost:6389`           |
 
 Default Superset login: `admin` / `admin`
 
 ## Valkey database allocation
 
-| Base | Usage                              |
-|------|------------------------------------|
-| 0    | Reserved for FastAPI (sessions)    |
-| 1    | Superset (cache, Celery broker)    |
+| Base | Projet | Usage |
+|------|--------|-------|
+| 0    | CLEF   | ⚠️ Réservé (autre projet) |
+| 1    | RCQ    | Superset (cache, Celery broker) |
+
+> **Note** : La base 0 est utilisée par le projet CLEF sur ce poste de développement.
+> Les projets seront séparés à terme (instances Valkey distinctes par projet).
+
+### Configuration
+
+Le numéro de base est configurable via `VALKEY_DB` dans `.env` :
+```env
+VALKEY_DB=1  # Base par défaut pour Superset
+```
 
 ## Architecture
 

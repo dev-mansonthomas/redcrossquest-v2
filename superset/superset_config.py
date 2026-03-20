@@ -20,7 +20,7 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
 # ---------------------------------------------------------
 VALKEY_HOST = os.environ.get("VALKEY_HOST", "valkey")
 VALKEY_PORT = int(os.environ.get("VALKEY_PORT", "6379"))
-VALKEY_DB = 1  # Base 1 for Superset
+VALKEY_DB = int(os.environ.get("VALKEY_DB", "1"))  # Configurable via env var
 
 CACHE_CONFIG = {
     "CACHE_TYPE": "RedisCache",

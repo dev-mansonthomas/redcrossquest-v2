@@ -39,7 +39,7 @@ services:
     image: valkey/valkey:8-alpine
     container_name: rcq_valkey
     ports:
-      - "6379:6379"
+      - "6389:6379"  # External 6389 to avoid conflict with CLEF on 6379
     volumes:
       - valkey_data:/data
     healthcheck:
@@ -67,7 +67,8 @@ services:
       SUPERSET_ADMIN_LAST_NAME: ${SUPERSET_ADMIN_LAST_NAME:-User}
       SUPERSET_CORS_ORIGINS: ${SUPERSET_CORS_ORIGINS:-http://localhost:4210,http://localhost:8010}
       VALKEY_HOST: valkey
-      VALKEY_PORT: "6379"
+      VALKEY_PORT: "6379"  # Internal container port (unchanged)
+      VALKEY_DB: ${VALKEY_DB:-1}
     ports:
       - "8088:8088"
     depends_on:
@@ -93,7 +94,8 @@ services:
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-CHANGE_ME_TO_A_RANDOM_SECRET_KEY}
       VALKEY_HOST: valkey
-      VALKEY_PORT: "6379"
+      VALKEY_PORT: "6379"  # Internal container port (unchanged)
+      VALKEY_DB: ${VALKEY_DB:-1}
     depends_on:
       valkey:
         condition: service_healthy
