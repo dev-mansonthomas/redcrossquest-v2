@@ -71,6 +71,21 @@ VALKEY_DB=1  # Base par défaut pour Superset
    mysql://rcq_readonly:<YOUR_PASSWORD>@mysql:3306/rcq_fr_dev_db
    ```
 
+## MySQL User Setup
+
+Create the read-only user for Superset:
+
+```bash
+# From host (outside container)
+docker exec -i rcq_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" < superset/config/create_readonly_user.sql
+
+# Or connect to MySQL and run manually
+docker exec -it rcq_mysql mysql -u root -p
+# Then paste the SQL commands
+```
+
+See `superset/config/create_readonly_user.sql` for the full script.
+
 ## Troubleshooting
 
 ```bash
