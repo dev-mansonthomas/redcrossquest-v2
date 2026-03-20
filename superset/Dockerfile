@@ -9,11 +9,15 @@ RUN apt-get update && \
         gcc \
         default-libmysqlclient-dev \
         pkg-config \
-    && pip install --no-cache-dir mysqlclient \
-    && apt-get remove -y gcc pkg-config \
-    && apt-get autoremove -y \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install mysqlclient in Superset's virtualenv
+RUN /app/.venv/bin/pip install --no-cache-dir mysqlclient
+
+# Clean up build dependencies
+RUN apt-get remove -y gcc pkg-config && \
+    apt-get autoremove -y && \
+    apt-get clean
 
 # Copy Superset configuration
 COPY superset_config.py /app/superset_config.py
