@@ -10,11 +10,32 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Parse arguments
+SKIP_BUILD=false
+for arg in "$@"; do
+    case $arg in
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+    esac
+done
+
 echo -e "${GREEN}🚀 RCQ-V2 Local Development Environment${NC}"
 echo "=========================================="
+if [ "$SKIP_BUILD" = true ]; then
+    echo -e "${YELLOW}   (--skip-build: skipping Docker image rebuild)${NC}"
+fi
 
 # Track background PIDs
 PIDS=()
+
+# Track service statuses
+MYSQL_OK=false
+SUPERSET_OK=false
+BACKEND_OK=false
+FRONTEND_OK=false
+HAS_FRONTEND=false
 
 # Cleanup function
 cleanup() {
@@ -42,10 +63,64 @@ check_prereqs() {
         echo -e "${RED}❌ Poetry is required but not installed${NC}"
         missing=1
     fi
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}❌ curl is required but not installed${NC}"
+        missing=1
+    fi
     if [ "$missing" -eq 1 ]; then
         exit 1
     fi
     echo -e "${GREEN}✅ Prerequisites OK${NC}"
+}
+
+# Wait for a service to respond on an HTTP endpoint
+wait_for_service() {
+    local name=$1
+    local url=$2
+    local max_attempts=${3:-30}
+    local attempt=1
+
+    echo -n "   ⏳ Waiting for $name..."
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s -f "$url" > /dev/null 2>&1; then
+            echo -e " ${GREEN}✅${NC}"
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    echo -e " ${RED}❌ Timeout after $((max_attempts * 2))s${NC}"
+    return 1
+}
+
+# Wait for MySQL to be ready via docker exec
+wait_for_mysql() {
+    local max_attempts=30
+    local attempt=1
+    echo -n "   ⏳ Waiting for MySQL..."
+    while [ $attempt -le $max_attempts ]; do
+        if docker exec rcq_mysql mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD:-rcq_root_password}" --silent 2>/dev/null; then
+            echo -e " ${GREEN}✅${NC}"
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    echo -e " ${RED}❌ Timeout after $((max_attempts * 2))s${NC}"
+    return 1
+}
+
+# Create MySQL readonly user if it doesn't exist
+setup_mysql_user() {
+    echo -n "   🔧 Checking MySQL rcq_readonly user..."
+    if docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD:-rcq_root_password}" \
+        -e "CREATE USER IF NOT EXISTS 'rcq_readonly'@'%' IDENTIFIED BY '${MYSQL_PASSWORD:-rcq_password}'; \
+            GRANT SELECT ON ${MYSQL_DATABASE:-rcq_fr_dev_db}.* TO 'rcq_readonly'@'%'; \
+            FLUSH PRIVILEGES;" 2>/dev/null; then
+        echo -e " ${GREEN}✅ ready${NC}"
+    else
+        echo -e " ${YELLOW}⚠️  could not configure (non-fatal)${NC}"
+    fi
 }
 
 # Start Superset (MySQL + Superset + Celery + Valkey)
@@ -56,7 +131,11 @@ start_superset() {
         cp superset/.env.example superset/.env
         echo -e "${YELLOW}   Please edit superset/.env with your credentials${NC}"
     fi
-    docker compose -f superset/docker-compose.yml up -d --build
+    if [ "$SKIP_BUILD" = true ]; then
+        docker compose -f superset/docker-compose.yml up -d
+    else
+        docker compose -f superset/docker-compose.yml up -d --build
+    fi
     echo -e "${GREEN}   Superset stack started in background${NC}"
 }
 
@@ -81,6 +160,7 @@ start_backend() {
 # Start Frontend (if exists)
 start_frontend() {
     if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+        HAS_FRONTEND=true
         echo -e "\n${GREEN}🅰️  Starting Angular Frontend...${NC}"
         cd frontend
         npm install --silent
@@ -94,25 +174,82 @@ start_frontend() {
     fi
 }
 
+# Print final status table
+print_status_table() {
+    local mysql_status superset_status backend_status frontend_status
+    if [ "$MYSQL_OK" = true ]; then mysql_status="${GREEN}✅ OK${NC}"; else mysql_status="${RED}❌ FAIL${NC}"; fi
+    if [ "$SUPERSET_OK" = true ]; then superset_status="${GREEN}✅ OK${NC}"; else superset_status="${RED}❌ FAIL${NC}"; fi
+    if [ "$BACKEND_OK" = true ]; then backend_status="${GREEN}✅ OK${NC}"; else backend_status="${RED}❌ FAIL${NC}"; fi
+
+    echo ""
+    echo "=========================================="
+    echo -e "${GREEN}Service Status:${NC}"
+    echo ""
+    printf "   %-14s %-10b %s\n" "MySQL" "$mysql_status" "localhost:3316"
+    printf "   %-14s %-10b %s\n" "Superset" "$superset_status" "http://localhost:8088"
+    printf "   %-14s %-10b %s\n" "Backend API" "$backend_status" "http://localhost:8010"
+    printf "   %-14s %-10b %s\n" "API Docs" "$backend_status" "http://localhost:8010/docs"
+
+    if [ "$HAS_FRONTEND" = true ]; then
+        if [ "$FRONTEND_OK" = true ]; then frontend_status="${GREEN}✅ OK${NC}"; else frontend_status="${RED}❌ FAIL${NC}"; fi
+        printf "   %-14s %-10b %s\n" "Frontend" "$frontend_status" "http://localhost:4210"
+    fi
+
+    echo ""
+
+    # Check if all critical services are up
+    if [ "$MYSQL_OK" = true ] && [ "$SUPERSET_OK" = true ] && [ "$BACKEND_OK" = true ]; then
+        if [ "$HAS_FRONTEND" = true ] && [ "$FRONTEND_OK" = true ]; then
+            echo -e "${GREEN}🎉 All services ready! Open http://localhost:4210${NC}"
+        elif [ "$HAS_FRONTEND" = false ]; then
+            echo -e "${GREEN}🎉 All services ready! Open http://localhost:8088${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Some services failed to start. Check logs above.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Some services failed to start. Check logs above.${NC}"
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
+    echo "=========================================="
+}
+
+# =============================================
 # Main
+# =============================================
 check_prereqs
 start_superset
+
+# Wait for MySQL before setting up user
+if wait_for_mysql; then
+    MYSQL_OK=true
+    setup_mysql_user
+fi
+
+# Wait for Superset
+if wait_for_service "Superset" "http://localhost:8088/health" 45; then
+    SUPERSET_OK=true
+fi
+
 start_backend
+
+# Wait for Backend
+if wait_for_service "Backend" "http://localhost:8010/health" 30; then
+    BACKEND_OK=true
+fi
+
 start_frontend
 
-echo ""
-echo "=========================================="
-echo -e "${GREEN}✅ Services running:${NC}"
-echo "   🐳 Superset:  http://localhost:8088"
-echo "   🐬 MySQL:     localhost:3316"
-echo "   🐍 Backend:   http://localhost:8010"
-echo "   📚 API Docs:  http://localhost:8010/docs"
-if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
-    echo "   🅰️  Frontend:  http://localhost:4210"
+# Wait for Frontend (if present)
+if [ "$HAS_FRONTEND" = true ]; then
+    if wait_for_service "Frontend" "http://localhost:4210" 30; then
+        FRONTEND_OK=true
+    fi
 fi
-echo ""
-echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
-echo "=========================================="
+
+# Final status
+print_status_table
 
 # Wait for background processes
 wait
