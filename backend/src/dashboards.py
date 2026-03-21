@@ -13,7 +13,7 @@ ADMIN_ROLES = {"admin", "super_admin"}
 
 DASHBOARDS: dict[str, DashboardConfig] = {
     "kpi_yearly": {"id": 1, "roles": ["1", "2", "3", "4"]},
-    "leaderboard_current_year": {"id": 2, "roles": ["1", "2", "3"]},
+    "leaderboard_current_year": {"id": 3, "roles": ["1", "2", "3"]},
     "goal_progress": {"id": 3, "roles": ["1", "2"]},
     "counting_treasurer": {"id": 4, "roles": ["1", "2", "3"]},
 }
