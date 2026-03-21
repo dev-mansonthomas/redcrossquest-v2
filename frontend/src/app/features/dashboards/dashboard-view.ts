@@ -6,15 +6,26 @@ import {
   ViewChild,
   inject,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { SupersetService } from '../../core/services/superset.service';
+import { DASHBOARD_UUIDS } from './dashboard.routes';
+
+const DASHBOARD_TITLES: Record<string, string> = {
+  cumul: 'Cumul Journalier',
+  kpi: 'KPI Annuels',
+  comptage: 'Comptage Trésorier',
+  leaderboard: 'Leaderboard Collecteurs',
+};
 
 @Component({
   selector: 'app-dashboard-view',
   standalone: true,
   template: `
-    <div class="h-full w-full">
-      <div #dashboardContainer class="w-full h-[calc(100vh-64px)]"></div>
+    <div class="h-full w-full flex flex-col">
+      <div class="px-6 py-4 bg-white border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">{{ title }}</h2>
+      </div>
+      <div #dashboardContainer class="flex-1 w-full"></div>
     </div>
   `,
 })
@@ -23,20 +34,25 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
   container!: ElementRef<HTMLElement>;
 
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly supersetService = inject(SupersetService);
 
+  title = '';
+
   ngOnInit(): void {
-    const dashboardId = this.route.snapshot.paramMap.get('id');
-    if (dashboardId) {
+    const slug = this.route.snapshot.paramMap.get('slug');
+    if (slug && DASHBOARD_UUIDS[slug]) {
+      this.title = DASHBOARD_TITLES[slug] ?? slug;
       this.supersetService.embedDashboard(
-        dashboardId,
+        DASHBOARD_UUIDS[slug],
         this.container.nativeElement
       );
+    } else {
+      this.router.navigate(['/dashboards']);
     }
   }
 
   ngOnDestroy(): void {
-    // Clean up embedded iframe
     if (this.container?.nativeElement) {
       this.container.nativeElement.innerHTML = '';
     }

@@ -5,6 +5,8 @@ import { ApiService } from './api.service';
 export interface User {
   email: string;
   name: string;
+  role?: number;
+  ul_id?: number;
 }
 
 @Injectable({ providedIn: 'root' })
