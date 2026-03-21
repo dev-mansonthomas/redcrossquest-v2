@@ -15,10 +15,8 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
-      - RCQ_DB_HOST=host.docker.internal  # Connect to MySQL on host
-      - RCQ_DB_PORT=3316
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - RCQ_DB_HOST=rcq_mysql  # Connect directly to MySQL container
+      - RCQ_DB_PORT=3306       # Internal Docker port, not external 3316
     command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
@@ -26,7 +24,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - rcq-network
+      - rcq_default  # Same network as MySQL
 
   frontend:
     build:
@@ -44,11 +42,11 @@ services:
       - CI=true
     command: ng serve --host 0.0.0.0 --port 4210 --poll 2000
     networks:
-      - rcq-network
+      - rcq_default  # Same network as MySQL
 
 networks:
-  rcq-network:
-    driver: bridge
+  rcq_default:
+    external: true  # Use the network created by superset/docker-compose.yml
 
 volumes:
   backend-cache:
