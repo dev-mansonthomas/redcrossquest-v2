@@ -98,13 +98,14 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any] | None:
     result = db.execute(
         text(
             """
-            SELECT users.email AS email,
+            SELECT q.email AS email,
                    users.role AS role,
                    users.ul_id AS ul_id,
                    ul.name AS ul_name
             FROM users
+            INNER JOIN queteur q ON q.id = users.queteur_id
             LEFT JOIN ul ON ul.id = users.ul_id
-            WHERE LOWER(users.email) = LOWER(:email)
+            WHERE LOWER(q.email) = LOWER(:email)
             LIMIT 1
             """
         ),
