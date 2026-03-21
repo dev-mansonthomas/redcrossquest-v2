@@ -1,0 +1,27 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install system dependencies (curl for healthcheck, mysql client libs)
+RUN apt-get update && apt-get install -y \
+    curl \
+    default-libmysqlclient-dev \
+    pkg-config \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements/pyproject for dependencies
+COPY pyproject.toml poetry.lock* ./
+
+# Install poetry and dependencies
+RUN pip install poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-interaction --no-ansi
+
+# Copy application code
+COPY . .
+
+EXPOSE 8010
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
+

@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: rcq_backend
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RCQ_DB_HOST=host.docker.internal  # Connect to MySQL on host
+      - RCQ_DB_PORT=3316
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rcq-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: rcq_frontend
+    ports:
+      - "4210:4210"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Exclude node_modules from volume
+      - frontend-cache:/root/.npm
+    environment:
+      - NODE_ENV=development
+      - CI=true
+    command: ng serve --host 0.0.0.0 --port 4210 --poll 2000
+    networks:
+      - rcq-network
+
+networks:
+  rcq-network:
+    driver: bridge
+
+volumes:
+  backend-cache:
+  frontend-cache:
+
