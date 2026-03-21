@@ -142,6 +142,15 @@ start_superset() {
 # Start Backend
 start_backend() {
     echo -e "\n${GREEN}🐍 Starting FastAPI Backend...${NC}"
+
+    # Kill any existing process on port 8010
+    local existing_pid=$(lsof -ti:8010 2>/dev/null)
+    if [ -n "$existing_pid" ]; then
+        echo "   Killing existing process on port 8010 (PID: $existing_pid)"
+        kill -9 $existing_pid 2>/dev/null || true
+        sleep 1
+    fi
+
     cd backend
     if [ ! -f .env ]; then
         if [ -f .env.example ]; then
@@ -163,9 +172,23 @@ start_frontend() {
     if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
         HAS_FRONTEND=true
         echo -e "\n${GREEN}🅰️  Starting Angular Frontend...${NC}"
+
+        # Kill any existing process on port 4210
+        local existing_pid=$(lsof -ti:4210 2>/dev/null)
+        if [ -n "$existing_pid" ]; then
+            echo "   Killing existing process on port 4210 (PID: $existing_pid)"
+            kill -9 $existing_pid 2>/dev/null || true
+            sleep 1
+        fi
+
         cd frontend
-        npm install --silent
-        npm start &
+        npm install --silent 2>/dev/null
+
+        # Disable Angular CLI analytics prompts
+        npx ng config cli.analytics false 2>/dev/null || true
+
+        # Run with CI=true to disable interactive prompts
+        CI=true npm start &
         local pid=$!
         PIDS+=($pid)
         cd "$SCRIPT_DIR"
