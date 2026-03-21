@@ -11,8 +11,9 @@ export class SupersetService {
   async embedDashboard(dashboardId: string, container: HTMLElement): Promise<void> {
     const fetchGuestToken = async (): Promise<string> => {
       const response = await firstValueFrom(
-        this.http.get<{ guest_token: string }>(
-          `${environment.apiUrl}/api/superset/guest_token`
+        this.http.post<{ guest_token: string }>(
+          `${environment.apiUrl}/api/superset/guest_token`,
+          {}
         )
       );
       return response.guest_token;

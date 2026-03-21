@@ -17,6 +17,7 @@ services:
       - PYTHONUNBUFFERED=1
       - RCQ_DB_HOST=rcq_mysql  # Connect directly to MySQL container
       - RCQ_DB_PORT=3306       # Internal Docker port, not external 3316
+      - SUPERSET_URL=http://rcq_superset:8088
     command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
