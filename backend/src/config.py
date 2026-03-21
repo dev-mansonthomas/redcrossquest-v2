@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
 
+    # Frontend
+    frontend_url: str = "http://localhost:4210"
+
     # Superset (Wave 2)
     superset_url: str = "http://localhost:8088"
     superset_admin_username: str = "admin"

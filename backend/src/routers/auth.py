@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, Response, status
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -234,16 +235,15 @@ async def login() -> Response:
     return response
 
 
-@router.get("/auth/callback", response_model=UserResponse)
+@router.get("/auth/callback")
 async def auth_callback(
     request: FastAPIRequest,
-    response: Response,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
     db: Session = Depends(get_rcq_db),
 ):
-    """Handle the Google OAuth callback and create a signed session."""
+    """Handle the Google OAuth callback and redirect to the frontend."""
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Google OAuth error: {error}")
     if not code:
@@ -274,7 +274,9 @@ async def auth_callback(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not authorized")
 
     session_token = create_session_token(user_profile)
-    response.set_cookie(
+
+    redirect_response = RedirectResponse(url=settings.frontend_url, status_code=302)
+    redirect_response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_token,
         max_age=settings.jwt_expire_minutes * 60,
@@ -283,13 +285,13 @@ async def auth_callback(
         secure=_cookie_secure_flag(),
         path="/",
     )
-    response.delete_cookie(
+    redirect_response.delete_cookie(
         key=OAUTH_STATE_COOKIE_NAME,
         path="/",
         samesite="lax",
         secure=_cookie_secure_flag(),
     )
-    return UserResponse(**user_profile)
+    return redirect_response
 
 
 @router.get("/auth/logout")
