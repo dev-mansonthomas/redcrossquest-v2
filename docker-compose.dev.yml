@@ -1,3 +1,5 @@
+name: rcq
+
 services:
   backend:
     build:

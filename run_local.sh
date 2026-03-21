@@ -22,13 +22,13 @@ fi
 
 # Stop any existing containers
 echo "🛑 Stopping any existing containers..."
-docker compose -f docker-compose.dev.yml down 2>/dev/null || true
-docker compose -f superset/docker-compose.yml down 2>/dev/null || true
+docker compose -p rcq -f docker-compose.dev.yml down 2>/dev/null || true
+docker compose -p rcq -f superset/docker-compose.yml down 2>/dev/null || true
 
 # Start infrastructure (MySQL, Superset, Valkey)
 echo ""
 echo "🐳 Starting infrastructure (MySQL, Superset, Valkey)..."
-docker compose -f superset/docker-compose.yml up -d --build
+docker compose -p rcq -f superset/docker-compose.yml up -d --build
 
 # Wait for MySQL
 echo ""
@@ -83,7 +83,7 @@ done
 # Start application (Backend, Frontend)
 echo ""
 echo "🔨 Building and starting application..."
-docker compose -f docker-compose.dev.yml up -d --build
+docker compose -p rcq -f docker-compose.dev.yml up -d --build
 
 # Wait for Backend
 echo ""
@@ -127,11 +127,11 @@ echo "  - MySQL:     localhost:3316"
 echo "  - Valkey:    localhost:6389"
 echo ""
 echo "📝 Useful commands:"
-echo "  - View app logs:    docker compose -f docker-compose.dev.yml logs -f"
-echo "  - View infra logs:  docker compose -f superset/docker-compose.yml logs -f"
-echo "  - Stop all:         docker compose -f docker-compose.dev.yml down && docker compose -f superset/docker-compose.yml down"
-echo "  - Restart backend:  docker compose -f docker-compose.dev.yml restart backend"
-echo "  - Restart frontend: docker compose -f docker-compose.dev.yml restart frontend"
+echo "  - View app logs:    docker compose -p rcq -f docker-compose.dev.yml logs -f"
+echo "  - View infra logs:  docker compose -p rcq -f superset/docker-compose.yml logs -f"
+echo "  - Stop all:         docker compose -p rcq -f docker-compose.dev.yml down && docker compose -p rcq -f superset/docker-compose.yml down"
+echo "  - Restart backend:  docker compose -p rcq -f docker-compose.dev.yml restart backend"
+echo "  - Restart frontend: docker compose -p rcq -f docker-compose.dev.yml restart frontend"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
 echo ""

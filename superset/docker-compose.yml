@@ -1,6 +1,8 @@
 # RCQ V2 — MySQL + Apache Superset + Celery + Valkey
 # Usage: cd superset && docker compose up -d
 
+name: rcq
+
 services:
   # -------------------------------------------------------
   # Phase 1: MySQL 8.0 — available immediately
