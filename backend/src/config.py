@@ -1,5 +1,6 @@
 """Configuration management for RCQ API."""
 from typing import Literal
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,8 +26,13 @@ class Settings(BaseSettings):
     rcq_db_user: str = "rcq_readonly"
     rcq_db_password: str = ""
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:4200"]
+    # CORS — stored as comma-separated string to avoid pydantic-settings JSON parsing
+    cors_origins_str: str = Field(default="http://localhost:4200", validation_alias="cors_origins")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Parse comma-separated CORS origins into a list."""
+        return [origin.strip() for origin in self.cors_origins_str.split(",") if origin.strip()]
 
     # Google OAuth (Wave 2)
     google_client_id: str = ""

@@ -152,9 +152,10 @@ start_backend() {
     fi
     poetry install --quiet
     poetry run uvicorn src.main:app --reload --host 0.0.0.0 --port 8010 &
-    PIDS+=($!)
+    local pid=$!
+    PIDS+=($pid)
     cd "$SCRIPT_DIR"
-    echo -e "${GREEN}   Backend started (PID: ${PIDS[-1]})${NC}"
+    echo -e "${GREEN}   Backend started (PID: $pid)${NC}"
 }
 
 # Start Frontend (if exists)
@@ -165,9 +166,10 @@ start_frontend() {
         cd frontend
         npm install --silent
         npm start &
-        PIDS+=($!)
+        local pid=$!
+        PIDS+=($pid)
         cd "$SCRIPT_DIR"
-        echo -e "${GREEN}   Frontend started (PID: ${PIDS[-1]})${NC}"
+        echo -e "${GREEN}   Frontend started (PID: $pid)${NC}"
     else
         echo -e "\n${YELLOW}ℹ️  Frontend not found (frontend/ directory missing)${NC}"
         echo "   Will be available after Wave 4"
