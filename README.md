@@ -10,11 +10,39 @@ A new project created with Intent by Augment.
 - **Poetry** (Python package manager, for the backend)
 - **Node.js** (for the frontend, when available)
 
-### Quick Start
+### First-time setup
 
 ```bash
-# Start all services
+# Initialize the database with sample data
+./run_local.sh --init-db
+```
+
+### Regular usage
+
+```bash
+# Start without re-initializing (preserves your data)
 ./run_local.sh
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--init-db` | Initialize/reset the database with SQL dumps from `superset/sql-imports/` |
+
+### ⚠️ Database Reset
+
+To completely reset the database:
+
+```bash
+# 1. Stop all containers
+docker compose -p rcq down
+
+# 2. Remove the MySQL volume (⚠️ DELETES ALL DATA)
+docker volume rm rcq_mysql_data
+
+# 3. Restart with initialization
+./run_local.sh --init-db
 ```
 
 This will launch:

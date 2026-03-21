@@ -10,6 +10,17 @@
 
 set -e
 
+# Parse arguments
+INIT_DB=false
+for arg in "$@"; do
+    case $arg in
+        --init-db)
+            INIT_DB=true
+            shift
+            ;;
+    esac
+done
+
 # Load environment variables from superset/.env
 if [ -f superset/.env ]; then
     export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
@@ -62,6 +73,29 @@ docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
     "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}'; \
      GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%'; \
      FLUSH PRIVILEGES;" 2>/dev/null || true
+
+# Initialize database if --init-db flag is passed
+init_database() {
+    if [ "$INIT_DB" = true ]; then
+        echo ""
+        echo "   🗄️  Initializing database (--init-db)..."
+
+        # Import the main SQL dump
+        if [ -f "superset/sql-imports/01-rcq_prod_2026.sql" ]; then
+            echo "   📥 Importing 01-rcq_prod_2026.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/01-rcq_prod_2026.sql
+            echo "   ✅ Main SQL dump imported"
+        fi
+
+        # Run trigger and anonymization
+        if [ -f "superset/sql-imports/02-add-trigger_and_anonymise.sql" ]; then
+            echo "   📥 Running 02-add-trigger_and_anonymise.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/02-add-trigger_and_anonymise.sql
+            echo "   ✅ Trigger and anonymization applied"
+        fi
+    fi
+}
+init_database
 
 # Wait for Superset
 echo -n "  Superset: "
@@ -125,6 +159,15 @@ for i in {1..120}; do
     fi
     sleep 1
 done
+
+# Check if database has tables (simple check)
+TABLE_COUNT=$(docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}';" 2>/dev/null || echo "0")
+
+if [ "$TABLE_COUNT" = "0" ] && [ "$INIT_DB" = false ]; then
+    echo ""
+    echo "   ⚠️  Database is empty. Run with --init-db to initialize:"
+    echo "      ./run_local.sh --init-db"
+fi
 
 echo ""
 echo "✅ RCQ V2 Development Environment is running!"
