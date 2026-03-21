@@ -28,8 +28,8 @@ def client():
 
 
 def test_login_redirects_to_google(client):
-    """`/api/auth/login` should redirect to the Google OAuth consent screen."""
-    response = client.get("/api/auth/login", follow_redirects=False)
+    """`/api/auth/login/google` should redirect to the Google OAuth consent screen."""
+    response = client.get("/api/auth/login/google", follow_redirects=False)
 
     assert response.status_code == 307
     assert auth.OAUTH_STATE_COOKIE_NAME in response.cookies

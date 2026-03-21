@@ -199,7 +199,7 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
     return user_profile
 
 
-@router.get("/auth/login")
+@router.get("/auth/login/google")
 async def login() -> Response:
     """Redirect the browser to the Google OAuth consent screen."""
     _require_oauth_settings()
