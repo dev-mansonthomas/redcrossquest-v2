@@ -2,8 +2,18 @@
 
 # RCQ V2 - Local Development Environment Launcher
 # This script starts the entire development stack using Docker Compose
+#
+# ⚠️ ATTENTION: La suppression de volumes Docker (docker volume rm)
+# doit TOUJOURS avoir l'autorisation explicite de l'utilisateur.
+# Impact: Perte de toutes les données MySQL (tables, users, etc.)
+# Demander confirmation avant toute suppression de volume!
 
 set -e
+
+# Load environment variables from superset/.env
+if [ -f superset/.env ]; then
+    export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
+fi
 
 echo "🚀 Starting RCQ V2 Development Environment..."
 echo ""
@@ -35,7 +45,7 @@ echo ""
 echo "⏳ Waiting for infrastructure..."
 echo -n "  MySQL: "
 for i in {1..60}; do
-    if docker exec rcq_mysql mysqladmin ping -h localhost -u root -prcq_root_password --silent 2>/dev/null; then
+    if docker exec rcq_mysql mysqladmin ping -h localhost -u root -p"${MYSQL_ROOT_PASSWORD}" --silent 2>/dev/null; then
         echo "✅ Ready"
         break
     fi
@@ -47,9 +57,10 @@ for i in {1..60}; do
 done
 
 # Setup MySQL user if needed
-docker exec rcq_mysql mysql -u root -prcq_root_password -e \
-    "CREATE USER IF NOT EXISTS 'rcq_readonly'@'%' IDENTIFIED BY 'rcq_password'; \
-     GRANT SELECT ON rcq_fr_dev_db.* TO 'rcq_readonly'@'%'; \
+echo "   🔧 Configuring MySQL user..."
+docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
+    "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}'; \
+     GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%'; \
      FLUSH PRIVILEGES;" 2>/dev/null || true
 
 # Wait for Superset
