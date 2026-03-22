@@ -66,6 +66,8 @@ backend/.env.*
 superset/.env
 superset/.env.*
 !superset/.env.example
+superset/provisioning/.env.*
+!superset/provisioning/.env.example
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
@@ -165,6 +167,7 @@ secrets/
 !.eslintrc.json
 !jest.config.json
 !renovate.json
+!superset/provisioning/dashboards/**/*.json
 
 # ============================================
 # Données sensibles (emails, téléphones bénévoles)

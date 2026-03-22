@@ -1,0 +1,9 @@
+{
+  "name": "yearly_goal",
+  "title": "Objectifs Annuels",
+  "description": "Dashboard des objectifs annuels cumulés par jour",
+  "slug": "kpi_yearly",
+  "published": true,
+  "certified_by": null
+}
+

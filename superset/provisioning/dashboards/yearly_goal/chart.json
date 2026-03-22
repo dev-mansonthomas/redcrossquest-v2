@@ -1,0 +1,15 @@
+{
+  "name": "Cumul Objectifs par Jour",
+  "viz_type": "echarts_timeseries_line",
+  "description": "Montant cumulé des objectifs journaliers",
+  "params": {
+    "x_axis": "jour_num",
+    "metrics": ["montant_cumule"],
+    "groupby": [],
+    "order_desc": true,
+    "row_limit": 100,
+    "truncate_metric": true,
+    "show_legend": true
+  }
+}
+

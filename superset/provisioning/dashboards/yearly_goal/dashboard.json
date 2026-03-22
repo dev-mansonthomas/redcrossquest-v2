@@ -1,0 +1,13 @@
+{
+  "dashboard_title": "Objectifs Annuels",
+  "slug": "yearly-goal",
+  "published": true,
+  "position_json": {},
+  "css": "",
+  "json_metadata": {
+    "color_scheme": "supersetColors",
+    "refresh_frequency": 0,
+    "shared_label_colors": {}
+  }
+}
+
