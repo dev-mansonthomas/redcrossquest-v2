@@ -1,0 +1,65 @@
+/* Light Theme for RCQ Dashboards */
+
+/* Dashboard background */
+.dashboard-content,
+.dashboard-component-chart-holder,
+.grid-container,
+.dashboard-component {
+  background-color: #ffffff !important;
+}
+
+/* Chart container */
+.slice-container,
+.chart-container,
+.superset-legacy-chart-nvd3,
+.chart-slice,
+.slice_container {
+  background: #ffffff !important;
+}
+
+/* Text colors - CRITICAL for visibility */
+text,
+.nvd3 text,
+.nv-axisMaxMin text,
+.nv-axis text,
+.tick text,
+.nv-legend text,
+.chart-header,
+.header-title,
+.slice-header,
+.slice_header span {
+  fill: #333333 !important;
+  color: #333333 !important;
+}
+
+/* Axis lines */
+.nvd3 .nv-axis line,
+.nvd3 .nv-axis path,
+.domain,
+.tick line {
+  stroke: #cccccc !important;
+}
+
+/* Legend */
+.nv-legend-symbol {
+  stroke: #333333 !important;
+}
+
+/* Grid lines */
+.nvd3 .nv-axis .tick.zero line {
+  stroke: #999999 !important;
+}
+
+/* Tooltip */
+.nvtooltip {
+  background-color: #ffffff !important;
+  color: #333333 !important;
+  border: 1px solid #cccccc !important;
+}
+
+/* ECharts (modern Superset charts) */
+.echarts-for-react text,
+.echarts-for-react tspan {
+  fill: #333333 !important;
+}
+

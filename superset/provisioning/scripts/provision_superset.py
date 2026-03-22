@@ -158,6 +158,21 @@ class SupersetProvisioner:
         # TODO: Add charts to dashboard layout
         return dash_id
 
+    def create_css_template(self, name: str, css_content: str) -> int:
+        """Create a CSS template in Superset."""
+        existing_id = self._find_existing("/css_template/", "template_name", name)
+        if existing_id is not None:
+            print(f"✅ CSS Template '{name}' already exists (id={existing_id})")
+            return existing_id
+
+        result = self._api_request(
+            "POST", "/css_template/",
+            json={"template_name": name, "css": css_content},
+        )
+        template_id = result["id"]
+        print(f"✅ Created CSS Template '{name}' (id={template_id})")
+        return template_id
+
     def enable_embedding(self, dashboard_id: int, allowed_domains: list[str]) -> str:
         """Enable embedding for a dashboard and return the UUID."""
         result = self._api_request(
@@ -190,6 +205,18 @@ def provision_dashboard(
     chart_id = provisioner.create_chart(dataset_id, chart_config)
     dashboard_id = provisioner.create_dashboard(dashboard_config, [chart_id])
     embed_uuid = provisioner.enable_embedding(dashboard_id, allowed_domains)
+
+    # Load and apply CSS theme if exists
+    css_file = dashboard_dir / "theme.css"
+    if css_file.exists():
+        css_content = css_file.read_text()
+        provisioner.create_css_template(f"{metadata['title']} Theme", css_content)
+        # Apply CSS directly to the dashboard
+        provisioner._api_request(
+            "PUT", f"/dashboard/{dashboard_id}",
+            json={"css": css_content},
+        )
+        print(f"✅ Applied CSS theme to dashboard")
 
     return {
         "name": metadata["name"],
