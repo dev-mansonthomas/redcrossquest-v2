@@ -118,11 +118,11 @@ def _get_superset_admin_token() -> str:
     return token
 
 
-def _get_accessible_dashboards(role: str | None) -> list[dict[str, Any]]:
+def _get_accessible_dashboards(role: int | None) -> list[dict[str, Any]]:
     """Return the list of dashboard resources the user may access."""
     resources: list[dict[str, Any]] = []
     for _key, dash in DASHBOARDS.items():
-        if role in ADMIN_ROLES or (role is not None and role in dash["roles"]):
+        if role in ADMIN_ROLES or (role is not None and str(role) in dash["roles"]):
             resources.append({"type": "dashboard", "id": dash["id"]})
     return resources
 
@@ -145,9 +145,11 @@ async def list_dashboards(
     user = resolve_authenticated_user(request, db)
     role = user.get("role")
 
+    role_int = int(role) if role is not None else None
+
     accessible: list[DashboardInfo] = []
     for key, dash in DASHBOARDS.items():
-        if role in ADMIN_ROLES or (role is not None and str(role) in dash["roles"]):
+        if role_int in ADMIN_ROLES or (role_int is not None and str(role_int) in dash["roles"]):
             accessible.append(DashboardInfo(
                 key=key,
                 uuid=dash["id"],

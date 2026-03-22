@@ -84,7 +84,7 @@ async def get_embed_url(
     if dashboard is None:
         raise HTTPException(status_code=404, detail="Dashboard not found")
 
-    if current_user.role not in ADMIN_ROLES and current_user.role not in dashboard["roles"]:
+    if current_user.role not in ADMIN_ROLES and str(current_user.role) not in dashboard["roles"]:
         raise HTTPException(status_code=403, detail="Dashboard access forbidden")
 
     params = {
