@@ -14,14 +14,15 @@ import { DashboardService } from '../../core/services/dashboard.service';
   selector: 'app-dashboard-view',
   standalone: true,
   template: `
-    <div class="h-full w-full flex flex-col">
-      <div class="px-6 py-4 bg-white border-b border-gray-200">
+    <div class="h-full w-full flex flex-col bg-white">
+      <!-- Header avec style cohérent -->
+      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
         <h2 class="text-lg font-semibold text-gray-800">{{ title }}</h2>
       </div>
       @if (error) {
-        <div class="p-6 text-red-600">{{ error }}</div>
+        <div class="p-6 bg-red-50 text-red-600 border-b border-red-200">{{ error }}</div>
       }
-      <div #dashboardContainer class="flex-1 w-full" style="min-height: 0;"></div>
+      <div #dashboardContainer class="flex-1 w-full bg-gray-50" style="min-height: 0;"></div>
     </div>
   `,
   styles: [`

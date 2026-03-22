@@ -8,43 +8,55 @@ import { DashboardService } from '../../core/services/dashboard.service';
   standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <div class="h-screen flex">
-      <aside class="w-64 bg-gray-800 text-white flex flex-col">
-        <div class="p-4 border-b border-gray-700">
-          <h1 class="text-lg font-bold text-red-400">RedCrossQuest</h1>
-          <p class="text-xs text-gray-400 mt-1">{{ authService.user()?.name }}</p>
+    <div class="h-screen flex bg-gray-100">
+      <!-- Sidebar - Thème clair -->
+      <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
+        <!-- Header avec logo -->
+        <div class="p-4 border-b border-gray-200">
+          <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
+          <p class="text-xs text-gray-500 mt-1">{{ authService.user()?.name }}</p>
         </div>
+
+        <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
           <a routerLink="/dashboards/cumul"
-             routerLinkActive="bg-gray-700 text-white"
-             class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             [routerLinkActiveOptions]="{exact: false}"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
             📊 Cumul Journalier
           </a>
           <a routerLink="/dashboards/kpi"
-             routerLinkActive="bg-gray-700 text-white"
-             class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             [routerLinkActiveOptions]="{exact: false}"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
             📈 KPI Annuels
           </a>
           <a routerLink="/dashboards/comptage"
-             routerLinkActive="bg-gray-700 text-white"
-             class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             [routerLinkActiveOptions]="{exact: false}"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
             🧮 Comptage Trésorier
           </a>
           <a routerLink="/dashboards/leaderboard"
-             routerLinkActive="bg-gray-700 text-white"
-             class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             [routerLinkActiveOptions]="{exact: false}"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
             🏆 Leaderboard
           </a>
         </nav>
-        <div class="p-4 border-t border-gray-700">
+
+        <!-- Footer avec déconnexion -->
+        <div class="p-4 border-t border-gray-200">
           <button
             (click)="authService.logout()"
-            class="w-full text-left px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+            class="w-full text-left px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors">
             🚪 Déconnexion
           </button>
         </div>
       </aside>
-      <main class="flex-1 overflow-hidden">
+
+      <!-- Main content -->
+      <main class="flex-1 overflow-hidden bg-gray-50">
         <router-outlet />
       </main>
     </div>
