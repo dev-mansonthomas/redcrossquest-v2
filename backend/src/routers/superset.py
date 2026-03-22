@@ -23,10 +23,33 @@ router = APIRouter(prefix="/api/superset", tags=["superset"])
 _cached_admin_token: str | None = None
 
 
+class DashboardInfo(BaseModel):
+    """Dashboard information for frontend."""
+
+    key: str  # slug (e.g., "yearly_goal", "kpi_yearly")
+    uuid: str  # Superset embed UUID
+    title: str  # Display name
+
+
+class DashboardListResponse(BaseModel):
+    """List of accessible dashboards."""
+
+    dashboards: list[DashboardInfo]
+
+
 class GuestTokenResponse(BaseModel):
     """Response containing the Superset guest token."""
 
     guest_token: str
+
+
+DASHBOARD_TITLES: dict[str, str] = {
+    "kpi_yearly": "Objectifs Annuels",
+    "yearly_goal": "Objectifs Annuels",
+    "leaderboard_current_year": "Leaderboard",
+    "goal_progress": "Progression Objectifs",
+    "counting_treasurer": "Comptage Trésorier",
+}
 
 
 def _superset_api_request(
@@ -108,6 +131,30 @@ def invalidate_admin_token_cache() -> None:
     """Clear the cached admin token (e.g. on auth failure)."""
     global _cached_admin_token  # noqa: PLW0603
     _cached_admin_token = None
+
+
+@router.get("/dashboards", response_model=DashboardListResponse)
+async def list_dashboards(
+    request: FastAPIRequest,
+    db: Session = Depends(get_rcq_db),
+) -> DashboardListResponse:
+    """Return the list of dashboards accessible to the authenticated user.
+
+    The frontend uses this to get dashboard UUIDs instead of hardcoding them.
+    """
+    user = resolve_authenticated_user(request, db)
+    role = user.get("role")
+
+    accessible: list[DashboardInfo] = []
+    for key, dash in DASHBOARDS.items():
+        if role in ADMIN_ROLES or (role is not None and str(role) in dash["roles"]):
+            accessible.append(DashboardInfo(
+                key=key,
+                uuid=dash["id"],
+                title=DASHBOARD_TITLES.get(key, key.replace("_", " ").title()),
+            ))
+
+    return DashboardListResponse(dashboards=accessible)
 
 
 @router.post("/guest_token", response_model=GuestTokenResponse)

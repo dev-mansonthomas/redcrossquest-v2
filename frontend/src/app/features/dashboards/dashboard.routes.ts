@@ -1,11 +1,6 @@
 import { Routes } from '@angular/router';
 
-export const DASHBOARD_UUIDS: Record<string, string> = {
-  cumul: 'ba5dd265-346e-4368-b300-b2613c39b6fa',
-  kpi: '47a5b11d-8963-4d9e-9d59-86611780678a',
-  comptage: '656567f0-16cf-4490-9c77-888446193bd0',
-  leaderboard: '47ec9155-b1df-4bb4-a802-e79394dfbce4',
-};
+// Dashboard UUIDs are now fetched from the backend via DashboardService
 
 export const DASHBOARD_ROUTES: Routes = [
   {

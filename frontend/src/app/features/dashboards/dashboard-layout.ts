@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { DashboardService } from '../../core/services/dashboard.service';
 
 @Component({
   selector: 'app-dashboard-layout',
@@ -49,7 +50,12 @@ import { AuthService } from '../../core/services/auth.service';
     </div>
   `,
 })
-export class DashboardLayoutComponent {
+export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
+  private readonly dashboardService = inject(DashboardService);
+
+  ngOnInit(): void {
+    this.dashboardService.loadDashboards();
+  }
 }
 
