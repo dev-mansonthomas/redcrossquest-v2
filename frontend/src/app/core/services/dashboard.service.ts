@@ -13,16 +13,31 @@ export interface DashboardInfo {
 export class DashboardService {
   private readonly http = inject(HttpClient);
   private readonly _dashboards = signal<DashboardInfo[]>([]);
+  private loadPromise: Promise<void> | null = null;
 
   readonly dashboards = this._dashboards.asReadonly();
 
   async loadDashboards(): Promise<void> {
-    const response = await firstValueFrom(
-      this.http.get<{ dashboards: DashboardInfo[] }>(
-        `${environment.apiUrl}/api/superset/dashboards`
-      )
-    );
-    this._dashboards.set(response.dashboards);
+    // Avoid multiple parallel calls
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    // Already loaded, skip
+    if (this._dashboards().length > 0) {
+      return;
+    }
+
+    this.loadPromise = (async () => {
+      const response = await firstValueFrom(
+        this.http.get<{ dashboards: DashboardInfo[] }>(
+          `${environment.apiUrl}/api/superset/dashboards`
+        )
+      );
+      this._dashboards.set(response.dashboards);
+    })();
+
+    return this.loadPromise;
   }
 
   getDashboardUuid(key: string): string | undefined {
@@ -32,7 +47,7 @@ export class DashboardService {
   getDashboardBySlug(slug: string): DashboardInfo | undefined {
     // Map frontend slugs to backend keys
     const keyMapping: Record<string, string> = {
-      'cumul': 'yearly_goal',
+      'cumul': 'kpi_yearly',
       'kpi': 'kpi_yearly',
       'comptage': 'counting_treasurer',
       'leaderboard': 'leaderboard_current_year',
