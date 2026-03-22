@@ -13,6 +13,13 @@ export const routes: Routes = [
       import('./features/auth/callback').then((m) => m.CallbackComponent),
   },
   {
+    path: 'auth/multi-account-error',
+    loadComponent: () =>
+      import('./features/auth/multi-account-error').then(
+        (m) => m.MultiAccountErrorComponent
+      ),
+  },
+  {
     path: 'dashboards',
     canActivate: [authGuard],
     loadChildren: () =>

@@ -296,7 +296,19 @@ async def auth_callback(
             detail="Google account email is missing or not verified",
         )
 
-    user_profile = get_user_profile_by_email(db, email)
+    try:
+        user_profile = get_user_profile_by_email(db, email)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_400_BAD_REQUEST and "Plusieurs comptes" in str(exc.detail):
+            # Redirect to the frontend multi-account error page
+            details = str(exc.detail).replace("Plusieurs comptes actifs trouvés pour cet email:\n", "")
+            error_params = urlencode({"details": details})
+            return RedirectResponse(
+                url=f"{settings.frontend_url}/auth/multi-account-error?{error_params}",
+                status_code=302,
+            )
+        raise
+
     session_token = create_session_token(user_profile)
 
     # Pass user info as query params so the frontend CallbackComponent can store them
