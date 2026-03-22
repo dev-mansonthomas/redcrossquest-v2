@@ -125,8 +125,8 @@ restart_service() {
             done
             ;;
         superset)
-            echo "🔄 Redémarrage de Superset (force-recreate)..."
-            docker compose -p rcq -f superset/docker-compose.yml up -d --force-recreate superset
+            echo "🔄 Redémarrage de Superset (build + force-recreate)..."
+            docker compose -p rcq -f superset/docker-compose.yml up -d --build --force-recreate superset
             echo -n "  Superset: "
             for i in {1..90}; do
                 if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
