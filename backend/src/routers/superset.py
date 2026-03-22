@@ -178,7 +178,9 @@ async def get_guest_token(
             detail="User is not associated with an ul_id",
         )
 
-    resources = _get_accessible_dashboards(user.get("role"))
+    role = user.get("role")
+    role_int = int(role) if role is not None else None
+    resources = _get_accessible_dashboards(role_int)
     if not resources:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
