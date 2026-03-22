@@ -200,10 +200,68 @@ def provision_dashboard(
     }
 
 
+def update_backend_env(dashboard_key: str, embed_uuid: str, backend_env_path: Path) -> bool:
+    """Update the backend .env file with the new dashboard UUID."""
+    env_var_name = f"SUPERSET_DASHBOARD_{dashboard_key.upper()}"
+
+    if not backend_env_path.exists():
+        print(f"⚠️  Backend .env not found at {backend_env_path}")
+        return False
+
+    content = backend_env_path.read_text()
+    lines = content.splitlines()
+    updated = False
+    new_lines = []
+
+    for line in lines:
+        if line.startswith(f"{env_var_name}="):
+            new_lines.append(f"{env_var_name}={embed_uuid}")
+            updated = True
+            print(f"✅ Updated {env_var_name} in {backend_env_path}")
+        else:
+            new_lines.append(line)
+
+    if not updated:
+        # Add the variable if it doesn't exist
+        new_lines.append(f"{env_var_name}={embed_uuid}")
+        print(f"✅ Added {env_var_name} to {backend_env_path}")
+
+    backend_env_path.write_text("\n".join(new_lines) + "\n")
+    return True
+
+
+def restart_backend() -> bool:
+    """Restart the backend container to apply new env vars."""
+    import subprocess
+
+    print("🔄 Restarting backend to apply new configuration...")
+    result = subprocess.run(
+        [
+            "docker", "compose", "-p", "rcq", "-f", "docker-compose.dev.yml",
+            "up", "-d", "--force-recreate", "backend",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parent.parent.parent.parent,  # repo root
+    )
+
+    if result.returncode == 0:
+        print("✅ Backend restarted successfully")
+        return True
+    else:
+        print(f"❌ Failed to restart backend: {result.stderr}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Provision Superset dashboards")
     parser.add_argument("--env", required=True, help="Environment (dev, test, prod)")
     parser.add_argument("--dashboard", help="Specific dashboard to provision (default: all)")
+    parser.add_argument(
+        "--auto-restart",
+        action="store_true",
+        help="Automatically restart the backend after provisioning",
+    )
     args = parser.parse_args()
 
     # Load environment
@@ -241,6 +299,27 @@ def main():
                 continue
             result = provision_dashboard(provisioner, dashboard_dir, db_id, allowed_domains)
             results.append(result)
+
+    # Update backend .env with embed UUIDs
+    repo_root = script_dir.parent.parent  # superset/provisioning -> superset -> repo root
+    default_backend_env = str(repo_root / "backend" / ".env")
+    backend_env_path = Path(
+        os.environ.get("BACKEND_ENV_PATH", default_backend_env)
+    )
+    if not backend_env_path.is_absolute():
+        backend_env_path = script_dir / backend_env_path
+
+    for r in results:
+        update_backend_env(r["name"], r["embed_uuid"], backend_env_path)
+
+    # Restart backend if requested
+    if results:
+        if args.auto_restart:
+            restart_backend()
+        else:
+            answer = input("\n🔄 Restart backend now? [y/N] ").strip().lower()
+            if answer == "y":
+                restart_backend()
 
     # Summary
     print("\n" + "=" * 50)
