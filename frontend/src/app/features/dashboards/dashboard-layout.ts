@@ -14,7 +14,6 @@ import { DashboardService } from '../../core/services/dashboard.service';
         <!-- Header avec logo -->
         <div class="p-4 border-b border-gray-200">
           <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
-          <p class="text-xs text-gray-500 mt-1">{{ authService.user()?.name }}</p>
         </div>
 
         <!-- Navigation -->
@@ -45,8 +44,14 @@ import { DashboardService } from '../../core/services/dashboard.service';
           </a>
         </nav>
 
-        <!-- Footer avec déconnexion -->
+        <!-- Footer avec user info et déconnexion -->
         <div class="p-4 border-t border-gray-200">
+          <!-- User info -->
+          <div class="mb-3 px-3">
+            <p class="text-sm font-medium text-gray-800">{{ authService.user()?.name }}</p>
+            <p class="text-xs text-gray-500">{{ authService.user()?.ul_name || 'Unité Locale' }}</p>
+          </div>
+          <!-- Logout button -->
           <button
             (click)="authService.logout()"
             class="w-full text-left px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors">

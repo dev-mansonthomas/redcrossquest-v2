@@ -34,6 +34,7 @@ export class CallbackComponent implements OnInit {
     const email = params.get('email');
     const role = params.get('role');
     const ulId = params.get('ul_id');
+    const ulName = params.get('ul_name');
     const errorParam = params.get('error');
 
     if (errorParam) {
@@ -48,6 +49,7 @@ export class CallbackComponent implements OnInit {
         name,
         role: role ? parseInt(role, 10) : undefined,
         ul_id: ulId ? parseInt(ulId, 10) : undefined,
+        ul_name: ulName || undefined,
       });
       this.router.navigate(['/dashboards']);
     } else {

@@ -282,6 +282,7 @@ async def auth_callback(
         "name": google_user.get("name", user_profile["email"]),
         "role": str(user_profile.get("role", "")),
         "ul_id": str(user_profile.get("ul_id", "")),
+        "ul_name": user_profile.get("ul_name", ""),
     })
     redirect_url = f"{settings.frontend_url}/auth/callback?{callback_params}"
 
