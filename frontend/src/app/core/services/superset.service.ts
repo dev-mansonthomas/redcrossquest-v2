@@ -28,6 +28,7 @@ export class SupersetService {
         hideTitle: true,
         filters: { expanded: false },
       },
+      iframeSandboxExtras: ['allow-downloads'],
     });
   }
 }

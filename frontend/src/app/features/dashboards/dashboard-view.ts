@@ -18,15 +18,24 @@ import { DashboardService } from '../../core/services/dashboard.service';
       <div class="px-6 py-4 bg-white border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-800">{{ title }}</h2>
       </div>
-      @if (loading) {
-        <div class="p-6 text-gray-600">Chargement du dashboard...</div>
-      }
       @if (error) {
         <div class="p-6 text-red-600">{{ error }}</div>
       }
-      <div #dashboardContainer class="flex-1 w-full"></div>
+      <div #dashboardContainer class="flex-1 w-full" style="min-height: 0;"></div>
     </div>
   `,
+  styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+    :host ::ng-deep iframe {
+      width: 100% !important;
+      height: 100% !important;
+      border: none;
+    }
+  `],
 })
 export class DashboardViewComponent implements OnInit, OnDestroy {
   @ViewChild('dashboardContainer', { static: true })
@@ -39,7 +48,6 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
 
   title = '';
   error = '';
-  loading = true;
 
   async ngOnInit(): Promise<void> {
     const slug = this.route.snapshot.paramMap.get('slug');
@@ -55,12 +63,10 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
       const dashboard = this.dashboardService.getDashboardBySlug(slug);
       if (!dashboard) {
         this.error = 'Dashboard non trouvé';
-        this.loading = false;
         return;
       }
 
       this.title = dashboard.title;
-      this.loading = false;
 
       await this.supersetService.embedDashboard(
         dashboard.uuid,
@@ -68,7 +74,6 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
       );
     } catch (err) {
       this.error = 'Erreur lors du chargement du dashboard';
-      this.loading = false;
       console.error('Dashboard load error:', err);
     }
   }
