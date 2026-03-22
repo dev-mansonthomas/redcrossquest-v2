@@ -64,14 +64,14 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
             "role": "2",
             "ul_id": 123,
             "ul_name": "Paris 15",
-            "role_name": "Admin Régional",
+            "role_name": "Opérateur",
         },
     )
 
     response = client.get("/api/auth/callback?code=oauth-code&state=expected-state", follow_redirects=False)
 
     assert response.status_code == 302
-    assert "role_name=Admin" in response.headers["location"]
+    assert "role_name=Op" in response.headers["location"]
     assert response.cookies.get(auth.SESSION_COOKIE_NAME)
 
 

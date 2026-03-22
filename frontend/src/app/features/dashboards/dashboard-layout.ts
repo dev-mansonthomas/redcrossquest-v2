@@ -45,18 +45,12 @@ import { DashboardService } from '../../core/services/dashboard.service';
         </nav>
 
         <!-- Footer avec user info et déconnexion -->
-        <div class="p-4 border-t border-gray-200 space-y-2">
-          <!-- User info -->
-          <div class="px-3 py-1 text-sm text-gray-700">
-            👤 {{ authService.user()?.name }}
+        <div class="p-4 border-t border-gray-200">
+          <div class="space-y-1 mb-3">
+            <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
+            <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }}</p>
+            <p class="px-3 text-sm text-gray-500">{{ getRoleEmoji(authService.user()?.role_name) }} {{ authService.user()?.role_name || 'Rôle inconnu' }}</p>
           </div>
-          <div class="px-3 py-1 text-sm text-gray-600">
-            🏛️ {{ authService.user()?.ul_name || 'Unité Locale inconnue' }}
-          </div>
-          <div class="px-3 py-1 text-sm text-gray-500">
-            🎭 {{ authService.user()?.role_name || 'Rôle inconnu' }}
-          </div>
-          <!-- Logout button -->
           <button
             (click)="authService.logout()"
             class="w-full text-left px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors">
@@ -76,8 +70,20 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   private readonly dashboardService = inject(DashboardService);
 
+  private readonly ROLE_EMOJIS: Record<string, string> = {
+    'Lecture seul': '👁️',
+    'Opérateur': '👷',
+    'Compteur': '📊',
+    'Admin': '🔑',
+    'Super Admin': '👑',
+  };
+
   ngOnInit(): void {
     this.dashboardService.loadDashboards();
+  }
+
+  getRoleEmoji(roleName: string | undefined): string {
+    return this.ROLE_EMOJIS[roleName || ''] || '🎭';
   }
 }
 

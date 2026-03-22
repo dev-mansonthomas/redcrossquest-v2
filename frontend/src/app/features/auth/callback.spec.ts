@@ -53,7 +53,7 @@ describe('CallbackComponent', () => {
       role: '2',
       ul_id: '42',
       ul_name: 'Paris 15',
-      role_name: 'Admin Régional',
+      role_name: 'Opérateur',
     });
     const authService = TestBed.inject(AuthService);
     const spy = vi.spyOn(authService, 'setToken');
@@ -68,7 +68,7 @@ describe('CallbackComponent', () => {
       role: 2,
       ul_id: 42,
       ul_name: 'Paris 15',
-      role_name: 'Admin Régional',
+      role_name: 'Opérateur',
     });
   });
 

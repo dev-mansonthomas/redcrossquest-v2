@@ -24,11 +24,11 @@ SESSION_COOKIE_NAME = "rcq_session"
 OAUTH_STATE_COOKIE_NAME = "rcq_oauth_state"
 
 ROLE_NAMES: dict[str, str] = {
-    "1": "Super Admin",
-    "2": "Admin Régional",
-    "3": "Admin UL",
-    "4": "Trésorier",
-    "5": "Quêteur",
+    "1": "Lecture seul",
+    "2": "Opérateur",
+    "3": "Compteur",
+    "4": "Admin",
+    "9": "Super Admin",
 }
 
 router = APIRouter(prefix="/api", tags=["auth"])
