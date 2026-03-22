@@ -27,4 +27,7 @@ ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 COPY superset_init.sh /app/superset_init.sh
 RUN chmod +x /app/superset_init.sh
 
+# Create superset_home directory for persistent metadata DB
+RUN mkdir -p /app/superset_home && chown superset:superset /app/superset_home
+
 USER superset

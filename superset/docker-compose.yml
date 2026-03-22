@@ -72,6 +72,8 @@ services:
       VALKEY_DB: ${VALKEY_DB:-1}
     ports:
       - "8088:8088"
+    volumes:
+      - superset_home:/app/superset_home
     depends_on:
       valkey:
         condition: service_healthy
@@ -107,3 +109,4 @@ services:
 volumes:
   mysql_data:
   valkey_data:
+  superset_home:
