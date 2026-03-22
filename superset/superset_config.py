@@ -110,6 +110,7 @@ HTTP_HEADERS = {
 
 # Guest token for embedded dashboards
 GUEST_ROLE_NAME = "Public"
+PUBLIC_ROLE_LIKE = "Gamma"
 GUEST_TOKEN_JWT_SECRET = os.environ.get("SUPERSET_SECRET_KEY", SECRET_KEY)
 GUEST_TOKEN_JWT_ALGO = "HS256"
 GUEST_TOKEN_HEADER_NAME = "X-GuestToken"
