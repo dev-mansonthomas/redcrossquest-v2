@@ -10,16 +10,227 @@
 
 set -e
 
-# Parse arguments
+# --- Help ---
+show_help() {
+    echo "Usage: ./run_local.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  (no args)              Démarre tout l'environnement de développement"
+    echo "  --init-db              Démarre + initialise la base de données"
+    echo "  --restart <service>    Redémarre un service avec --force-recreate"
+    echo "                         Services: backend, frontend, superset, all"
+    echo "  --show-config          Affiche la configuration actuelle"
+    echo "  --help                 Affiche cette aide"
+    echo ""
+    echo "Exemples:"
+    echo "  ./run_local.sh                    # Démarre tout"
+    echo "  ./run_local.sh --init-db          # Démarre + init DB"
+    echo "  ./run_local.sh --restart backend  # Redémarre le backend (force-recreate)"
+    echo "  ./run_local.sh --restart all      # Redémarre tous les services"
+    echo "  ./run_local.sh --show-config      # Affiche la config"
+}
+
+# --- Show Config ---
+show_config() {
+    echo "📋 Configuration actuelle RCQ V2"
+    echo ""
+
+    # Load env files
+    if [ -f superset/.env ]; then
+        export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
+    fi
+
+    echo "🔧 Backend (backend/.env):"
+    if [ -f backend/.env ]; then
+        local env_val
+        env_val=$(grep '^SUPERSET_DASHBOARD_YEARLY_GOAL=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  SUPERSET_DASHBOARD_YEARLY_GOAL = ${env_val:-<non défini>}"
+        env_val=$(grep '^SUPERSET_URL=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  SUPERSET_URL                   = ${env_val:-<non défini>}"
+        env_val=$(grep '^ENVIRONMENT=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  ENVIRONMENT                    = ${env_val:-<non défini>}"
+        env_val=$(grep '^RCQ_DB_HOST=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  RCQ_DB_HOST                    = ${env_val:-<non défini>}"
+        env_val=$(grep '^RCQ_DB_NAME=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  RCQ_DB_NAME                    = ${env_val:-<non défini>}"
+        env_val=$(grep '^CORS_ORIGINS=' backend/.env 2>/dev/null | cut -d= -f2)
+        echo "  CORS_ORIGINS                   = ${env_val:-<non défini>}"
+    else
+        echo "  ⚠️  backend/.env non trouvé"
+    fi
+
+    echo ""
+    echo "🐳 Superset (superset/.env):"
+    if [ -f superset/.env ]; then
+        echo "  MYSQL_DATABASE                 = ${MYSQL_DATABASE:-<non défini>}"
+        echo "  MYSQL_USER                     = ${MYSQL_USER:-<non défini>}"
+        echo "  MYSQL_ROOT_PASSWORD            = ${MYSQL_ROOT_PASSWORD:0:3}***"
+        echo "  SUPERSET_ADMIN_USERNAME        = ${SUPERSET_ADMIN_USERNAME:-<non défini>}"
+        echo "  SUPERSET_ADMIN_PASSWORD        = ${SUPERSET_ADMIN_PASSWORD:0:2}***"
+        echo "  SUPERSET_CORS_ORIGINS          = ${SUPERSET_CORS_ORIGINS:-<non défini>}"
+    else
+        echo "  ⚠️  superset/.env non trouvé"
+    fi
+
+    echo ""
+    echo "📍 Services URLs:"
+    echo "  Frontend:  http://localhost:4210"
+    echo "  Backend:   http://localhost:8010"
+    echo "  API Docs:  http://localhost:8010/docs"
+    echo "  Superset:  http://localhost:8088"
+    echo "  MySQL:     localhost:3316"
+    echo "  Valkey:    localhost:6389"
+}
+
+# --- Restart Service ---
+restart_service() {
+    local service="$1"
+
+    # Load environment variables from superset/.env
+    if [ -f superset/.env ]; then
+        export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
+    fi
+
+    case "$service" in
+        backend)
+            echo "🔄 Redémarrage du backend (force-recreate)..."
+            docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate backend
+            echo -n "  Backend: "
+            for i in {1..60}; do
+                if curl -sf http://localhost:8010/health > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 60 ]; then
+                    echo "❌ Timeout"
+                    exit 1
+                fi
+                sleep 1
+            done
+            ;;
+        frontend)
+            echo "🔄 Redémarrage du frontend (force-recreate)..."
+            docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate frontend
+            echo -n "  Frontend: "
+            for i in {1..120}; do
+                if curl -sf http://localhost:4210 > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 120 ]; then
+                    echo "⚠️  Timeout (may still be compiling)"
+                    break
+                fi
+                sleep 1
+            done
+            ;;
+        superset)
+            echo "🔄 Redémarrage de Superset (force-recreate)..."
+            docker compose -p rcq -f superset/docker-compose.yml up -d --force-recreate superset
+            echo -n "  Superset: "
+            for i in {1..90}; do
+                if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 90 ]; then
+                    echo "❌ Timeout"
+                    exit 1
+                fi
+                sleep 1
+            done
+            ;;
+        all)
+            echo "🔄 Redémarrage de tous les services (force-recreate)..."
+            docker compose -p rcq -f superset/docker-compose.yml up -d --force-recreate
+            docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate
+            echo "⏳ Attente des services..."
+            echo -n "  Superset: "
+            for i in {1..90}; do
+                if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 90 ]; then echo "❌ Timeout"; fi
+                sleep 1
+            done
+            echo -n "  Backend: "
+            for i in {1..60}; do
+                if curl -sf http://localhost:8010/health > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 60 ]; then echo "❌ Timeout"; fi
+                sleep 1
+            done
+            echo -n "  Frontend: "
+            for i in {1..120}; do
+                if curl -sf http://localhost:4210 > /dev/null 2>&1; then
+                    echo "✅ Ready"
+                    break
+                fi
+                if [ $i -eq 120 ]; then echo "⚠️  Timeout (may still be compiling)"; fi
+                sleep 1
+            done
+            ;;
+        *)
+            echo "❌ Service inconnu: $service"
+            echo "   Services disponibles: backend, frontend, superset, all"
+            exit 1
+            ;;
+    esac
+
+    echo ""
+    echo "✅ Redémarrage terminé!"
+}
+
+# --- Parse arguments ---
 INIT_DB=false
-for arg in "$@"; do
-    case $arg in
+ACTION="start"  # default action
+RESTART_SERVICE=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --init-db)
             INIT_DB=true
             shift
             ;;
+        --restart)
+            ACTION="restart"
+            RESTART_SERVICE="${2:-}"
+            if [ -z "$RESTART_SERVICE" ]; then
+                echo "❌ Erreur: --restart nécessite un nom de service"
+                echo "   Usage: ./run_local.sh --restart <backend|frontend|superset|all>"
+                exit 1
+            fi
+            shift 2
+            ;;
+        --show-config)
+            ACTION="show-config"
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "❌ Option inconnue: $1"
+            echo "   Utilisez --help pour voir les options disponibles"
+            exit 1
+            ;;
     esac
 done
+
+# --- Execute action ---
+if [ "$ACTION" = "show-config" ]; then
+    show_config
+    exit 0
+fi
+
+if [ "$ACTION" = "restart" ]; then
+    restart_service "$RESTART_SERVICE"
+    exit 0
+fi
 
 # Load environment variables from superset/.env
 if [ -f superset/.env ]; then
@@ -181,11 +392,14 @@ echo "  - MySQL:     localhost:3316"
 echo "  - Valkey:    localhost:6389"
 echo ""
 echo "📝 Useful commands:"
-echo "  - View app logs:    docker compose -p rcq -f docker-compose.dev.yml logs -f"
-echo "  - View infra logs:  docker compose -p rcq -f superset/docker-compose.yml logs -f"
-echo "  - Stop all:         docker compose -p rcq -f docker-compose.dev.yml down && docker compose -p rcq -f superset/docker-compose.yml down"
-echo "  - Restart backend:  docker compose -p rcq -f docker-compose.dev.yml restart backend"
-echo "  - Restart frontend: docker compose -p rcq -f docker-compose.dev.yml restart frontend"
+echo "  - View app logs:      docker compose -p rcq -f docker-compose.dev.yml logs -f"
+echo "  - View infra logs:    docker compose -p rcq -f superset/docker-compose.yml logs -f"
+echo "  - Stop all:           docker compose -p rcq -f docker-compose.dev.yml down && docker compose -p rcq -f superset/docker-compose.yml down"
+echo "  - Restart backend:    ./run_local.sh --restart backend"
+echo "  - Restart frontend:   ./run_local.sh --restart frontend"
+echo "  - Restart superset:   ./run_local.sh --restart superset"
+echo "  - Restart all:        ./run_local.sh --restart all"
+echo "  - Show config:        ./run_local.sh --show-config"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
 echo ""
