@@ -102,34 +102,58 @@ def fetch_google_userinfo(access_token: str) -> dict[str, Any]:
     )
 
 
-def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any] | None:
-    """Load an RCQ user profile from the existing MySQL schema."""
-    result = db.execute(
-        text(
-            """
-            SELECT q.email AS email,
-                   u.role AS role,
-                   q.ul_id AS ul_id,
-                   ul.name AS ul_name
-            FROM users u, queteur q, ul
-            WHERE u.queteur_id = q.id
-            AND q.ul_id = ul.id
-            AND LOWER(q.email) = LOWER(:email)
-            LIMIT 1
-            """
-        ),
-        {"email": email},
-    ).mappings().first()
+def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
+    """Load an RCQ user profile from the existing MySQL schema.
 
-    if not result:
-        return None
+    Filters on active users and active queteurs only.
+    Raises an error if multiple active accounts match the same email.
+    """
+    query = """
+        SELECT
+            u.id AS user_id,
+            u.role,
+            q.id AS queteur_id,
+            q.ul_id,
+            q.first_name,
+            q.last_name,
+            q.email,
+            ul.name AS ul_name
+        FROM users u
+        JOIN queteur q ON u.queteur_id = q.id
+        JOIN ul ON q.ul_id = ul.id
+        WHERE q.email = :email
+        AND q.active = 1
+        AND u.active = 1
+    """
 
-    role = str(result["role"]) if result["role"] is not None else ""
+    results = db.execute(text(query), {"email": email}).mappings().all()
+
+    if len(results) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Aucun compte actif trouvé pour cet email",
+        )
+
+    if len(results) > 1:
+        accounts_info = []
+        for row in results:
+            accounts_info.append(
+                f"user_id={row['user_id']}, role={row['role']}, queteur_id={row['queteur_id']}, "
+                f"ul_id={row['ul_id']}, name={row['first_name']} {row['last_name']}, email={row['email']}"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plusieurs comptes actifs trouvés pour cet email:\n" + "\n".join(accounts_info),
+        )
+
+    # Un seul compte trouvé
+    user_data = results[0]
+    role = str(user_data["role"]) if user_data["role"] is not None else ""
     return {
-        "email": result["email"],
-        "role": result["role"],
-        "ul_id": result["ul_id"],
-        "ul_name": result["ul_name"],
+        "email": user_data["email"],
+        "role": user_data["role"],
+        "ul_id": user_data["ul_id"],
+        "ul_name": user_data["ul_name"],
         "role_name": ROLE_NAMES.get(role, ""),
     }
 
@@ -201,13 +225,6 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
     token = extract_session_token(request)
     session_payload = decode_session_token(token)
     user_profile = get_user_profile_by_email(db, session_payload["email"])
-
-    if not user_profile:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not authorized",
-        )
-
     return user_profile
 
 
@@ -280,9 +297,6 @@ async def auth_callback(
         )
 
     user_profile = get_user_profile_by_email(db, email)
-    if not user_profile:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not authorized")
-
     session_token = create_session_token(user_profile)
 
     # Pass user info as query params so the frontend CallbackComponent can store them
