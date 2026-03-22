@@ -117,21 +117,32 @@ GUEST_TOKEN_HEADER_NAME = "X-GuestToken"
 GUEST_TOKEN_JWT_EXP_SECONDS = 3600
 
 # ---------------------------------------------------------
-# Theme Configuration
+# Theme Configuration - Force Light Theme
 # ---------------------------------------------------------
-# Force light theme — disable dark mode entirely.
+# Disable dark theme entirely (force light mode)
+THEME_DARK = None
+
+# Enable UI-based theme administration for admins
+ENABLE_UI_THEME_ADMINISTRATION = True
+
+# Light theme with RCQ brand colors
+THEME_DEFAULT = {
+    "token": {
+        "colorPrimary": "#E53935",  # Rouge Croix-Rouge
+        "colorSuccess": "#5ac189",
+        "colorBgContainer": "#ffffff",
+        "colorBgLayout": "#f5f5f5",
+    }
+}
+
 # THEME_OVERRIDES works with Superset 1.1+ (Ant Design v4 era).
 THEME_OVERRIDES = {
     "colors": {
         "primary": {
-            "base": "#1890ff",
+            "base": "#E53935",  # Rouge Croix-Rouge
         },
     },
 }
-
-# Superset 6.0+ uses THEME_DEFAULT / THEME_DARK (Ant Design v5 tokens).
-# Setting THEME_DARK = None disables the dark theme toggle.
-THEME_DARK = None
 
 # ---------------------------------------------------------
 # Misc
