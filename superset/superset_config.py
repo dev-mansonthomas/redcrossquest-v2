@@ -86,6 +86,13 @@ FEATURE_FLAGS = {
 }
 
 # ---------------------------------------------------------
+# Talisman / Security Headers
+# ---------------------------------------------------------
+# Disable Talisman in dev to allow iframe embedding
+# (Talisman overrides HTTP_HEADERS X-Frame-Options with SAMEORIGIN)
+TALISMAN_ENABLED = False
+
+# ---------------------------------------------------------
 # Embedding / CORS
 # ---------------------------------------------------------
 ENABLE_CORS = True
