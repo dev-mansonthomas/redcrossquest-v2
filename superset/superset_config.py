@@ -117,6 +117,23 @@ GUEST_TOKEN_HEADER_NAME = "X-GuestToken"
 GUEST_TOKEN_JWT_EXP_SECONDS = 3600
 
 # ---------------------------------------------------------
+# Theme Configuration
+# ---------------------------------------------------------
+# Force light theme — disable dark mode entirely.
+# THEME_OVERRIDES works with Superset 1.1+ (Ant Design v4 era).
+THEME_OVERRIDES = {
+    "colors": {
+        "primary": {
+            "base": "#1890ff",
+        },
+    },
+}
+
+# Superset 6.0+ uses THEME_DEFAULT / THEME_DARK (Ant Design v5 tokens).
+# Setting THEME_DARK = None disables the dark theme toggle.
+THEME_DARK = None
+
+# ---------------------------------------------------------
 # Misc
 # ---------------------------------------------------------
 PREVENT_UNSAFE_DB_CONNECTIONS = False
