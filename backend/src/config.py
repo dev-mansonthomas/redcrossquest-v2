@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     superset_admin_username: str = "admin"
     superset_admin_password: str = ""
 
+    # Superset Dashboard UUIDs
+    superset_dashboard_yearly_goal: str = ""
+
     @property
     def rcq_database_url(self) -> str:
         """Construct MySQL database URL for SQLAlchemy."""

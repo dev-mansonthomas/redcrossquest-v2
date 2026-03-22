@@ -100,7 +100,7 @@ def _get_accessible_dashboards(role: str | None) -> list[dict[str, Any]]:
     resources: list[dict[str, Any]] = []
     for _key, dash in DASHBOARDS.items():
         if role in ADMIN_ROLES or (role is not None and role in dash["roles"]):
-            resources.append({"type": "dashboard", "id": str(dash["id"])})
+            resources.append({"type": "dashboard", "id": dash["id"]})
     return resources
 
 

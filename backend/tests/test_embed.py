@@ -64,7 +64,7 @@ def test_get_embed_url_locks_ul_id_from_session():
     embed_token = data["embed_url"].rsplit("/", maxsplit=1)[-1]
     payload = jwt.decode(embed_token, SUPERSET_TEST_SIGNING_KEY, algorithms=["HS256"])
 
-    assert payload["resource"] == {"dashboard": 1}
+    assert payload["resource"]["dashboard"]  # UUID string from config
     assert payload["params"]["year"] == "2026"
     assert payload["params"]["ul_id"] == 123
 

@@ -46,7 +46,7 @@ def get_current_embed_user(
     return user
 
 
-def build_embed_url(dashboard_id: int, params: dict[str, str | int]) -> str:
+def build_embed_url(dashboard_id: str, params: dict[str, str | int]) -> str:
     """Build a signed Superset embed URL.
 
     Note: This will be replaced by Superset Guest Token in task 2.4.
