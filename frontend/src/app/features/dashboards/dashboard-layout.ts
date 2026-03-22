@@ -45,11 +45,16 @@ import { DashboardService } from '../../core/services/dashboard.service';
         </nav>
 
         <!-- Footer avec user info et déconnexion -->
-        <div class="p-4 border-t border-gray-200">
+        <div class="p-4 border-t border-gray-200 space-y-2">
           <!-- User info -->
-          <div class="mb-3 px-3">
-            <p class="text-sm font-medium text-gray-800">{{ authService.user()?.name }}</p>
-            <p class="text-xs text-gray-500">{{ authService.user()?.ul_name || 'Unité Locale' }}</p>
+          <div class="px-3 py-1 text-sm text-gray-700">
+            👤 {{ authService.user()?.name }}
+          </div>
+          <div class="px-3 py-1 text-sm text-gray-600">
+            🏛️ {{ authService.user()?.ul_name || 'Unité Locale inconnue' }}
+          </div>
+          <div class="px-3 py-1 text-sm text-gray-500">
+            🎭 {{ authService.user()?.role_name || 'Rôle inconnu' }}
           </div>
           <!-- Logout button -->
           <button

@@ -64,13 +64,14 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
             "role": "2",
             "ul_id": 123,
             "ul_name": "Paris 15",
+            "role_name": "Admin Régional",
         },
     )
 
     response = client.get("/api/auth/callback?code=oauth-code&state=expected-state", follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == "http://localhost:4210"
+    assert "role_name=Admin" in response.headers["location"]
     assert response.cookies.get(auth.SESSION_COOKIE_NAME)
 
 
@@ -85,6 +86,7 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
 )
 def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_name):
     """`/api/me` should return the authenticated user for every RCQ role."""
+    role_name = auth.ROLE_NAMES.get(role, "")
     monkeypatch.setattr(
         auth,
         "get_user_profile_by_email",
@@ -93,6 +95,7 @@ def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_
             "role": role,
             "ul_id": ul_id,
             "ul_name": ul_name,
+            "role_name": role_name,
         },
     )
     session_token = auth.create_session_token(
@@ -114,4 +117,5 @@ def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_
         "role": role,
         "ul_id": ul_id,
         "ul_name": ul_name,
+        "role_name": role_name,
     }

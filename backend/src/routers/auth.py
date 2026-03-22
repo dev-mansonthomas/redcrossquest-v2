@@ -23,6 +23,14 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 SESSION_COOKIE_NAME = "rcq_session"
 OAUTH_STATE_COOKIE_NAME = "rcq_oauth_state"
 
+ROLE_NAMES: dict[str, str] = {
+    "1": "Super Admin",
+    "2": "Admin Régional",
+    "3": "Admin UL",
+    "4": "Trésorier",
+    "5": "Quêteur",
+}
+
 router = APIRouter(prefix="/api", tags=["auth"])
 
 
@@ -116,11 +124,13 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any] | None:
     if not result:
         return None
 
+    role = str(result["role"]) if result["role"] is not None else ""
     return {
         "email": result["email"],
         "role": result["role"],
         "ul_id": result["ul_id"],
         "ul_name": result["ul_name"],
+        "role_name": ROLE_NAMES.get(role, ""),
     }
 
 
@@ -276,13 +286,16 @@ async def auth_callback(
     session_token = create_session_token(user_profile)
 
     # Pass user info as query params so the frontend CallbackComponent can store them
+    role = str(user_profile.get("role", ""))
+    role_name = ROLE_NAMES.get(role, "")
     callback_params = urlencode({
         "token": session_token,
         "email": user_profile["email"],
         "name": google_user.get("name", user_profile["email"]),
-        "role": str(user_profile.get("role", "")),
+        "role": role,
         "ul_id": str(user_profile.get("ul_id", "")),
         "ul_name": user_profile.get("ul_name", ""),
+        "role_name": role_name,
     })
     redirect_url = f"{settings.frontend_url}/auth/callback?{callback_params}"
 

@@ -52,6 +52,8 @@ describe('CallbackComponent', () => {
       email: 'test@example.com',
       role: '2',
       ul_id: '42',
+      ul_name: 'Paris 15',
+      role_name: 'Admin Régional',
     });
     const authService = TestBed.inject(AuthService);
     const spy = vi.spyOn(authService, 'setToken');
@@ -65,6 +67,8 @@ describe('CallbackComponent', () => {
       name: 'Test User',
       role: 2,
       ul_id: 42,
+      ul_name: 'Paris 15',
+      role_name: 'Admin Régional',
     });
   });
 

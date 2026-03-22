@@ -10,6 +10,7 @@ class UserResponse(BaseModel):
     role: str
     ul_id: Optional[int] = None
     ul_name: Optional[str] = None
+    role_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
