@@ -158,20 +158,47 @@ class SupersetProvisioner:
         # TODO: Add charts to dashboard layout
         return dash_id
 
-    def create_css_template(self, name: str, css_content: str) -> int:
-        """Create a CSS template in Superset."""
-        existing_id = self._find_existing("/css_template/", "template_name", name)
+    def import_theme_from_zip(self, zip_path: Path, theme_name: str) -> int:
+        """Import a theme from a ZIP file via Superset API."""
+        existing_id = self._find_existing("/css_template/", "template_name", theme_name)
         if existing_id is not None:
-            print(f"✅ CSS Template '{name}' already exists (id={existing_id})")
+            print(f"✅ Theme '{theme_name}' already exists (id={existing_id})")
             return existing_id
 
-        result = self._api_request(
-            "POST", "/css_template/",
-            json={"template_name": name, "css": css_content},
+        print(f"📦 Importing theme from {zip_path}...")
+        with open(zip_path, "rb") as f:
+            response = self.session.post(
+                f"{self.base_url}/api/v1/css_template/import/",
+                files={"formData": (zip_path.name, f, "application/zip")},
+            )
+
+        if response.status_code == 200:
+            # Get the new theme ID
+            new_id = self._find_existing("/css_template/", "template_name", theme_name)
+            if new_id is not None:
+                print(f"✅ Imported theme '{theme_name}' (id={new_id})")
+                return new_id
+
+        raise Exception(f"Failed to import theme: {response.text}")
+
+    def apply_theme_to_dashboard(self, dashboard_id: int, theme_name: str) -> None:
+        """Apply a CSS template/theme to a dashboard."""
+        response = self._api_request(
+            "GET", "/css_template/",
+            params={"q": json.dumps({"filters": [{"col": "template_name", "opr": "eq", "value": theme_name}]})},
         )
-        template_id = result["id"]
-        print(f"✅ Created CSS Template '{name}' (id={template_id})")
-        return template_id
+
+        if response.get("count", 0) == 0:
+            print(f"⚠️  Theme '{theme_name}' not found, skipping")
+            return
+
+        css_content = response["result"][0].get("css", "")
+
+        self._api_request(
+            "PUT", f"/dashboard/{dashboard_id}",
+            json={"css": css_content},
+        )
+        print(f"✅ Applied theme '{theme_name}' to dashboard {dashboard_id}")
 
     def enable_embedding(self, dashboard_id: int, allowed_domains: list[str]) -> str:
         """Enable embedding for a dashboard and return the UUID."""
@@ -183,26 +210,6 @@ class SupersetProvisioner:
         uuid = result.get("result", {}).get("uuid", "")
         print(f"✅ Enabled embedding for dashboard {dashboard_id}, UUID: {uuid}")
         return uuid
-
-    def check_theme_exists(self, theme_name: str) -> bool:
-        """Check if a CSS template (theme) exists in Superset."""
-        return self._find_existing("/css_template/", "template_name", theme_name) is not None
-
-    def create_theme_light(self, css_content: str) -> int:
-        """Create the THEME_LIGHT CSS template if it doesn't exist."""
-        return self.create_css_template("THEME_LIGHT", css_content)
-
-    def apply_theme_to_dashboard(self, dashboard_id: int, theme_name: str) -> bool:
-        """Apply a CSS template to a dashboard by setting its css_class."""
-        if not self.check_theme_exists(theme_name):
-            print(f"⚠️  Theme '{theme_name}' not found, cannot apply to dashboard {dashboard_id}")
-            return False
-        self._api_request(
-            "PUT", f"/dashboard/{dashboard_id}",
-            json={"css": "", "json_metadata": json.dumps({"color_scheme": "supersetColors"})},
-        )
-        print(f"✅ Applied theme '{theme_name}' to dashboard {dashboard_id}")
-        return True
 
 
 def provision_dashboard(
@@ -226,20 +233,12 @@ def provision_dashboard(
     dashboard_id = provisioner.create_dashboard(dashboard_config, [chart_id])
     embed_uuid = provisioner.enable_embedding(dashboard_id, allowed_domains)
 
-    # Load and apply CSS theme if exists
-    css_file = dashboard_dir / "theme.css"
-    if css_file.exists():
-        css_content = css_file.read_text()
-        provisioner.create_css_template(f"{metadata['title']} Theme", css_content)
-        # Apply CSS directly to the dashboard
-        provisioner._api_request(
-            "PUT", f"/dashboard/{dashboard_id}",
-            json={"css": css_content},
-        )
-        print(f"✅ Applied CSS theme to dashboard")
-
-    # Apply THEME_LIGHT if it exists
-    provisioner.apply_theme_to_dashboard(dashboard_id, "THEME_LIGHT")
+    # Import and apply theme from ZIP if available
+    script_dir = Path(__file__).parent.parent
+    theme_zip = script_dir / "themes" / "superset_light_theme.zip"
+    if theme_zip.exists():
+        provisioner.import_theme_from_zip(theme_zip, "THEME_LIGHT")
+        provisioner.apply_theme_to_dashboard(dashboard_id, "THEME_LIGHT")
 
     return {
         "name": metadata["name"],
@@ -303,20 +302,6 @@ def restart_backend() -> bool:
         return False
 
 
-def _load_theme_light_css() -> str:
-    """Load the THEME_LIGHT CSS from the shared theme file."""
-    theme_file = Path(__file__).parent.parent / "themes" / "theme_light.css"
-    if theme_file.exists():
-        return theme_file.read_text()
-    # Fallback: use CSS from any dashboard's theme.css
-    dashboards_dir = Path(__file__).parent.parent / "dashboards"
-    for dashboard_dir in sorted(dashboards_dir.iterdir()):
-        css_file = dashboard_dir / "theme.css"
-        if css_file.exists():
-            return css_file.read_text()
-    return ""
-
-
 def main():
     parser = argparse.ArgumentParser(description="Provision Superset dashboards")
     parser.add_argument("--env", required=True, help="Environment (dev, test, prod)")
@@ -327,14 +312,9 @@ def main():
         help="Automatically restart the backend after provisioning",
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Continue even if THEME_LIGHT is missing",
-    )
-    parser.add_argument(
         "--skip-theme",
         action="store_true",
-        help="Skip THEME_LIGHT creation and application",
+        help="Skip THEME_LIGHT import and application",
     )
     args = parser.parse_args()
 
@@ -360,19 +340,14 @@ def main():
     # Initialize provisioner
     provisioner = SupersetProvisioner(superset_url, superset_user, superset_password)
 
-    # Create THEME_LIGHT CSS template if not skipped
+    # Import THEME_LIGHT from ZIP if not skipped
     if not args.skip_theme:
-        theme_css = _load_theme_light_css()
-        if theme_css:
-            provisioner.create_theme_light(theme_css)
-            print("✅ THEME_LIGHT CSS template ready")
+        theme_zip = script_dir / "themes" / "superset_light_theme.zip"
+        if theme_zip.exists():
+            provisioner.import_theme_from_zip(theme_zip, "THEME_LIGHT")
+            print("✅ THEME_LIGHT theme imported from ZIP")
         else:
-            print("⚠️  No theme CSS file found to create THEME_LIGHT")
-            if not provisioner.check_theme_exists("THEME_LIGHT"):
-                print("⚠️  Theme 'THEME_LIGHT' not found in Superset!")
-                print("   Create it manually: Settings → CSS Templates → Export theme_default → Rename → Import")
-                if not args.force:
-                    sys.exit(1)
+            print(f"⚠️  Theme ZIP not found at {theme_zip}")
 
     # Create database connection
     db_id = provisioner.create_database_connection(db_name, db_uri)

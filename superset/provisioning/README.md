@@ -11,10 +11,7 @@ python scripts/provision_superset.py --env dev
 # Provision a specific dashboard
 python scripts/provision_superset.py --env dev --dashboard yearly_goal
 
-# Force provisioning even if THEME_LIGHT is missing
-python scripts/provision_superset.py --env dev --force
-
-# Skip theme creation entirely
+# Skip theme import entirely
 python scripts/provision_superset.py --env dev --skip-theme
 
 # Auto-restart backend after provisioning
@@ -29,18 +26,15 @@ Copy `.env.example` to `.env.{env}` (e.g., `.env.dev`) and fill in the values.
 
 ### Thème THEME_LIGHT
 
-Le script crée automatiquement le CSS template `THEME_LIGHT` dans Superset à partir du fichier `themes/theme_light.css`.
-
-Si la création automatique échoue, créer le thème manuellement (une seule fois par environnement) :
-
-1. Aller dans Superset → **Settings** → **CSS Templates**
-2. Exporter `theme_default` (bouton Export)
-3. Dézipper l'archive exportée
-4. Renommer le template en `THEME_LIGHT` dans le fichier JSON
-5. Rezipper et importer via **Settings** → **CSS Templates** → **Import**
-6. Vérifier que `THEME_LIGHT` apparaît dans la liste des templates
+Le script importe automatiquement le thème `THEME_LIGHT` dans Superset à partir du fichier ZIP `themes/superset_light_theme.zip` via l'API d'import (`/api/v1/css_template/import/`).
 
 Le thème est ensuite appliqué automatiquement à chaque dashboard lors du provisioning.
+
+Pour mettre à jour le thème :
+1. Aller dans Superset → **Settings** → **CSS Templates**
+2. Modifier le thème souhaité
+3. Exporter via le bouton **Export**
+4. Remplacer le fichier `themes/superset_light_theme.zip` par l'export
 
 ## Structure
 
@@ -50,14 +44,13 @@ superset/provisioning/
 ├── .env.dev                  # Config dev (non versionné)
 ├── README.md                 # Ce fichier
 ├── themes/
-│   └── theme_light.css       # CSS partagé pour THEME_LIGHT
+│   └── superset_light_theme.zip  # Thème ZIP importé via API
 ├── dashboards/
 │   └── yearly_goal/
 │       ├── metadata.json     # Nom, titre, slug
 │       ├── dataset.sql       # Requête SQL du dataset
 │       ├── chart.json        # Configuration du chart
-│       ├── dashboard.json    # Configuration du dashboard
-│       └── theme.css         # CSS spécifique (optionnel)
+│       └── dashboard.json    # Configuration du dashboard
 └── scripts/
     ├── __init__.py
     └── provision_superset.py # Script principal
@@ -67,6 +60,5 @@ superset/provisioning/
 
 1. Créer un dossier dans `dashboards/` (ex: `dashboards/mon_dashboard/`)
 2. Ajouter les fichiers `metadata.json`, `dataset.sql`, `chart.json`, `dashboard.json`
-3. Optionnellement ajouter un `theme.css` spécifique
-4. Lancer le provisioning : `python scripts/provision_superset.py --env dev`
+3. Lancer le provisioning : `python scripts/provision_superset.py --env dev`
 
