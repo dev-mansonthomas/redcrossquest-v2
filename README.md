@@ -75,3 +75,8 @@ cd backend && poetry run uvicorn src.main:app --reload --host 0.0.0.0 --port 801
 Each service has its own `.env` file (auto-copied from `.env.example` on first run):
 - `superset/.env` — MySQL, Superset & Valkey credentials
 - `backend/.env` — Backend configuration
+
+
+## License
+
+Ce projet est sous licence [GNU General Public License v3.0](LICENSE).
