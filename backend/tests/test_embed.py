@@ -77,10 +77,13 @@ def test_get_embed_url_requires_authentication():
 
 
 def test_get_embed_url_rejects_unauthorized_role():
-    """Users without the required role cannot access restricted dashboards."""
+    """Users without the required role cannot access restricted dashboards.
+
+    Note: kpi_yearly allows roles 1-4,9. We use a role outside that list to trigger 403.
+    """
     response = client.get(
-        "/api/embed/goal_progress",
-        headers=auth_headers(role="3", ul_id=123),
+        "/api/embed/kpi_yearly",
+        headers=auth_headers(role="5", ul_id=123),
     )
 
     assert response.status_code == 403
