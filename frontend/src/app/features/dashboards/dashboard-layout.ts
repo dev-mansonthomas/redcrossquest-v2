@@ -3,6 +3,18 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 
+interface DashboardDisplayConfig {
+  emoji: string;
+  label: string;
+  route: string;
+}
+
+const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
+  kpi_yearly: { emoji: '📊', label: 'Objectifs Annuels', route: '/dashboards/kpi' },
+  counting_treasurer: { emoji: '🧮', label: 'Comptage Trésorier', route: '/dashboards/comptage' },
+  leaderboard_current_year: { emoji: '🏆', label: 'Leaderboard', route: '/dashboards/leaderboard' },
+};
+
 @Component({
   selector: 'app-dashboard-layout',
   standalone: true,
@@ -18,30 +30,18 @@ import { DashboardService } from '../../core/services/dashboard.service';
 
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
-          <a routerLink="/dashboards/cumul"
-             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-             [routerLinkActiveOptions]="{exact: false}"
-             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-            📊 Cumul Journalier
-          </a>
-          <a routerLink="/dashboards/kpi"
-             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-             [routerLinkActiveOptions]="{exact: false}"
-             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-            📈 KPI Annuels
-          </a>
-          <a routerLink="/dashboards/comptage"
-             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-             [routerLinkActiveOptions]="{exact: false}"
-             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-            🧮 Comptage Trésorier
-          </a>
-          <a routerLink="/dashboards/leaderboard"
-             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-             [routerLinkActiveOptions]="{exact: false}"
-             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-            🏆 Leaderboard
-          </a>
+          @for (dashboard of dashboardService.dashboards(); track dashboard.key) {
+            @if (getDashboardConfig(dashboard.key); as config) {
+              <a [routerLink]="config.route"
+                 routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+                 [routerLinkActiveOptions]="{exact: false}"
+                 class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                {{ config.emoji }} {{ config.label }}
+              </a>
+            }
+          } @empty {
+            <p class="px-3 py-2 text-sm text-gray-500">Aucun dashboard disponible</p>
+          }
         </nav>
 
         <!-- Footer avec user info et déconnexion -->
@@ -68,7 +68,7 @@ import { DashboardService } from '../../core/services/dashboard.service';
 })
 export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
-  private readonly dashboardService = inject(DashboardService);
+  protected readonly dashboardService = inject(DashboardService);
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
@@ -84,6 +84,10 @@ export class DashboardLayoutComponent implements OnInit {
 
   getRoleEmoji(roleName: string | undefined): string {
     return this.ROLE_EMOJIS[roleName || ''] || '🎭';
+  }
+
+  getDashboardConfig(key: string): DashboardDisplayConfig | undefined {
+    return DASHBOARD_CONFIG[key];
   }
 }
 
