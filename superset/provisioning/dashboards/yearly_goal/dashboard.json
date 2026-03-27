@@ -1,5 +1,5 @@
 {
-  "dashboard_title": "Objectifs Annuels",
+  "dashboard_title": "Objectif vs Réalisé",
   "slug": "yearly-goal",
   "published": true,
   "position_json": {},
@@ -7,7 +7,37 @@
   "json_metadata": {
     "color_scheme": "supersetColors",
     "refresh_frequency": 0,
-    "shared_label_colors": {}
+    "shared_label_colors": {},
+    "native_filter_configuration": [
+      {
+        "id": "NATIVE_FILTER-year",
+        "name": "Année",
+        "filterType": "filter_select",
+        "targets": [
+          {
+            "column": {
+              "name": "year"
+            }
+          }
+        ],
+        "defaultDataMask": {
+          "filterState": {}
+        },
+        "controlValues": {
+          "defaultToFirstItem": false,
+          "enableEmptyFilter": false,
+          "multiSelect": true,
+          "searchAllOptions": false,
+          "inverseSelection": false
+        },
+        "scope": {
+          "rootPath": ["ROOT_ID"],
+          "excluded": []
+        },
+        "type": "NATIVE_FILTER",
+        "description": "Filtrer par année de quête"
+      }
+    ]
   }
 }
 
