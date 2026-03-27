@@ -304,6 +304,13 @@ init_database() {
             docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/02-add-trigger_and_anonymise.sql
             echo "   ✅ Trigger and anonymization applied"
         fi
+
+        # Create quete_dates reference table and seed data
+        if [ -f "superset/sql-imports/03-quete-dates.sql" ]; then
+            echo "   📥 Running 03-quete-dates.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/03-quete-dates.sql
+            echo "   ✅ quete_dates table created and seeded"
+        fi
     fi
 }
 init_database
