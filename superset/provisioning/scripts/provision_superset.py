@@ -92,12 +92,20 @@ class SupersetProvisioner:
         print(f"✅ Created database connection '{name}' (id={db_id})")
         return db_id
 
-    def create_dataset(self, db_id: int, name: str, sql: str) -> int:
-        """Create a virtual dataset from SQL."""
+    def upsert_dataset(self, db_id: int, name: str, sql: str, force_update: bool = False) -> int:
+        """Create or update a virtual dataset from SQL."""
         existing_id = self._find_existing("/dataset/", "table_name", name)
         if existing_id is not None:
-            print(f"✅ Dataset '{name}' already exists (id={existing_id})")
-            return existing_id
+            if force_update:
+                self._api_request(
+                    "PUT", f"/dataset/{existing_id}",
+                    json={"sql": sql},
+                )
+                print(f"✅ Updated dataset '{name}' (id={existing_id})")
+                return existing_id
+            else:
+                print(f"✅ Skipped dataset '{name}' (already exists, use --force-update to overwrite)")
+                return existing_id
 
         result = self._api_request(
             "POST", "/dataset/",
@@ -113,13 +121,24 @@ class SupersetProvisioner:
         print(f"✅ Created dataset '{name}' (id={ds_id})")
         return ds_id
 
-    def create_chart(self, dataset_id: int, config: dict) -> int:
-        """Create a chart."""
+    def upsert_chart(self, dataset_id: int, config: dict, force_update: bool = False) -> int:
+        """Create or update a chart."""
         name = config["name"]
         existing_id = self._find_existing("/chart/", "slice_name", name)
         if existing_id is not None:
-            print(f"✅ Chart '{name}' already exists (id={existing_id})")
-            return existing_id
+            if force_update:
+                self._api_request(
+                    "PUT", f"/chart/{existing_id}",
+                    json={
+                        "params": json.dumps(config.get("params", {})),
+                        "viz_type": config.get("viz_type", "echarts_timeseries_line"),
+                    },
+                )
+                print(f"✅ Updated chart '{name}' (id={existing_id})")
+                return existing_id
+            else:
+                print(f"✅ Skipped chart '{name}' (already exists, use --force-update to overwrite)")
+                return existing_id
 
         result = self._api_request(
             "POST", "/chart/",
@@ -136,13 +155,26 @@ class SupersetProvisioner:
         print(f"✅ Created chart '{name}' (id={chart_id})")
         return chart_id
 
-    def create_dashboard(self, config: dict, chart_ids: list[int]) -> int:
-        """Create a dashboard with charts."""
+    def upsert_dashboard(self, config: dict, chart_ids: list[int], force_update: bool = False) -> int:
+        """Create or update a dashboard with charts."""
         title = config["dashboard_title"]
         existing_id = self._find_existing("/dashboard/", "dashboard_title", title)
         if existing_id is not None:
-            print(f"✅ Dashboard '{title}' already exists (id={existing_id})")
-            return existing_id
+            if force_update:
+                self._api_request(
+                    "PUT", f"/dashboard/{existing_id}",
+                    json={
+                        "dashboard_title": title,
+                        "slug": config.get("slug", ""),
+                        "published": config.get("published", True),
+                        "json_metadata": json.dumps(config.get("json_metadata", {})),
+                    },
+                )
+                print(f"✅ Updated dashboard '{title}' (id={existing_id})")
+                return existing_id
+            else:
+                print(f"✅ Skipped dashboard '{title}' (already exists, use --force-update to overwrite)")
+                return existing_id
 
         result = self._api_request(
             "POST", "/dashboard/",
@@ -217,6 +249,7 @@ def provision_dashboard(
     dashboard_dir: Path,
     db_id: int,
     allowed_domains: list[str],
+    force_update: bool = False,
 ) -> dict:
     """Provision a single dashboard from config files."""
     print(f"\n📊 Provisioning dashboard from {dashboard_dir.name}...")
@@ -227,10 +260,10 @@ def provision_dashboard(
     chart_config = json.loads((dashboard_dir / "chart.json").read_text())
     dashboard_config = json.loads((dashboard_dir / "dashboard.json").read_text())
 
-    # Create resources
-    dataset_id = provisioner.create_dataset(db_id, f"{metadata['name']}_dataset", dataset_sql)
-    chart_id = provisioner.create_chart(dataset_id, chart_config)
-    dashboard_id = provisioner.create_dashboard(dashboard_config, [chart_id])
+    # Create or update resources
+    dataset_id = provisioner.upsert_dataset(db_id, f"{metadata['name']}_dataset", dataset_sql, force_update)
+    chart_id = provisioner.upsert_chart(dataset_id, chart_config, force_update)
+    dashboard_id = provisioner.upsert_dashboard(dashboard_config, [chart_id], force_update)
     embed_uuid = provisioner.enable_embedding(dashboard_id, allowed_domains)
 
     # Import and apply theme from ZIP if available
@@ -316,6 +349,11 @@ def main():
         action="store_true",
         help="Skip THEME_LIGHT import and application",
     )
+    parser.add_argument(
+        "--force-update",
+        action="store_true",
+        help="Update existing resources instead of skipping them",
+    )
     args = parser.parse_args()
 
     # Load environment
@@ -360,7 +398,7 @@ def main():
         if dashboard_dir.is_dir():
             if args.dashboard and dashboard_dir.name != args.dashboard:
                 continue
-            result = provision_dashboard(provisioner, dashboard_dir, db_id, allowed_domains)
+            result = provision_dashboard(provisioner, dashboard_dir, db_id, allowed_domains, args.force_update)
             results.append(result)
 
     # Update backend .env with embed UUIDs
