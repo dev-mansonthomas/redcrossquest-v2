@@ -10,6 +10,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -26,39 +27,47 @@ class SupersetProvisioner:
         self._login(username, password)
 
     def _login(self, username: str, password: str) -> None:
-        """Authenticate and get access token."""
-        # Get initial CSRF token (needed for login POST)
-        csrf_resp = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        csrf_resp.raise_for_status()
-        initial_csrf = csrf_resp.json()["result"]
+        """Authenticate via form-based login to get session cookie."""
+        # Load the login page to get the CSRF token and session cookie
+        login_page = self.session.get(f"{self.base_url}/login/")
+        login_page.raise_for_status()
 
-        # Login
+        # Extract CSRF token from the login form
+        csrf_match = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', login_page.text)
+        if not csrf_match:
+            # Try alternative pattern
+            csrf_match = re.search(r'id="csrf_token"[^>]*value="([^"]+)"', login_page.text)
+        if not csrf_match:
+            raise Exception("Could not find CSRF token on login page")
+        csrf_token = csrf_match.group(1)
+
+        # Submit the login form
         login_resp = self.session.post(
-            f"{self.base_url}/api/v1/security/login",
-            json={
+            f"{self.base_url}/login/",
+            data={
                 "username": username,
                 "password": password,
-                "provider": "db",
+                "csrf_token": csrf_token,
             },
-            headers={"X-CSRFToken": initial_csrf},
+            allow_redirects=True,
         )
         login_resp.raise_for_status()
-        access_token = login_resp.json()["access_token"]
 
-        # Set the Bearer token first
+        # Verify we're authenticated
+        me_resp = self.session.get(f"{self.base_url}/api/v1/me/")
+        me_data = me_resp.json().get("result", {})
+        if me_data.get("is_anonymous", True):
+            raise Exception("Login failed: session is still anonymous after form login")
+
+        # Get CSRF token for API calls (POST/PUT/DELETE)
+        csrf_resp = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
+        csrf_resp.raise_for_status()
+        api_csrf = csrf_resp.json()["result"]
         self.session.headers.update({
-            "Authorization": f"Bearer {access_token}",
-        })
-
-        # Now get a fresh CSRF token with the authenticated session
-        csrf_resp2 = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
-        csrf_resp2.raise_for_status()
-        auth_csrf = csrf_resp2.json()["result"]
-
-        self.session.headers.update({
-            "X-CSRFToken": auth_csrf,
+            "X-CSRFToken": api_csrf,
             "Referer": self.base_url,
         })
+
         print(f"✅ Logged in to Superset as {username}")
 
     def _api_request(self, method: str, endpoint: str, **kwargs) -> dict:
