@@ -315,6 +315,7 @@ init_database() {
         # Migrate charset from utf8mb3 to utf8mb4
         if [ -f "superset/sql-imports/04-migrate-utf8mb4.sql" ]; then
             echo "   📥 Running 04-migrate-utf8mb4.sql..."
+            docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "ALTER DATABASE \`${MYSQL_DATABASE}\` CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;" 2>/dev/null
             docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/04-migrate-utf8mb4.sql
             echo "   ✅ Charset migrated to utf8mb4"
         fi
