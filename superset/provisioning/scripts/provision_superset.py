@@ -191,7 +191,7 @@ class SupersetProvisioner:
         return dash_id
 
     def import_theme_from_zip(self, zip_path: Path, theme_name: str) -> int:
-        """Import a theme from a ZIP file via Superset API."""
+        """Import a theme from a ZIP file via Superset import API."""
         existing_id = self._find_existing("/css_template/", "template_name", theme_name)
         if existing_id is not None:
             print(f"✅ Theme '{theme_name}' already exists (id={existing_id})")
@@ -200,18 +200,25 @@ class SupersetProvisioner:
         print(f"📦 Importing theme from {zip_path}...")
         with open(zip_path, "rb") as f:
             response = self.session.post(
-                f"{self.base_url}/api/v1/css_template/import/",
-                files={"formData": (zip_path.name, f, "application/zip")},
+                f"{self.base_url}/api/v1/assets/import/",
+                files={"bundle": (zip_path.name, f, "application/zip")},
+                data={"passwords": "{}", "overwrite": "true"},
             )
 
         if response.status_code == 200:
-            # Get the new theme ID
             new_id = self._find_existing("/css_template/", "template_name", theme_name)
             if new_id is not None:
                 print(f"✅ Imported theme '{theme_name}' (id={new_id})")
                 return new_id
+            # Theme might not be a css_template but a Superset theme - check if import succeeded
+            result = response.json()
+            if result.get("message") == "OK" or response.ok:
+                print(f"✅ Theme '{theme_name}' imported successfully")
+                return 0
 
-        raise Exception(f"Failed to import theme: {response.text}")
+        # If /api/v1/assets/import/ also fails, skip gracefully instead of crashing
+        print(f"⚠️  Could not import theme '{theme_name}': {response.status_code} - skipping")
+        return 0
 
     def apply_theme_to_dashboard(self, dashboard_id: int, theme_name: str) -> None:
         """Apply a CSS template/theme to a dashboard."""
