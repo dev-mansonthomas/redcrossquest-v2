@@ -19,6 +19,8 @@ show_help() {
     echo "  --init-db              Démarre + initialise la base de données"
     echo "  --restart <service>    Redémarre un service avec --force-recreate"
     echo "                         Services: backend, frontend, superset, all"
+    echo "  --provision            Provisionne les dashboards Superset (create)"
+    echo "  --provision --force-update  Met à jour les dashboards existants"
     echo "  --show-config          Affiche la configuration actuelle"
     echo "  --help                 Affiche cette aide"
     echo ""
@@ -27,6 +29,8 @@ show_help() {
     echo "  ./run_local.sh --init-db          # Démarre + init DB"
     echo "  ./run_local.sh --restart backend  # Redémarre le backend (force-recreate)"
     echo "  ./run_local.sh --restart all      # Redémarre tous les services"
+    echo "  ./run_local.sh --provision             # Provisionne les dashboards"
+    echo "  ./run_local.sh --provision --force-update  # Force la mise à jour"
     echo "  ./run_local.sh --show-config      # Affiche la config"
 }
 
@@ -186,6 +190,8 @@ restart_service() {
 
 # --- Parse arguments ---
 INIT_DB=false
+PROVISION=false
+FORCE_UPDATE=false
 ACTION="start"  # default action
 RESTART_SERVICE=""
 
@@ -204,6 +210,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             shift 2
+            ;;
+        --provision)
+            PROVISION=true
+            shift
+            ;;
+        --force-update)
+            FORCE_UPDATE=true
+            shift
             ;;
         --show-config)
             ACTION="show-config"
@@ -322,6 +336,27 @@ init_database() {
 }
 init_database
 
+# --- Provision Dashboards ---
+provision_dashboards() {
+    echo ""
+    echo "📊 Provisioning Superset dashboards..."
+
+    local force_flag=""
+    if [ "$FORCE_UPDATE" = true ]; then
+        force_flag="--force-update"
+        echo "   (mode: force-update)"
+    fi
+
+    # Run provisioning script locally (requires python3)
+    if command -v python3 &> /dev/null; then
+        cd superset/provisioning && python3 scripts/provision_superset.py --env dev $force_flag --auto-restart
+        cd - > /dev/null
+    else
+        echo "❌ python3 not found. Install Python 3 to run provisioning."
+        exit 1
+    fi
+}
+
 # Wait for Superset
 echo -n "  Superset: "
 for i in {1..90}; do
@@ -394,6 +429,11 @@ if [ "$TABLE_COUNT" = "0" ] && [ "$INIT_DB" = false ]; then
     echo "      ./run_local.sh --init-db"
 fi
 
+# Provision dashboards if requested
+if [ "$PROVISION" = true ]; then
+    provision_dashboards
+fi
+
 echo ""
 echo "✅ RCQ V2 Development Environment is running!"
 echo ""
@@ -413,6 +453,8 @@ echo "  - Restart backend:    ./run_local.sh --restart backend"
 echo "  - Restart frontend:   ./run_local.sh --restart frontend"
 echo "  - Restart superset:   ./run_local.sh --restart superset"
 echo "  - Restart all:        ./run_local.sh --restart all"
+echo "  - Provision dashboards:  ./run_local.sh --provision"
+echo "  - Update dashboards:     ./run_local.sh --provision --force-update"
 echo "  - Show config:        ./run_local.sh --show-config"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
