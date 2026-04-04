@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `quete_dates` (
   `nb_days` int NOT NULL COMMENT 'Nombre total de jours de quête (start_date + additional_days)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_year` (`year`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Seed data for years 2004-2025
 INSERT IGNORE INTO `quete_dates` (`year`, `start_date`, `nb_days`) VALUES
@@ -37,4 +37,5 @@ INSERT IGNORE INTO `quete_dates` (`year`, `start_date`, `nb_days`) VALUES
 (2022, '2022-05-14', 9),
 (2023, '2023-06-03', 9),
 (2024, '2024-05-25', 9),
-(2025, '2025-05-17', 9);
+(2025, '2025-05-17', 9),
+(2026, '2025-05-23', 9);
