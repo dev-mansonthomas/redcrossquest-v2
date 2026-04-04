@@ -251,7 +251,7 @@ class SupersetProvisioner:
                 "meta": {
                     "chartId": chart_id,
                     "width": 12,
-                    "height": 50,
+                    "height": 100,
                     "sliceName": title,
                 },
             }

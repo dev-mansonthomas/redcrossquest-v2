@@ -129,5 +129,5 @@ UNION ALL
 SELECT ul_id, year, jour_num, serie, montant_cumule
 FROM objectif_cumule
 
-ORDER BY ul_id, year, serie, jour_num
+ORDER BY ul_id, year DESC, serie DESC, jour_num
 
