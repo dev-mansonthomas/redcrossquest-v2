@@ -222,36 +222,61 @@ class SupersetProvisioner:
     def upsert_dashboard(self, config: dict, chart_ids: list[int], force_update: bool = False) -> int:
         """Create or update a dashboard with charts."""
         title = config["dashboard_title"]
+
+        # Build position_json that places all charts in a single column layout
+        position = {
+            "DASHBOARD_VERSION_KEY": "v2",
+            "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
+            "GRID_ID": {"type": "GRID", "id": "GRID_ID", "children": [], "parents": ["ROOT_ID"]},
+            "HEADER_ID": {"type": "HEADER", "id": "HEADER_ID", "meta": {"text": title}},
+        }
+
+        for i, chart_id in enumerate(chart_ids):
+            row_id = f"ROW-{i + 1}"
+            chart_key = f"CHART-{chart_id}"
+
+            position["GRID_ID"]["children"].append(row_id)
+            position[row_id] = {
+                "type": "ROW",
+                "id": row_id,
+                "children": [chart_key],
+                "parents": ["ROOT_ID", "GRID_ID"],
+                "meta": {"background": "BACKGROUND_TRANSPARENT"},
+            }
+            position[chart_key] = {
+                "type": "CHART",
+                "id": chart_key,
+                "children": [],
+                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "meta": {
+                    "chartId": chart_id,
+                    "width": 12,
+                    "height": 50,
+                    "sliceName": title,
+                },
+            }
+
+        dashboard_payload = {
+            "dashboard_title": title,
+            "slug": config.get("slug", ""),
+            "published": config.get("published", True),
+            "position_json": json.dumps(position),
+            "json_metadata": json.dumps(config.get("json_metadata", {})),
+        }
+
         existing_id = self._find_existing("/dashboard/", "dashboard_title", title)
         if existing_id is not None:
             if force_update:
-                self._api_request(
-                    "PUT", f"/dashboard/{existing_id}",
-                    json={
-                        "dashboard_title": title,
-                        "slug": config.get("slug", ""),
-                        "published": config.get("published", True),
-                        "json_metadata": json.dumps(config.get("json_metadata", {})),
-                    },
-                )
+                self._api_request("PUT", f"/dashboard/{existing_id}", json=dashboard_payload)
                 print(f"✅ Updated dashboard '{title}' (id={existing_id})")
                 return existing_id
             else:
                 print(f"✅ Skipped dashboard '{title}' (already exists, use --force-update to overwrite)")
                 return existing_id
 
-        result = self._api_request(
-            "POST", "/dashboard/",
-            json={
-                "dashboard_title": title,
-                "slug": config.get("slug", ""),
-                "published": config.get("published", True),
-                "json_metadata": json.dumps(config.get("json_metadata", {})),
-            },
-        )
+        result = self._api_request("POST", "/dashboard/", json=dashboard_payload)
         dash_id = result["id"]
         print(f"✅ Created dashboard '{title}' (id={dash_id})")
-        # TODO: Add charts to dashboard layout
         return dash_id
 
     def import_theme_from_zip(self, zip_path: Path, theme_name: str) -> int:

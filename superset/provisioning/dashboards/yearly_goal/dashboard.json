@@ -2,8 +2,6 @@
   "dashboard_title": "Objectif vs Réalisé",
   "slug": "yearly-goal",
   "published": true,
-  "position_json": {},
-  "css": "",
   "json_metadata": {
     "color_scheme": "supersetColors",
     "refresh_frequency": 0,
