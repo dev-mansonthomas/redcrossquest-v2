@@ -32,14 +32,11 @@ class SupersetProvisioner:
         login_page = self.session.get(f"{self.base_url}/login/")
         login_page.raise_for_status()
 
-        # Extract CSRF token from the login form
-        csrf_match = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', login_page.text)
+        # Extract CSRF token - allow empty value (Superset 6.x may use empty CSRF on login)
+        csrf_match = re.search(r'name="csrf_token"[^>]*value="([^"]*)"', login_page.text)
         if not csrf_match:
-            # Try alternative pattern
-            csrf_match = re.search(r'id="csrf_token"[^>]*value="([^"]+)"', login_page.text)
-        if not csrf_match:
-            raise Exception("Could not find CSRF token on login page")
-        csrf_token = csrf_match.group(1)
+            csrf_match = re.search(r'id="csrf_token"[^>]*value="([^"]*)"', login_page.text)
+        csrf_token = csrf_match.group(1) if csrf_match else ""
 
         # Submit the login form
         login_resp = self.session.post(
