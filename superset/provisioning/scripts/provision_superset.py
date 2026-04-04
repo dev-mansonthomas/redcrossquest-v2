@@ -27,29 +27,37 @@ class SupersetProvisioner:
 
     def _login(self, username: str, password: str) -> None:
         """Authenticate and get access token."""
-        # Get CSRF token
-        csrf_url = f"{self.base_url}/api/v1/security/csrf_token/"
-        csrf_resp = self.session.get(csrf_url)
+        # Get initial CSRF token (needed for login POST)
+        csrf_resp = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
         csrf_resp.raise_for_status()
-        csrf_token = csrf_resp.json()["result"]
+        initial_csrf = csrf_resp.json()["result"]
 
         # Login
-        login_url = f"{self.base_url}/api/v1/security/login"
         login_resp = self.session.post(
-            login_url,
+            f"{self.base_url}/api/v1/security/login",
             json={
                 "username": username,
                 "password": password,
                 "provider": "db",
             },
-            headers={"X-CSRFToken": csrf_token},
+            headers={"X-CSRFToken": initial_csrf},
         )
         login_resp.raise_for_status()
         access_token = login_resp.json()["access_token"]
 
+        # Set the Bearer token first
         self.session.headers.update({
             "Authorization": f"Bearer {access_token}",
-            "X-CSRFToken": csrf_token,
+        })
+
+        # Now get a fresh CSRF token with the authenticated session
+        csrf_resp2 = self.session.get(f"{self.base_url}/api/v1/security/csrf_token/")
+        csrf_resp2.raise_for_status()
+        auth_csrf = csrf_resp2.json()["result"]
+
+        self.session.headers.update({
+            "X-CSRFToken": auth_csrf,
+            "Referer": self.base_url,
         })
         print(f"✅ Logged in to Superset as {username}")
 
