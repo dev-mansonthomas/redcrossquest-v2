@@ -425,6 +425,11 @@ def main():
         action="store_true",
         help="Update existing resources instead of skipping them",
     )
+    parser.add_argument(
+        "--no-restart",
+        action="store_true",
+        help="Skip the backend restart prompt",
+    )
     args = parser.parse_args()
 
     # Load environment
@@ -488,10 +493,15 @@ def main():
     if results:
         if args.auto_restart:
             restart_backend()
+        elif args.no_restart:
+            print("\n⏭️  Skipping restart (--no-restart)")
         else:
-            answer = input("\n🔄 Restart backend now? [y/N] ").strip().lower()
-            if answer == "y":
-                restart_backend()
+            try:
+                answer = input("\n🔄 Restart backend now? [y/N] ").strip().lower()
+                if answer == "y":
+                    restart_backend()
+            except EOFError:
+                print("\n⏭️  Non-interactive mode, skipping restart.")
 
     # Summary
     print("\n" + "=" * 50)
