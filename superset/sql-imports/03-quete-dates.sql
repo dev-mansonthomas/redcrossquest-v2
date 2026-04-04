@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `quete_dates` (
   `nb_days` int NOT NULL COMMENT 'Nombre total de jours de quête (start_date + additional_days)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_year` (`year`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed data for years 2004-2025
 INSERT IGNORE INTO `quete_dates` (`year`, `start_date`, `nb_days`) VALUES
