@@ -73,7 +73,7 @@ realise_cumule AS (
     SELECT ul_id,
            year,
            jour_num,
-           'Réalisé' AS serie,
+           CONCAT('Réalisé ', year) AS serie,
            ROUND(SUM(SUM(montant_jour)) OVER (
                PARTITION BY ul_id, year ORDER BY jour_num
            ), 2) AS montant_cumule
@@ -83,39 +83,39 @@ realise_cumule AS (
 
 -- ─── CTE 5: Objectif unfolded over 9 days with cumulative percentages ───────
 objectif_cumule AS (
-    SELECT ul_id, year, 1 AS jour_num, 'Objectif' AS serie,
+    SELECT ul_id, year, 1 AS jour_num, CONCAT('Objectif ', year) AS serie,
            ROUND(amount * day_1_percentage / 100, 2) AS montant_cumule
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 2, 'Objectif',
+    SELECT ul_id, year, 2, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 3, 'Objectif',
+    SELECT ul_id, year, 3, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 4, 'Objectif',
+    SELECT ul_id, year, 4, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 5, 'Objectif',
+    SELECT ul_id, year, 5, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 6, 'Objectif',
+    SELECT ul_id, year, 6, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 7, 'Objectif',
+    SELECT ul_id, year, 7, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 8, 'Objectif',
+    SELECT ul_id, year, 8, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage + day_8_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
     UNION ALL
-    SELECT ul_id, year, 9, 'Objectif',
+    SELECT ul_id, year, 9, CONCAT('Objectif ', year),
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage + day_8_percentage + day_9_percentage) / 100, 2)
     FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
 )

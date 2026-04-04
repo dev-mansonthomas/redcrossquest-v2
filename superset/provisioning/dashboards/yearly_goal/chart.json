@@ -12,7 +12,7 @@
     }],
     "groupby": ["serie"],
     "order_desc": true,
-    "row_limit": 1000,
+    "row_limit": 10000,
     "truncate_metric": true,
     "show_legend": true,
     "rich_tooltip": true,
@@ -23,25 +23,7 @@
     "seriesType": "line",
     "opacity": 0.8,
     "markerEnabled": true,
-    "markerSize": 6,
-    "customSeriesColors": {
-      "Objectif": "#1FA8C9",
-      "Réalisé": "#FF7F44"
-    },
-    "customSeriesStyles": {
-      "Objectif": {
-        "lineStyle": {
-          "type": "dashed",
-          "width": 2
-        }
-      },
-      "Réalisé": {
-        "lineStyle": {
-          "type": "solid",
-          "width": 3
-        }
-      }
-    }
+    "markerSize": 6
   }
 }
 
