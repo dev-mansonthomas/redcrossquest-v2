@@ -71,26 +71,77 @@ class SupersetProvisioner:
         return None
 
     def create_database_connection(self, name: str, sqlalchemy_uri: str) -> int:
-        """Create or update a database connection."""
+        """Create or find an existing database connection."""
+        # First check if it already exists
         existing_id = self._find_existing("/database/", "database_name", name)
         if existing_id is not None:
             print(f"✅ Database connection '{name}' already exists (id={existing_id})")
             return existing_id
 
-        result = self._api_request(
-            "POST", "/database/",
-            json={
-                "database_name": name,
-                "sqlalchemy_uri": sqlalchemy_uri,
-                "expose_in_sqllab": True,
-                "allow_ctas": False,
-                "allow_cvas": True,
-                "allow_dml": False,
-            },
-        )
-        db_id = result["id"]
-        print(f"✅ Created database connection '{name}' (id={db_id})")
-        return db_id
+        # Try to create it
+        try:
+            result = self._api_request(
+                "POST", "/database/",
+                json={
+                    "database_name": name,
+                    "sqlalchemy_uri": sqlalchemy_uri,
+                    "expose_in_sqllab": True,
+                    "allow_ctas": False,
+                    "allow_cvas": True,
+                    "allow_dml": False,
+                },
+            )
+            db_id = result["id"]
+            print(f"✅ Created database connection '{name}' (id={db_id})")
+            return db_id
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 422:
+                error_body = e.response.json()
+                if "already exists" in str(error_body):
+                    # DB exists but was not found by _find_existing (permissions issue)
+                    # Try listing ALL databases without filter
+                    try:
+                        all_dbs = self._api_request(
+                            "GET", "/database/",
+                            params={"q": json.dumps({"page_size": 1000})},
+                        )
+                        for db in all_dbs.get("result", []):
+                            if db["database_name"] == name:
+                                db_id = db["id"]
+                                print(f"✅ Database connection '{name}' already exists (id={db_id})")
+                                return db_id
+                    except Exception:
+                        pass
+
+                    # Still not found via API — it exists in DB but is not visible via REST
+                    print(
+                        f"⚠️  Database '{name}' exists in Superset but is not visible via API. "
+                        "Attempting direct lookup..."
+                    )
+
+                    # Try GET with a broader search (explicit columns)
+                    try:
+                        all_resp = self.session.get(
+                            f"{self.base_url}/api/v1/database/",
+                            params={"q": json.dumps({
+                                "page_size": 1000,
+                                "columns": ["id", "database_name"],
+                            })},
+                        )
+                        if all_resp.ok:
+                            for db in all_resp.json().get("result", []):
+                                if db.get("database_name") == name:
+                                    db_id = db["id"]
+                                    print(f"✅ Found database '{name}' (id={db_id})")
+                                    return db_id
+                    except Exception:
+                        pass
+
+                    # Last resort: clear error message
+                    print(f"❌ Database '{name}' exists but cannot be found via API.")
+                    print("   Try deleting it from the Superset admin UI and re-running provisioning.")
+                    print("   Or check Superset permissions for the admin user.")
+            raise
 
     def upsert_dataset(self, db_id: int, name: str, sql: str, force_update: bool = False) -> int:
         """Create or update a virtual dataset from SQL."""
