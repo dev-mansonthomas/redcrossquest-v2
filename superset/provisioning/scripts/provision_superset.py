@@ -360,6 +360,16 @@ def provision_dashboard(
     dataset_id = provisioner.upsert_dataset(db_id, f"{metadata['name']}_dataset", dataset_sql, force_update)
     chart_id = provisioner.upsert_chart(dataset_id, chart_config, force_update)
     dashboard_id = provisioner.upsert_dashboard(dashboard_config, [chart_id], force_update)
+
+    # Associate charts with dashboard (M2M relationship required by Superset)
+    chart_ids = [chart_id]
+    for cid in chart_ids:
+        provisioner._api_request(
+            "PUT", f"/chart/{cid}",
+            json={"dashboards": [dashboard_id]}
+        )
+    print(f"   🔗 Associated {len(chart_ids)} chart(s) with dashboard")
+
     embed_uuid = provisioner.enable_embedding(dashboard_id, allowed_domains)
 
     # Import and apply theme from ZIP if available
