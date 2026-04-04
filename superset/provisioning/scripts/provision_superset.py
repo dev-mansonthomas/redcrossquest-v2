@@ -179,7 +179,6 @@ class SupersetProvisioner:
                 "schema": "",
                 "table_name": name,
                 "sql": sql,
-                "is_sqllab_view": True,
             },
         )
         ds_id = result["id"]
