@@ -311,6 +311,13 @@ init_database() {
             docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/03-quete-dates.sql
             echo "   ✅ quete_dates table created and seeded"
         fi
+
+        # Migrate charset from utf8mb3 to utf8mb4
+        if [ -f "superset/sql-imports/04-migrate-utf8mb4.sql" ]; then
+            echo "   📥 Running 04-migrate-utf8mb4.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/04-migrate-utf8mb4.sql
+            echo "   ✅ Charset migrated to utf8mb4"
+        fi
     fi
 }
 init_database
