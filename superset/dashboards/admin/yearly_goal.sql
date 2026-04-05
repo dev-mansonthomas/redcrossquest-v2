@@ -85,39 +85,39 @@ realise_cumule AS (
 objectif_cumule AS (
     SELECT ul_id, year, 1 AS jour_num, 'Objectif' AS serie,
            ROUND(amount * day_1_percentage / 100, 2) AS montant_cumule
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 2, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 3, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 4, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 5, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 6, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 7, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 8, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage + day_8_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
     UNION ALL
     SELECT ul_id, year, 9, 'Objectif',
            ROUND(amount * (day_1_percentage + day_2_percentage + day_3_percentage + day_4_percentage + day_5_percentage + day_6_percentage + day_7_percentage + day_8_percentage + day_9_percentage) / 100, 2)
-    FROM yearly_goal WHERE year >= YEAR(NOW()) - 5
+    FROM yearly_goal WHERE year = YEAR(NOW())
 )
 
 -- ─── Final: Union of both series ─────────────────────────────────────────────
