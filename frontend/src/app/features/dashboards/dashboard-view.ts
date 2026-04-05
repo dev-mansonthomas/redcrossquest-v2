@@ -32,6 +32,10 @@ import { DashboardService } from '../../core/services/dashboard.service';
       height: 100%;
       width: 100%;
     }
+    :host ::ng-deep #superset-embedded-container {
+      width: 100% !important;
+      height: 100% !important;
+    }
     :host ::ng-deep iframe {
       width: 100% !important;
       height: 100% !important;
