@@ -1,8 +1,8 @@
-# Grant API service account permission to invoke Metabase
-resource "google_cloud_run_service_iam_member" "api_to_metabase" {
+# Grant API service account permission to invoke Superset
+resource "google_cloud_run_service_iam_member" "api_to_superset" {
   project  = var.project_id
   location = var.region
-  service  = "rcq_metabase"
+  service  = "rcq_superset"
   role     = "roles/run.invoker"
   member   = "serviceAccount:${var.api_service_account}"
 }
@@ -17,10 +17,10 @@ resource "google_cloud_run_service_iam_member" "frontend_to_api" {
 }
 
 # Grant logging permissions to all service accounts
-resource "google_project_iam_member" "metabase_logging" {
+resource "google_project_iam_member" "superset_logging" {
   project = var.project_id
   role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${var.metabase_service_account}"
+  member  = "serviceAccount:${var.superset_service_account}"
 }
 
 resource "google_project_iam_member" "api_logging" {
@@ -36,10 +36,10 @@ resource "google_project_iam_member" "frontend_logging" {
 }
 
 # Grant monitoring permissions
-resource "google_project_iam_member" "metabase_monitoring" {
+resource "google_project_iam_member" "superset_monitoring" {
   project = var.project_id
   role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${var.metabase_service_account}"
+  member  = "serviceAccount:${var.superset_service_account}"
 }
 
 resource "google_project_iam_member" "api_monitoring" {

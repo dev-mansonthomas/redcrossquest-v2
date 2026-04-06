@@ -22,32 +22,32 @@ provider "google" {
 }
 
 # Cloud Run services
-module "metabase" {
+module "superset" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_metabase"
+
+  service_name = "rcq_superset"
   project_id   = var.project_id
   region       = var.region
-  image        = var.metabase_image
-  
+  image        = var.superset_image
+
   env_vars = {
-    MB_DB_TYPE = "mysql"
-    MB_DB_DBNAME = "rcq_metabase_db"
-    MB_DB_PORT = "3306"
-    MB_DB_HOST = var.cloud_sql_connection_name
+    SUPERSET_DB_TYPE = "mysql"
+    SUPERSET_DB_NAME = "rcq_superset_db"
+    SUPERSET_DB_PORT = "3306"
+    SUPERSET_DB_HOST = var.cloud_sql_connection_name
   }
-  
+
   secrets = {
-    MB_DB_USER = google_secret_manager_secret.metabase_db_user.secret_id
-    MB_DB_PASS = google_secret_manager_secret.metabase_db_password.secret_id
-    MB_ENCRYPTION_SECRET_KEY = google_secret_manager_secret.metabase_encryption_key.secret_id
+    SUPERSET_DB_USER = google_secret_manager_secret.superset_db_user.secret_id
+    SUPERSET_DB_PASS = google_secret_manager_secret.superset_db_password.secret_id
+    SUPERSET_SECRET_KEY = google_secret_manager_secret.superset_secret_key.secret_id
   }
-  
+
   cloud_sql_connections = [var.cloud_sql_connection_name]
-  
+
   tags = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
@@ -105,36 +105,36 @@ module "frontend" {
 }
 
 # Secret Manager secrets
-resource "google_secret_manager_secret" "metabase_db_user" {
-  secret_id = "rcq_metabase_db_user_${var.environment}"
-  
+resource "google_secret_manager_secret" "superset_db_user" {
+  secret_id = "rcq_superset_db_user_${var.environment}"
+
   replication {
     auto {}
   }
-  
+
   labels = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
 
-resource "google_secret_manager_secret" "metabase_db_password" {
-  secret_id = "rcq_metabase_db_password_${var.environment}"
-  
+resource "google_secret_manager_secret" "superset_db_password" {
+  secret_id = "rcq_superset_db_password_${var.environment}"
+
   replication {
     auto {}
   }
-  
+
   labels = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
 
-resource "google_secret_manager_secret" "metabase_encryption_key" {
-  secret_id = "rcq_metabase_encryption_key_${var.environment}"
+resource "google_secret_manager_secret" "superset_secret_key" {
+  secret_id = "rcq_superset_secret_key_${var.environment}"
 
   replication {
     auto {}
@@ -142,7 +142,7 @@ resource "google_secret_manager_secret" "metabase_encryption_key" {
 
   labels = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
@@ -210,7 +210,7 @@ module "iam" {
   project_id  = var.project_id
   environment = var.environment
 
-  metabase_service_account = module.metabase.service_account_email
+  superset_service_account = module.superset.service_account_email
   api_service_account      = module.api.service_account_email
   frontend_service_account = module.frontend.service_account_email
 }

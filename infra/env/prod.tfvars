@@ -9,7 +9,7 @@ cloud_sql_connection_name = "rcq-fr-prod:europe-west1:rcq-mysql-instance"
 rcq_db_name = "rcq_fr_prod_db"
 
 # Container images - will be updated by CI/CD
-metabase_image = "metabase/metabase:v0.48.0"
+superset_image = "apache/superset:4.1.1"
 api_image      = "gcr.io/rcq-fr-prod/rcq_api:latest"
 frontend_image = "gcr.io/rcq-fr-prod/rcq_frontend:latest"
 

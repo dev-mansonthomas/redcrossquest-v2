@@ -1,6 +1,6 @@
-output "metabase_url" {
-  description = "Metabase Cloud Run service URL"
-  value       = module.metabase.service_url
+output "superset_url" {
+  description = "Superset Cloud Run service URL"
+  value       = module.superset.service_url
 }
 
 output "api_url" {
@@ -13,9 +13,9 @@ output "frontend_url" {
   value       = module.frontend.service_url
 }
 
-output "metabase_service_account" {
-  description = "Metabase service account email"
-  value       = module.metabase.service_account_email
+output "superset_service_account" {
+  description = "Superset service account email"
+  value       = module.superset.service_account_email
 }
 
 output "api_service_account" {

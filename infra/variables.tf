@@ -29,10 +29,10 @@ variable "rcq_db_name" {
   default     = "rcq_fr_dev_db"
 }
 
-variable "metabase_image" {
-  description = "Metabase Docker image"
+variable "superset_image" {
+  description = "Superset Docker image"
   type        = string
-  default     = "metabase/metabase:latest"
+  default     = "apache/superset:latest"
 }
 
 variable "api_image" {
