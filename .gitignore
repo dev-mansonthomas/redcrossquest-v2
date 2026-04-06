@@ -63,11 +63,14 @@ dist/
 backend/.env
 backend/.env.*
 !backend/.env.example
+!backend/.env.*.example
 superset/.env
 superset/.env.*
 !superset/.env.example
+!superset/.env.*.example
 superset/provisioning/.env.*
 !superset/provisioning/.env.example
+!superset/provisioning/.env.*.example
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
