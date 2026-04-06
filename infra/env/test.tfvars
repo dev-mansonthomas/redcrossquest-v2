@@ -1,5 +1,5 @@
-project_id = "rcq-fr-test"
-region     = "europe-west1"
+project_id  = "rcq-fr-test"
+region      = "europe-west1"
 environment = "test"
 
 # Cloud SQL connection name - update with actual instance name
@@ -9,7 +9,13 @@ cloud_sql_connection_name = "rcq-fr-test:europe-west1:rcq-mysql-instance"
 rcq_db_name = "rcq_fr_test_db"
 
 # Container images - will be updated by CI/CD
-superset_image = "apache/superset:4.1.1"
-api_image      = "gcr.io/rcq-fr-test/rcq_api:latest"
-frontend_image = "gcr.io/rcq-fr-test/rcq_frontend:latest"
+superset_image = "europe-west1-docker.pkg.dev/rcq-fr-test/rcq-docker/rcq-superset:latest"
+api_image      = "europe-west1-docker.pkg.dev/rcq-fr-test/rcq-docker/rcq-api:latest"
+frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-test/rcq-docker/rcq-frontend:latest"
+
+# Custom domain mappings
+enable_domain_mappings = false
+frontend_domain        = "test.graph.redcrossquest.com"
+api_domain             = "back.test.graph.redcrossquest.com"
+superset_domain        = "superset.test.graph.redcrossquest.com"
 

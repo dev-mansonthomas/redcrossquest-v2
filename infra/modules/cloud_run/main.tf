@@ -8,12 +8,17 @@ resource "google_cloud_run_v2_service" "service" {
   name     = var.service_name
   location = var.region
   project  = var.project_id
-  
+  ingress  = var.ingress
+
   template {
     service_account = google_service_account.service.email
-    
+
     containers {
       image = var.image
+
+      ports {
+        container_port = var.container_port
+      }
       
       # Environment variables
       dynamic "env" {

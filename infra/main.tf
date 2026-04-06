@@ -8,12 +8,7 @@ terraform {
     }
   }
 
-  # Backend configuration moved to backend-local.tf for testing
-  # For production, use GCS backend:
-  # backend "gcs" {
-  #   bucket = "rcq-terraform-state-dev"  # or test/prod
-  #   prefix = "terraform/state"
-  # }
+  # Backend configuration in backend.tf (GCS)
 }
 
 provider "google" {
@@ -21,14 +16,30 @@ provider "google" {
   region  = var.region
 }
 
-# Cloud Run services
+# ─── Artifact Registry ───────────────────────────────────────────────
+resource "google_artifact_registry_repository" "docker" {
+  location      = var.region
+  repository_id = "rcq-docker"
+  description   = "Docker images for RedCrossQuest v2"
+  format        = "DOCKER"
+
+  labels = {
+    app         = "rcq"
+    environment = var.environment
+    managed-by  = "terraform"
+  }
+}
+
+# ─── Cloud Run services ──────────────────────────────────────────────
 module "superset" {
   source = "./modules/cloud_run"
 
-  service_name = "rcq_superset"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.superset_image
+  service_name   = "rcq-superset"
+  project_id     = var.project_id
+  region         = var.region
+  image          = var.superset_image
+  container_port = 8088
+  ingress        = "INGRESS_TRAFFIC_ALL"
 
   env_vars = {
     SUPERSET_DB_TYPE = "mysql"
@@ -54,11 +65,13 @@ module "superset" {
 
 module "api" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_api"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.api_image
+
+  service_name   = "rcq-api"
+  project_id     = var.project_id
+  region         = var.region
+  image          = var.api_image
+  container_port = 8080
+  ingress        = "INGRESS_TRAFFIC_ALL"
   
   env_vars = {
     ENVIRONMENT = var.environment
@@ -84,11 +97,13 @@ module "api" {
 
 module "frontend" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_frontend"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.frontend_image
+
+  service_name   = "rcq-frontend"
+  project_id     = var.project_id
+  region         = var.region
+  image          = var.frontend_image
+  container_port = 80
+  ingress        = "INGRESS_TRAFFIC_ALL"
   
   env_vars = {
     API_URL = module.api.service_url
@@ -203,7 +218,7 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
   }
 }
 
-# IAM for Cloud Run services
+# ─── IAM for Cloud Run services ───────────────────────────────────────
 module "iam" {
   source = "./modules/iam"
 
@@ -213,5 +228,66 @@ module "iam" {
   superset_service_account = module.superset.service_account_email
   api_service_account      = module.api.service_account_email
   frontend_service_account = module.frontend.service_account_email
+}
+
+# ─── Custom Domain Mappings ───────────────────────────────────────────
+# Note: Domain must be verified in Google Search Console before mapping.
+# Use `gcloud domains verify <domain>` to verify ownership.
+
+resource "google_cloud_run_domain_mapping" "frontend" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.frontend_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "frontend"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.frontend.service_name
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "api" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.api_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "api"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.api.service_name
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "superset" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.superset_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "superset"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.superset.service_name
+  }
 }
 

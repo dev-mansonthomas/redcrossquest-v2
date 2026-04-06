@@ -2,7 +2,7 @@
 resource "google_cloud_run_service_iam_member" "api_to_superset" {
   project  = var.project_id
   location = var.region
-  service  = "rcq_superset"
+  service  = "rcq-superset"
   role     = "roles/run.invoker"
   member   = "serviceAccount:${var.api_service_account}"
 }
@@ -11,7 +11,7 @@ resource "google_cloud_run_service_iam_member" "api_to_superset" {
 resource "google_cloud_run_service_iam_member" "frontend_to_api" {
   project  = var.project_id
   location = var.region
-  service  = "rcq_api"
+  service  = "rcq-api"
   role     = "roles/run.invoker"
   member   = "serviceAccount:${var.frontend_service_account}"
 }
