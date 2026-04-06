@@ -28,7 +28,7 @@ A new project created with Intent by Augment.
 
 | Flag | Description |
 |------|-------------|
-| `--init-db` | Initialize/reset the database with SQL dumps from `superset/sql-imports/` |
+| `--init-db` | Initialize/reset the database with SQL dumps from `superset/dev-sql-import/` and migrations from `superset/deploy-sql/` |
 
 ### ⚠️ Database Reset
 

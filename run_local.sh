@@ -305,31 +305,31 @@ init_database() {
         echo ""
         echo "   🗄️  Initializing database (--init-db)..."
 
-        # Import the main SQL dump
-        if [ -f "superset/sql-imports/01-rcq_prod_2026.sql" ]; then
+        # Import the main SQL dump (dev setup)
+        if [ -f "superset/dev-sql-import/01-rcq_prod_2026.sql" ]; then
             echo "   📥 Importing 01-rcq_prod_2026.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/01-rcq_prod_2026.sql
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/01-rcq_prod_2026.sql
             echo "   ✅ Main SQL dump imported"
         fi
 
-        # Run trigger and anonymization
-        if [ -f "superset/sql-imports/02-add-trigger_and_anonymise.sql" ]; then
+        # Run trigger and anonymization (dev setup)
+        if [ -f "superset/dev-sql-import/02-add-trigger_and_anonymise.sql" ]; then
             echo "   📥 Running 02-add-trigger_and_anonymise.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/02-add-trigger_and_anonymise.sql
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/02-add-trigger_and_anonymise.sql
             echo "   ✅ Trigger and anonymization applied"
         fi
 
-        # Create quete_dates reference table and seed data
-        if [ -f "superset/sql-imports/03-quete-dates.sql" ]; then
-            echo "   📥 Running 03-quete-dates.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/03-quete-dates.sql
+        # Create quete_dates reference table and seed data (deploy migration)
+        if [ -f "superset/deploy-sql/01-quete-dates.sql" ]; then
+            echo "   📥 Running 01-quete-dates.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/deploy-sql/01-quete-dates.sql
             echo "   ✅ quete_dates table created and seeded"
         fi
 
-        # Migrate charset from utf8mb3 to utf8mb4
-        if [ -f "superset/sql-imports/04-migrate-utf8mb4.sql" ]; then
-            echo "   📥 Running 04-migrate-utf8mb4.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/sql-imports/04-migrate-utf8mb4.sql
+        # Migrate charset from utf8mb3 to utf8mb4 (deploy migration)
+        if [ -f "superset/deploy-sql/02-migrate-utf8mb4.sql" ]; then
+            echo "   📥 Running 02-migrate-utf8mb4.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/deploy-sql/02-migrate-utf8mb4.sql
             echo "   ✅ Charset migrated to utf8mb4"
         fi
     fi
