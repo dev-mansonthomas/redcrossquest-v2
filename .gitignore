@@ -175,4 +175,4 @@ secrets/
 *.csv
 *.xlsx
 *.xls
-*/sql-imports/*.sql
+*/dev-sql-import/*.sql
