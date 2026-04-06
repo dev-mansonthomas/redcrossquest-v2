@@ -9,9 +9,10 @@ cloud_sql_connection_name = "rcq-fr-prod:europe-west1:rcq-mysql-instance"
 rcq_db_name = "rcq_fr_prod_db"
 
 # Container images - will be updated by CI/CD
-superset_image = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-superset:latest"
-api_image      = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-api:latest"
-frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-frontend:latest"
+superset_image = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-superset"
+api_image      = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-api"
+frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-frontend"
+# image_tag    = "latest"  # Override with specific tag during deployment
 
 # Custom domain mappings (prod uses root domain without env prefix)
 enable_domain_mappings = false

@@ -37,20 +37,20 @@ module "superset" {
   service_name   = "rcq-superset"
   project_id     = var.project_id
   region         = var.region
-  image          = var.superset_image
+  image          = "${var.superset_image}:${var.image_tag}"
   container_port = 8088
   ingress        = "INGRESS_TRAFFIC_ALL"
 
   env_vars = {
     SUPERSET_DB_TYPE = "mysql"
-    SUPERSET_DB_NAME = "rcq_superset_db"
+    SUPERSET_DB_NAME = var.rcq_db_name
     SUPERSET_DB_PORT = "3306"
     SUPERSET_DB_HOST = var.cloud_sql_connection_name
   }
 
   secrets = {
-    SUPERSET_DB_USER = google_secret_manager_secret.superset_db_user.secret_id
-    SUPERSET_DB_PASS = google_secret_manager_secret.superset_db_password.secret_id
+    SUPERSET_DB_USER = google_secret_manager_secret.api_db_user.secret_id
+    SUPERSET_DB_PASS = google_secret_manager_secret.api_db_password.secret_id
     SUPERSET_SECRET_KEY = google_secret_manager_secret.superset_secret_key.secret_id
   }
 
@@ -69,7 +69,7 @@ module "api" {
   service_name   = "rcq-api"
   project_id     = var.project_id
   region         = var.region
-  image          = var.api_image
+  image          = "${var.api_image}:${var.image_tag}"
   container_port = 8080
   ingress        = "INGRESS_TRAFFIC_ALL"
   
@@ -101,7 +101,7 @@ module "frontend" {
   service_name   = "rcq-frontend"
   project_id     = var.project_id
   region         = var.region
-  image          = var.frontend_image
+  image          = "${var.frontend_image}:${var.image_tag}"
   container_port = 80
   ingress        = "INGRESS_TRAFFIC_ALL"
   
@@ -120,36 +120,10 @@ module "frontend" {
 }
 
 # Secret Manager secrets
-resource "google_secret_manager_secret" "superset_db_user" {
-  secret_id = "rcq_superset_db_user_${var.environment}"
 
-  replication {
-    auto {}
-  }
-
-  labels = {
-    app = "rcq"
-    component = "superset"
-    environment = var.environment
-  }
-}
-
-resource "google_secret_manager_secret" "superset_db_password" {
-  secret_id = "rcq_superset_db_password_${var.environment}"
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    app = "rcq"
-    component = "superset"
-    environment = var.environment
-  }
-}
 
 resource "google_secret_manager_secret" "superset_secret_key" {
-  secret_id = "rcq_superset_secret_key_${var.environment}"
+  secret_id = "rcq_superset_secret_key"
 
   replication {
     auto {}
@@ -163,7 +137,7 @@ resource "google_secret_manager_secret" "superset_secret_key" {
 }
 
 resource "google_secret_manager_secret" "api_db_user" {
-  secret_id = "rcq_api_db_user_${var.environment}"
+  secret_id = "rcq_api_db_user"
 
   replication {
     auto {}
@@ -177,7 +151,7 @@ resource "google_secret_manager_secret" "api_db_user" {
 }
 
 resource "google_secret_manager_secret" "api_db_password" {
-  secret_id = "rcq_api_db_password_${var.environment}"
+  secret_id = "rcq_api_db_password"
 
   replication {
     auto {}
@@ -191,7 +165,7 @@ resource "google_secret_manager_secret" "api_db_password" {
 }
 
 resource "google_secret_manager_secret" "google_oauth_client_id" {
-  secret_id = "rcq_google_oauth_client_id_${var.environment}"
+  secret_id = "rcq_google_oauth_client_id"
 
   replication {
     auto {}
@@ -205,7 +179,7 @@ resource "google_secret_manager_secret" "google_oauth_client_id" {
 }
 
 resource "google_secret_manager_secret" "google_oauth_client_secret" {
-  secret_id = "rcq_google_oauth_client_secret_${var.environment}"
+  secret_id = "rcq_google_oauth_client_secret"
 
   replication {
     auto {}

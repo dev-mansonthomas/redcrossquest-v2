@@ -10,10 +10,11 @@ rcq_db_name = "rcq_fr_dev_db"
 
 # Container images - will be updated by CI/CD
 # Images should point to Artifact Registry after first deploy:
-#   europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/<image>:<tag>
-superset_image = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-superset:latest"
-api_image      = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-api:latest"
-frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-frontend:latest"
+#   europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/<image>
+superset_image = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-superset"
+api_image      = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-api"
+frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-dev/rcq-docker/rcq-frontend"
+# image_tag    = "latest"  # Override with specific tag during deployment
 
 # Custom domain mappings
 # Set to true after verifying domain ownership with: gcloud domains verify graph.redcrossquest.com
