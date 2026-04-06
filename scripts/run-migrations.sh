@@ -25,7 +25,7 @@ if [ -z "$ENV" ]; then
 fi
 
 # ── Environment configuration ───────────────────────────────
-MYSQL_DB="${MYSQL_DATABASE:-rcq_fr_dev_db}"
+MYSQL_DB="${MIGRATION_DB_NAME:-rcq_fr_dev_db}"
 
 case "$ENV" in
   local)
