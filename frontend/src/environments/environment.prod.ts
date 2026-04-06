@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: '/api',
-  supersetUrl: '',
+  apiUrl: 'https://back.graph.redcrossquest.com',
+  supersetUrl: 'https://superset.graph.redcrossquest.com',
 };
 
