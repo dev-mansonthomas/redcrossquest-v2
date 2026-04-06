@@ -3,7 +3,7 @@ region      = "europe-west1"
 environment = "prod"
 
 # Cloud SQL connection name - update with actual instance name
-cloud_sql_connection_name = "rcq-fr-prod:europe-west1:rcq-mysql-instance"
+cloud_sql_connection_name = "rcq-fr-prod:europe-west1:rcq-db-inst-fr-prod-0"
 
 # Database name
 rcq_db_name = "rcq_fr_prod_db"
