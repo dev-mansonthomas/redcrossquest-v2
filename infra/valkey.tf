@@ -11,6 +11,28 @@ resource "google_project_service" "memorystore_api" {
   disable_on_destroy = false
 }
 
+# Enable Network Connectivity API
+resource "google_project_service" "networkconnectivity_api" {
+  project = var.project_id
+  service = "networkconnectivity.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Service Connection Policy for Memorystore PSC
+resource "google_network_connectivity_service_connection_policy" "valkey_psc" {
+  name          = "rcq-valkey-psc-${var.environment}"
+  project       = var.project_id
+  location      = var.region
+  service_class = "gcp-memorystore"
+  network       = "projects/${var.project_id}/global/networks/default"
+
+  psc_config {
+    subnetworks = ["projects/${var.project_id}/regions/${var.region}/subnetworks/default"]
+  }
+
+  depends_on = [google_project_service.networkconnectivity_api]
+}
+
 # Memorystore for Valkey 9 instance
 resource "google_memorystore_instance" "valkey" {
   instance_id             = "rcq-valkey-${var.environment}"
@@ -34,7 +56,10 @@ resource "google_memorystore_instance" "valkey" {
     managed-by  = "terraform"
   }
 
-  depends_on = [google_project_service.memorystore_api]
+  depends_on = [
+    google_project_service.memorystore_api,
+    google_network_connectivity_service_connection_policy.valkey_psc
+  ]
 }
 
 # ─── IAM — Valkey access for Superset service account ─────────────────

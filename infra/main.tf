@@ -126,7 +126,11 @@ resource "google_secret_manager_secret" "superset_secret_key" {
   secret_id = "rcq_superset_secret_key"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -140,7 +144,11 @@ resource "google_secret_manager_secret" "api_db_user" {
   secret_id = "rcq_api_db_user"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -154,7 +162,11 @@ resource "google_secret_manager_secret" "api_db_password" {
   secret_id = "rcq_api_db_password"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -168,7 +180,11 @@ resource "google_secret_manager_secret" "google_oauth_client_id" {
   secret_id = "rcq_google_oauth_client_id"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -182,7 +198,11 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
   secret_id = "rcq_google_oauth_client_secret"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -202,6 +222,12 @@ module "iam" {
   superset_service_account = module.superset.service_account_email
   api_service_account      = module.api.service_account_email
   frontend_service_account = module.frontend.service_account_email
+
+  depends_on = [
+    module.api,
+    module.superset,
+    module.frontend
+  ]
 }
 
 # ─── Custom Domain Mappings ───────────────────────────────────────────
