@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================
-# gcp-deploy.sh — Unified GCP deployment script for RedCrossQuest V2
+# gcp-deploy.sh — GCP deployment script for RedCrossQuest V2
+#
+# Configuration:  .env.{env}  (single file per environment)
+# Template:       .env.example
 #
 # Usage:
 #   ./gcp-deploy.sh <env> [options]
@@ -19,7 +22,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REGION="europe-west1"
 
 # ── Colors ──────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -38,6 +40,16 @@ show_help() {
     cat <<'EOF'
 Usage: ./gcp-deploy.sh <env> [options]
 
+RedCrossQuest V2 — GCP deployment script.
+
+Configuration:
+  Each environment reads from a single file: .env.<env>
+  Template: .env.example (copy and fill in values)
+
+  cp .env.example .env.dev    # then edit .env.dev
+  cp .env.example .env.test
+  cp .env.example .env.prod
+
 Environments:
   dev       Development environment
   test      Test/staging environment
@@ -54,12 +66,12 @@ Options:
   --help           Show this help message
 
 Examples:
-  ./gcp-deploy.sh dev --plan           # Dry run: show Terraform plan
-  ./gcp-deploy.sh dev --build          # Build and push Docker images
-  ./gcp-deploy.sh dev --infra          # Apply infrastructure changes
-  ./gcp-deploy.sh dev --migrate        # Run database migrations
-  ./gcp-deploy.sh dev --all            # Full deployment
-  ./gcp-deploy.sh prod --all --skip-confirm  # Full prod deploy, no prompts
+  ./gcp-deploy.sh dev --plan                  # Dry run: show Terraform plan
+  ./gcp-deploy.sh dev --build                 # Build and push Docker images
+  ./gcp-deploy.sh dev --infra                 # Apply infrastructure changes
+  ./gcp-deploy.sh dev --migrate               # Run database migrations
+  ./gcp-deploy.sh dev --all                   # Full deployment
+  ./gcp-deploy.sh prod --all --skip-confirm   # Full prod deploy, no prompts
 EOF
     exit 0
 }
@@ -121,36 +133,77 @@ if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION; then
     exit 1
 fi
 
+# ── Load .env file ──────────────────────────────────────────
+ENV_FILE="$SCRIPT_DIR/.env.${ENV}"
+if [ ! -f "$ENV_FILE" ]; then
+    log_error "Configuration file not found: $ENV_FILE"
+    echo ""
+    echo "Create it from the template:"
+    echo "  cp .env.example .env.${ENV}"
+    echo "  \$EDITOR .env.${ENV}"
+    exit 1
+fi
+
+log_info "Loading configuration from $ENV_FILE"
+
+# Source env file (skip comments and blank lines)
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+# ── Validate required variables ─────────────────────────────
+require_var() {
+    local var_name="$1"
+    local context="${2:-}"
+    if [ -z "${!var_name:-}" ]; then
+        log_error "Missing required variable: $var_name${context:+ (needed for $context)}"
+        exit 1
+    fi
+}
+
+# Always required
+require_var GCP_PROJECT_ID
+GCP_REGION="${GCP_REGION:-europe-west1}"
+AR_REPOSITORY="${AR_REPOSITORY:-rcq-docker}"
+
 # ── Derived variables ──────────────────────────────────────
 GIT_SHA_SHORT="$(git -C "$SCRIPT_DIR" rev-parse --short HEAD)"
 IMAGE_TAG="${ENV}-${GIT_SHA_SHORT}"
+REGISTRY="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}"
 
-# Load project_id from tfvars
+# Terraform vars file (still used for infra)
 TFVARS_FILE="$SCRIPT_DIR/infra/env/${ENV}.tfvars"
-if [ ! -f "$TFVARS_FILE" ]; then
-    log_error "Terraform vars file not found: $TFVARS_FILE"
-    exit 1
-fi
-
-PROJECT_ID="$(grep -E '^project_id\s*=' "$TFVARS_FILE" | sed 's/.*=\s*"\(.*\)"/\1/')"
-if [ -z "$PROJECT_ID" ]; then
-    log_error "Could not extract project_id from $TFVARS_FILE"
-    exit 1
-fi
-
-REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/rcq-docker"
 
 # ── Validation ──────────────────────────────────────────────
 validate_prerequisites() {
     log_info "Validating prerequisites..."
     local missing=false
 
-    for cmd in gcloud terraform docker git; do
+    for cmd in gcloud docker git; do
         if ! command -v "$cmd" &>/dev/null; then
             log_error "$cmd is not installed or not in PATH"
             missing=true
         fi
     done
+
+    if $DO_INFRA; then
+        if ! command -v terraform &>/dev/null; then
+            log_error "terraform is not installed or not in PATH (required for --infra)"
+            missing=true
+        fi
+        if [ ! -f "$TFVARS_FILE" ]; then
+            log_error "Terraform vars file not found: $TFVARS_FILE"
+            missing=true
+        fi
+    fi
+
+    if $DO_PROVISION; then
+        if ! command -v python3 &>/dev/null; then
+            log_error "python3 is not installed or not in PATH (required for --provision)"
+            missing=true
+        fi
+    fi
 
     if $missing; then
         exit 1
@@ -168,9 +221,11 @@ echo "  RedCrossQuest V2 — GCP Deployment"
 echo "═══════════════════════════════════════════════"
 echo ""
 echo "  Environment:  $ENV"
-echo "  Project:      $PROJECT_ID"
+echo "  Project:      $GCP_PROJECT_ID"
+echo "  Region:       $GCP_REGION"
 echo "  Image tag:    $IMAGE_TAG"
 echo "  Registry:     $REGISTRY"
+echo "  Config:       $ENV_FILE"
 echo ""
 echo "  Steps:"
 $DO_BUILD    && echo "    ✦ Build & push Docker images"
@@ -206,7 +261,7 @@ build_and_push() {
 
     # Configure Docker for Artifact Registry
     log_info "Configuring Docker for Artifact Registry..."
-    gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+    gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
     local services=("frontend" "backend" "superset")
     local dockerfiles=("frontend/Dockerfile" "backend/Dockerfile" "superset/Dockerfile")
@@ -252,7 +307,7 @@ run_infra() {
     log_info "Initializing Terraform..."
     terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false
 
-    # Update image tags in tfvars if we just built
+    # Pass image tags as extra vars if we just built
     local extra_vars=""
     if $DO_BUILD; then
         extra_vars="-var=superset_image=${REGISTRY}/rcq-superset:${IMAGE_TAG}"
@@ -296,6 +351,9 @@ run_migrations() {
     echo "═══════════════════════════════════════════════"
     echo ""
 
+    require_var MIGRATION_DB_PASSWORD "migrations"
+    require_var MIGRATION_DB_NAME "migrations"
+
     local migration_script="$SCRIPT_DIR/scripts/run-migrations.sh"
     if [ ! -x "$migration_script" ]; then
         log_error "Migration script not found or not executable: $migration_script"
@@ -304,11 +362,15 @@ run_migrations() {
     fi
 
     log_info "Running migrations for environment: $ENV"
-    log_info "Note: For GCP environments, ensure Cloud SQL Proxy is running"
-    log_info "  or set DB_HOST/DB_PORT environment variables."
+    log_info "Ensure Cloud SQL Proxy is running if targeting GCP."
     echo ""
 
-    "$migration_script" "$ENV"
+    # Export DB vars so run-migrations.sh can pick them up
+    export DB_HOST="${MIGRATION_DB_HOST:-127.0.0.1}"
+    export DB_PORT="${MIGRATION_DB_PORT:-3306}"
+    export MYSQL_DATABASE="${MIGRATION_DB_NAME}"
+
+    "$migration_script" "$ENV" "${MIGRATION_DB_USER:-root}" "${MIGRATION_DB_PASSWORD}"
 
     log_success "Migrations complete."
     echo ""
@@ -327,16 +389,35 @@ run_provision() {
     echo "═══════════════════════════════════════════════"
     echo ""
 
-    if ! command -v python3 &>/dev/null; then
-        log_error "python3 is required for provisioning. Please install Python 3."
-        exit 1
-    fi
+    require_var SUPERSET_URL "provisioning"
+    require_var SUPERSET_ADMIN_PASSWORD "provisioning"
 
     log_info "Provisioning Superset dashboards for environment: $ENV"
+
+    # Generate a temporary .env file for the provisioning script
+    local prov_env_file
+    prov_env_file="$(mktemp)"
+    trap 'rm -f "$prov_env_file"' EXIT
+
+    cat > "$prov_env_file" <<PROV_EOF
+SUPERSET_URL=${SUPERSET_URL}
+SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USERNAME:-admin}
+SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
+DB_CONNECTION_NAME=${DB_CONNECTION_NAME:-RCQ MySQL}
+DB_SQLALCHEMY_URI=${DB_SQLALCHEMY_URI:-}
+EMBEDDING_ALLOWED_DOMAINS=${EMBEDDING_ALLOWED_DOMAINS:-}
+BACKEND_ENV_PATH=
+PROV_EOF
+
+    # Copy temp file to provisioning dir as .env.{env}
+    cp "$prov_env_file" "$SCRIPT_DIR/superset/provisioning/.env.${ENV}"
 
     cd "$SCRIPT_DIR/superset/provisioning"
     python3 scripts/provision_superset.py --env "$ENV" --force-update --auto-restart --no-restart
     cd "$SCRIPT_DIR"
+
+    # Clean up generated provisioning env file
+    rm -f "$SCRIPT_DIR/superset/provisioning/.env.${ENV}"
 
     log_success "Superset dashboards provisioned."
     echo ""
@@ -355,7 +436,7 @@ echo "  🎉 Deployment Summary"
 echo "═══════════════════════════════════════════════"
 echo ""
 echo "  Environment:  $ENV"
-echo "  Project:      $PROJECT_ID"
+echo "  Project:      $GCP_PROJECT_ID"
 echo "  Image tag:    $IMAGE_TAG"
 echo ""
 
@@ -363,13 +444,13 @@ echo ""
 if $DO_INFRA && ! $PLAN_ONLY; then
     echo "  📍 Service URLs:"
     cd "$SCRIPT_DIR/infra"
-    FRONTEND_URL="$(terraform output -raw frontend_url 2>/dev/null || echo 'N/A')"
-    API_URL="$(terraform output -raw api_url 2>/dev/null || echo 'N/A')"
-    SUPERSET_URL="$(terraform output -raw superset_url 2>/dev/null || echo 'N/A')"
+    TF_FRONTEND_URL="$(terraform output -raw frontend_url 2>/dev/null || echo 'N/A')"
+    TF_API_URL="$(terraform output -raw api_url 2>/dev/null || echo 'N/A')"
+    TF_SUPERSET_URL="$(terraform output -raw superset_url 2>/dev/null || echo 'N/A')"
     cd "$SCRIPT_DIR"
-    echo "    Frontend:  $FRONTEND_URL"
-    echo "    API:       $API_URL"
-    echo "    Superset:  $SUPERSET_URL"
+    echo "    Frontend:  $TF_FRONTEND_URL"
+    echo "    API:       $TF_API_URL"
+    echo "    Superset:  $TF_SUPERSET_URL"
     echo ""
 
     echo "  🌐 DNS CNAME records to configure:"
@@ -383,7 +464,7 @@ if $DO_INFRA && ! $PLAN_ONLY; then
 fi
 
 echo "  🔧 Superset admin access:"
-echo "    gcloud run services proxy rcq-superset --region ${REGION} --project ${PROJECT_ID} --port 8088"
+echo "    gcloud run services proxy rcq-superset --region ${GCP_REGION} --project ${GCP_PROJECT_ID} --port 8088"
 echo ""
 
 $DO_BUILD    && log_success "Build & push: done"
