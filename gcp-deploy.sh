@@ -14,6 +14,7 @@
 #   --infra          Apply Terraform (infrastructure)
 #   --migrate        Run SQL migrations
 #   --provision      Provision Superset dashboards
+#   --check          Check environment readiness (DB user, secrets, etc.)
 #   --all            Do everything (build + infra + migrate + provision)
 #   --plan           Terraform plan only (dry run)
 #   --skip-confirm   Skip confirmation prompts
@@ -60,6 +61,7 @@ Options:
   --infra          Apply Terraform infrastructure changes
   --migrate        Run SQL migrations via scripts/run-migrations.sh
   --provision      Provision Superset dashboards
+  --check          Check environment readiness (DB user, secrets, etc.)
   --all            Run all steps: build + infra + migrate + provision
   --plan           Terraform plan only (dry run, no apply)
   --skip-confirm   Skip confirmation prompts
@@ -100,6 +102,7 @@ DO_BUILD=false
 DO_INFRA=false
 DO_MIGRATE=false
 DO_PROVISION=false
+DO_CHECK=false
 PLAN_ONLY=false
 SKIP_CONFIRM=false
 
@@ -109,6 +112,7 @@ while [[ $# -gt 0 ]]; do
         --infra)       DO_INFRA=true;     shift ;;
         --migrate)     DO_MIGRATE=true;   shift ;;
         --provision)   DO_PROVISION=true; shift ;;
+        --check)       DO_CHECK=true;     shift ;;
         --all)
             DO_BUILD=true
             DO_INFRA=true
@@ -127,8 +131,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --all, or --plan."
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --all, or --plan."
     echo "Run './gcp-deploy.sh --help' for usage."
     exit 1
 fi
@@ -228,6 +232,7 @@ echo "  Registry:     $REGISTRY"
 echo "  Config:       $ENV_FILE"
 echo ""
 echo "  Steps:"
+$DO_CHECK    && echo "    ✦ Check environment readiness"
 $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || echo "    ✦ Terraform apply"; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
@@ -249,6 +254,53 @@ if ! $SKIP_CONFIRM; then
     esac
     echo ""
 fi
+
+
+# ══════════════════════════════════════════════════════════════
+# Step 0: Check environment readiness
+# ══════════════════════════════════════════════════════════════
+check_environment() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Check environment readiness"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    require_var MIGRATION_DB_PASSWORD "check"
+    require_var MIGRATION_DB_NAME "check"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    # ── Check MySQL user rcq_readonly ────────────────────────
+    log_info "Checking MySQL user 'rcq_readonly'..."
+    local user_exists
+    user_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>/dev/null || true)
+
+    if [ -n "$user_exists" ]; then
+        log_success "MySQL user 'rcq_readonly' exists"
+    else
+        log_error "MySQL user 'rcq_readonly' does NOT exist"
+    fi
+
+    # ── Check Secret Manager secret ─────────────────────────
+    local secret_name="rcq_db_readonly_password_${ENV}"
+    log_info "Checking Secret Manager secret '${secret_name}'..."
+
+    if gcloud secrets describe "$secret_name" --project="$GCP_PROJECT_ID" &>/dev/null; then
+        log_success "Secret '${secret_name}' exists in Secret Manager"
+    else
+        log_error "Secret '${secret_name}' does NOT exist in Secret Manager"
+    fi
+
+    echo ""
+}
+
+if $DO_CHECK; then
+    check_environment
+fi
+
 
 # ══════════════════════════════════════════════════════════════
 # Step 1: Build & Push Docker images
@@ -291,6 +343,62 @@ build_and_push() {
 if $DO_BUILD; then
     build_and_push
 fi
+
+
+# ── Helper: Create MySQL read-only user ──────────────────────
+create_readonly_user() {
+    log_info "Checking if MySQL user 'rcq_readonly' exists..."
+
+    require_var MIGRATION_DB_PASSWORD "readonly user creation"
+    require_var MIGRATION_DB_NAME "readonly user creation"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    local user_exists
+    user_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>/dev/null || true)
+
+    if [ -n "$user_exists" ]; then
+        log_success "MySQL user 'rcq_readonly' already exists — skipping creation."
+        return
+    fi
+
+    log_info "Creating MySQL user 'rcq_readonly'..."
+
+    # Generate a random 32-character password
+    local readonly_password
+    readonly_password="$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)"
+
+    # Create the user and grant SELECT privileges
+    mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" <<SQL_EOF
+CREATE USER 'rcq_readonly'@'%' IDENTIFIED BY '${readonly_password}';
+GRANT SELECT ON \`${MIGRATION_DB_NAME}\`.* TO 'rcq_readonly'@'%';
+FLUSH PRIVILEGES;
+SQL_EOF
+
+    log_success "MySQL user 'rcq_readonly' created with SELECT privileges on '${MIGRATION_DB_NAME}'."
+
+    # Store the password in GCP Secret Manager
+    local secret_name="rcq_db_readonly_password_${ENV}"
+    log_info "Storing password in Secret Manager as '${secret_name}'..."
+
+    if gcloud secrets describe "$secret_name" --project="$GCP_PROJECT_ID" &>/dev/null; then
+        # Secret exists — add a new version
+        echo -n "$readonly_password" | gcloud secrets versions add "$secret_name" \
+            --project="$GCP_PROJECT_ID" --data-file=-
+        log_success "New version added to existing secret '${secret_name}'."
+    else
+        # Secret does not exist — create it
+        echo -n "$readonly_password" | gcloud secrets create "$secret_name" \
+            --project="$GCP_PROJECT_ID" --data-file=- --replication-policy=automatic
+        log_success "Secret '${secret_name}' created in Secret Manager."
+    fi
+
+    echo ""
+}
+
 
 # ══════════════════════════════════════════════════════════════
 # Step 2: Terraform (infrastructure)
@@ -336,6 +444,9 @@ run_infra() {
     log_success "Infrastructure applied successfully."
     cd "$SCRIPT_DIR"
     echo ""
+
+    # ── Create MySQL read-only user if it doesn't exist ─────
+    create_readonly_user
 }
 
 if $DO_INFRA; then
@@ -467,6 +578,7 @@ echo "  🔧 Superset admin access:"
 echo "    gcloud run services proxy rcq-superset --region ${GCP_REGION} --project ${GCP_PROJECT_ID} --port 8088"
 echo ""
 
+$DO_CHECK    && log_success "Environment check: done"
 $DO_BUILD    && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
