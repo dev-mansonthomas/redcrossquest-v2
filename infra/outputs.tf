@@ -63,6 +63,13 @@ output "dns_instructions" {
   ]) : "Domain mappings are disabled. Set enable_domain_mappings = true to enable."
 }
 
+# ─── Valkey (Memorystore) ─────────────────────────────────────────────
+
+output "valkey_endpoints" {
+  description = "Memorystore Valkey endpoints"
+  value       = google_memorystore_instance.valkey.endpoints
+}
+
 output "superset_admin_proxy_command" {
   description = "Command to access Superset admin via gcloud proxy (for admin operations)"
   value       = "gcloud run services proxy rcq-superset --region=${var.region} --project=${var.project_id} --port=8088"

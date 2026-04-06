@@ -34,10 +34,10 @@ services:
     restart: unless-stopped
 
   # -------------------------------------------------------
-  # Phase 2: Valkey 8 (Redis-compatible) — Base 1 for Superset
+  # Phase 2: Valkey 9 (Redis-compatible) — Base 1 for Superset
   # -------------------------------------------------------
   valkey:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:9-alpine
     container_name: rcq_valkey
     ports:
       - "6389:6379"  # External 6389 to avoid conflict with CLEF on 6379

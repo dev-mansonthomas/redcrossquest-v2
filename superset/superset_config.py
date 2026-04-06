@@ -18,6 +18,19 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
 # ---------------------------------------------------------
 # Valkey / Redis — Base 1 (Base 0 reserved for FastAPI)
 # ---------------------------------------------------------
+# Local (Docker): Valkey 9 sans auth → redis://valkey:6379/1
+# GCP (Memorystore for Valkey 9): IAM Auth + TLS
+#   - Pas de mot de passe: l'auth se fait via le service account Cloud Run
+#   - Le service account doit avoir le rôle roles/memorystore.dbConnectionUser
+#   - Connexion via: rediss://<endpoint>:6379/1 (TLS obligatoire)
+#   - Pour IAM Auth, utiliser google-auth + redis-py credential_provider:
+#       from google.auth.transport.requests import Request
+#       from google.auth import default
+#       creds, _ = default()
+#       creds.refresh(Request())
+#       redis.Redis(host=..., port=6379, ssl=True,
+#                   credential_provider=lambda: creds.token)
+# ---------------------------------------------------------
 VALKEY_HOST = os.environ.get("VALKEY_HOST", "valkey")
 VALKEY_PORT = int(os.environ.get("VALKEY_PORT", "6379"))
 VALKEY_DB = int(os.environ.get("VALKEY_DB", "1"))  # Configurable via env var
