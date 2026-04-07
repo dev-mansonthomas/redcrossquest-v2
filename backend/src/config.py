@@ -35,8 +35,8 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins_str.split(",") if origin.strip()]
 
     # Google OAuth (Wave 2)
-    google_client_id: str = ""
-    google_client_secret: str = ""
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
     google_redirect_uri: str = ""
 
     # Session/JWT (Wave 2)

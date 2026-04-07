@@ -11,8 +11,8 @@ from src.routers import auth
 @pytest.fixture(autouse=True)
 def configure_auth_settings(monkeypatch):
     """Set deterministic auth settings for unit tests."""
-    monkeypatch.setattr(auth.settings, "google_client_id", "google-client-id", raising=False)
-    monkeypatch.setattr(auth.settings, "google_client_secret", "google-client-secret", raising=False)
+    monkeypatch.setattr(auth.settings, "google_oauth_client_id", "google-client-id", raising=False)
+    monkeypatch.setattr(auth.settings, "google_oauth_client_secret", "google-client-secret", raising=False)
     monkeypatch.setattr(auth.settings, "google_redirect_uri", "http://testserver/api/auth/callback", raising=False)
     monkeypatch.setattr(auth.settings, "jwt_secret_key", "test-jwt-secret", raising=False)
     monkeypatch.setattr(auth.settings, "jwt_algorithm", "HS256", raising=False)

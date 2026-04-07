@@ -49,8 +49,8 @@ module "superset" {
   }
 
   secrets = {
-    SUPERSET_DB_USER = google_secret_manager_secret.api_db_user.secret_id
-    SUPERSET_DB_PASS = google_secret_manager_secret.api_db_password.secret_id
+    SUPERSET_DB_USER = google_secret_manager_secret.db_readonly_username.secret_id
+    SUPERSET_DB_PASS = google_secret_manager_secret.db_readonly_password.secret_id
     SUPERSET_SECRET_KEY = google_secret_manager_secret.superset_secret_key.secret_id
   }
 
@@ -80,8 +80,8 @@ module "api" {
   }
   
   secrets = {
-    DB_USER = google_secret_manager_secret.api_db_user.secret_id
-    DB_PASSWORD = google_secret_manager_secret.api_db_password.secret_id
+    RCQ_DB_USER = google_secret_manager_secret.db_readonly_username.secret_id
+    RCQ_DB_PASSWORD = google_secret_manager_secret.db_readonly_password.secret_id
     GOOGLE_OAUTH_CLIENT_ID = google_secret_manager_secret.google_oauth_client_id.secret_id
     GOOGLE_OAUTH_CLIENT_SECRET = google_secret_manager_secret.google_oauth_client_secret.secret_id
   }
@@ -140,8 +140,8 @@ resource "google_secret_manager_secret" "superset_secret_key" {
   }
 }
 
-resource "google_secret_manager_secret" "api_db_user" {
-  secret_id = "rcq_api_db_user"
+resource "google_secret_manager_secret" "db_readonly_username" {
+  secret_id = "rcq_db_readonly_username"
 
   replication {
     user_managed {
@@ -153,13 +153,13 @@ resource "google_secret_manager_secret" "api_db_user" {
 
   labels = {
     app = "rcq"
-    component = "api"
+    component = "database"
     environment = var.environment
   }
 }
 
-resource "google_secret_manager_secret" "api_db_password" {
-  secret_id = "rcq_api_db_password"
+resource "google_secret_manager_secret" "db_readonly_password" {
+  secret_id = "rcq_db_readonly_password"
 
   replication {
     user_managed {
@@ -171,7 +171,7 @@ resource "google_secret_manager_secret" "api_db_password" {
 
   labels = {
     app = "rcq"
-    component = "api"
+    component = "database"
     environment = var.environment
   }
 }
