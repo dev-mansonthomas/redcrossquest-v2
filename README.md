@@ -77,6 +77,26 @@ Each service has its own `.env` file (auto-copied from `.env.example` on first r
 - `backend/.env` — Backend configuration
 
 
+## Deployment
+
+### Domain Verification
+
+The Google account used for deployment (e.g. `xxx@croix-rouge.fr`) must be a **verified owner** of the `redcrossquest.com` domain in [Google Search Console](https://search.google.com/search-console).
+
+This is required for Cloud Run domain mappings to work. Without it, `terraform apply` will fail with:
+```
+Caller is not authorized to administer the domain
+```
+
+**To add a new deployer:**
+1. Go to [Google Search Console](https://search.google.com/search-console) → Settings → Users and permissions
+2. Sign in with an account that is already a verified owner of `redcrossquest.com`
+3. Click "Add a user"
+4. Enter the deployer's email (e.g. `thomas.manson@croix-rouge.fr`)
+5. Set permission to **Owner**
+6. The new deployer can now run `gcp-deploy.sh` with domain mappings
+
+
 ## License
 
 Ce projet est sous licence [GNU General Public License v3.0](LICENSE).
