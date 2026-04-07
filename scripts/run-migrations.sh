@@ -86,7 +86,10 @@ fi
 echo "✅ Connected."
 
 # ── Collect migration files ─────────────────────────────────
-mapfile -t MIGRATION_FILES < <(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' -type f | sort)
+MIGRATION_FILES=()
+while IFS= read -r f; do
+    MIGRATION_FILES+=("$f")
+done < <(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' -type f | sort)
 
 if [ ${#MIGRATION_FILES[@]} -eq 0 ]; then
   echo "⚠️  No SQL files found in $MIGRATIONS_DIR"
