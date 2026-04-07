@@ -8,28 +8,37 @@ ROW_LIMIT = 50000
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION")
 
 # ---------------------------------------------------------
-# Superset metadata database (SQLite for local dev)
+# Superset metadata database
 # ---------------------------------------------------------
-SQLALCHEMY_DATABASE_URI = os.environ.get(
-    "SUPERSET_METADATA_DB_URI",
-    "sqlite:////app/superset_home/superset.db",
-)
+# SQLite for local dev, MySQL for GCP (Cloud SQL via Cloud Run)
+_meta_db_type = os.environ.get("SUPERSET_METADATA_DB_TYPE", "sqlite")
+if _meta_db_type == "sqlite":
+    SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db"
+else:
+    _meta_user = os.environ.get("SUPERSET_METADATA_DB_USER", "superset_rw")
+    _meta_pass = os.environ.get("SUPERSET_METADATA_DB_PASS", "")
+    _meta_host = os.environ.get("SUPERSET_METADATA_DB_HOST", "127.0.0.1")
+    _meta_port = os.environ.get("SUPERSET_METADATA_DB_PORT", "3306")
+    _meta_name = os.environ.get("SUPERSET_METADATA_DB_NAME", "superset_dev_db")
+    # Cloud SQL via Cloud Run uses Unix socket (host contains "/")
+    if "/" in _meta_host:
+        SQLALCHEMY_DATABASE_URI = (
+            f"mysql+mysqldb://{_meta_user}:{_meta_pass}@/"
+            f"{_meta_name}?unix_socket={_meta_host}&charset=utf8mb4"
+        )
+    else:
+        SQLALCHEMY_DATABASE_URI = (
+            f"mysql+mysqldb://{_meta_user}:{_meta_pass}@"
+            f"{_meta_host}:{_meta_port}/{_meta_name}?charset=utf8mb4"
+        )
 
 # ---------------------------------------------------------
 # Valkey / Redis — Base 1 (Base 0 reserved for FastAPI)
 # ---------------------------------------------------------
 # Local (Docker): Valkey 9 sans auth → redis://valkey:6379/1
-# GCP (Memorystore for Valkey 9): IAM Auth + TLS
-#   - Pas de mot de passe: l'auth se fait via le service account Cloud Run
-#   - Le service account doit avoir le rôle roles/memorystore.dbConnectionUser
-#   - Connexion via: rediss://<endpoint>:6379/1 (TLS obligatoire)
-#   - Pour IAM Auth, utiliser google-auth + redis-py credential_provider:
-#       from google.auth.transport.requests import Request
-#       from google.auth import default
-#       creds, _ = default()
-#       creds.refresh(Request())
-#       redis.Redis(host=..., port=6379, ssl=True,
-#                   credential_provider=lambda: creds.token)
+# GCP (Memorystore for Valkey 9): PSC (Private Service Connect)
+#   - Connexion IP privée intra-VPC, pas de TLS ni d'IAM auth
+#   - redis://<endpoint>:6379/1
 # ---------------------------------------------------------
 VALKEY_HOST = os.environ.get("VALKEY_HOST", "valkey")
 VALKEY_PORT = int(os.environ.get("VALKEY_PORT", "6379"))

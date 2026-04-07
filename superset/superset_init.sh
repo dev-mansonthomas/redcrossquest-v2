@@ -1,24 +1,12 @@
 #!/bin/bash
 set -e
 
-SUPERSET_DB="/app/superset_home/superset.db"
-
 echo "⏳ Superset initialization starting..."
 
-# Check if database already exists with data
-if [ -f "$SUPERSET_DB" ]; then
-    DB_SIZE=$(stat -c%s "$SUPERSET_DB" 2>/dev/null || stat -f%z "$SUPERSET_DB" 2>/dev/null || echo "0")
-    if [ "$DB_SIZE" -gt 100000 ]; then
-        echo "✅ Existing Superset database found ($DB_SIZE bytes)"
-        echo "   Skipping initialization to preserve data."
-        echo "   Use FORCE_INIT=1 to force reinitialization."
-
-        if [ "$FORCE_INIT" != "1" ]; then
-            echo "🚀 Starting Superset..."
-            exec superset run -h 0.0.0.0 -p 8088 --with-threads --reload
-        fi
-        echo "⚠️  FORCE_INIT=1 detected, reinitializing..."
-    fi
+# Check if we should skip init (for restarts)
+if [ "${SKIP_INIT}" = "1" ]; then
+    echo "⏭️  SKIP_INIT=1, skipping initialization"
+    exec superset run -h 0.0.0.0 -p 8088 --with-threads --reload
 fi
 
 echo "📦 Running database migrations..."
@@ -38,5 +26,4 @@ superset init
 
 echo "✅ Superset initialization complete."
 
-# Start Superset web server
 exec superset run -h 0.0.0.0 -p 8088 --with-threads --reload
