@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     @property
     def rcq_database_url(self) -> str:
         """Construct MySQL database URL for SQLAlchemy."""
+        if "/" in self.rcq_db_host:
+            # Cloud SQL Unix socket path (e.g., /cloudsql/project:region:instance)
+            return (
+                f"mysql+pymysql://{self.rcq_db_user}:{self.rcq_db_password}"
+                f"@/{self.rcq_db_name}?unix_socket={self.rcq_db_host}"
+            )
         return (
             f"mysql+pymysql://{self.rcq_db_user}:{self.rcq_db_password}"
             f"@{self.rcq_db_host}:{self.rcq_db_port}/{self.rcq_db_name}"

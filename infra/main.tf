@@ -100,8 +100,9 @@ module "api" {
   env_vars = {
     ENVIRONMENT          = var.environment
     DEBUG                = "false"
-    DB_HOST              = "/cloudsql/${var.cloud_sql_connection_name}"
-    DB_NAME              = var.rcq_db_name
+    RCQ_DB_HOST          = "/cloudsql/${var.cloud_sql_connection_name}"
+    RCQ_DB_PORT          = "3306"
+    RCQ_DB_NAME          = var.rcq_db_name
     GOOGLE_REDIRECT_URI  = "https://${var.api_domain}/api/auth/callback"
     FRONTEND_URL         = "https://${var.frontend_domain}"
     CORS_ORIGINS         = "https://${var.frontend_domain}"
