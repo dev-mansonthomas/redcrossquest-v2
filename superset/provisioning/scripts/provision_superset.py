@@ -527,16 +527,16 @@ def main():
             results.append(result)
 
     # Update backend .env with embed UUIDs
-    repo_root = script_dir.parent.parent  # superset/provisioning -> superset -> repo root
-    default_backend_env = str(repo_root / "backend" / ".env")
-    backend_env_path = Path(
-        os.environ.get("BACKEND_ENV_PATH", default_backend_env)
-    )
-    if not backend_env_path.is_absolute():
-        backend_env_path = script_dir / backend_env_path
+    backend_env_path_str = os.environ.get("BACKEND_ENV_PATH", "").strip()
+    if not backend_env_path_str:
+        print("ℹ️  BACKEND_ENV_PATH not set — skipping backend env update")
+    else:
+        backend_env_path = Path(backend_env_path_str)
+        if not backend_env_path.is_absolute():
+            backend_env_path = script_dir / backend_env_path
 
-    for r in results:
-        update_backend_env(r["name"], r["embed_uuid"], backend_env_path)
+        for r in results:
+            update_backend_env(r["name"], r["embed_uuid"], backend_env_path)
 
     # Restart backend if requested
     if results:
