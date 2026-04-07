@@ -49,6 +49,15 @@ resource "google_cloud_run_v2_service" "service" {
           memory = var.memory_limit
         }
       }
+
+      # Cloud SQL volume mount (only when cloud_sql_connections is set)
+      dynamic "volume_mounts" {
+        for_each = length(var.cloud_sql_connections) > 0 ? [1] : []
+        content {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+      }
     }
     
     # Cloud SQL connections

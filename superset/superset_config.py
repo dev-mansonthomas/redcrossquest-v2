@@ -44,41 +44,64 @@ VALKEY_HOST = os.environ.get("VALKEY_HOST", "valkey")
 VALKEY_PORT = int(os.environ.get("VALKEY_PORT", "6379"))
 VALKEY_DB = int(os.environ.get("VALKEY_DB", "1"))  # Configurable via env var
 
-CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 300,
-    "CACHE_KEY_PREFIX": "superset_",
-    "CACHE_REDIS_HOST": VALKEY_HOST,
-    "CACHE_REDIS_PORT": VALKEY_PORT,
-    "CACHE_REDIS_DB": VALKEY_DB,
-}
+_valkey_enabled = os.environ.get("VALKEY_ENABLED", "true").lower() == "true"
 
-DATA_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 600,
-    "CACHE_KEY_PREFIX": "superset_data_",
-    "CACHE_REDIS_HOST": VALKEY_HOST,
-    "CACHE_REDIS_PORT": VALKEY_PORT,
-    "CACHE_REDIS_DB": VALKEY_DB,
-}
+if _valkey_enabled:
+    CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 300,
+        "CACHE_KEY_PREFIX": "superset_",
+        "CACHE_REDIS_HOST": VALKEY_HOST,
+        "CACHE_REDIS_PORT": VALKEY_PORT,
+        "CACHE_REDIS_DB": VALKEY_DB,
+    }
 
-FILTER_STATE_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 600,
-    "CACHE_KEY_PREFIX": "superset_filter_",
-    "CACHE_REDIS_HOST": VALKEY_HOST,
-    "CACHE_REDIS_PORT": VALKEY_PORT,
-    "CACHE_REDIS_DB": VALKEY_DB,
-}
+    DATA_CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+        "CACHE_KEY_PREFIX": "superset_data_",
+        "CACHE_REDIS_HOST": VALKEY_HOST,
+        "CACHE_REDIS_PORT": VALKEY_PORT,
+        "CACHE_REDIS_DB": VALKEY_DB,
+    }
 
-EXPLORE_FORM_DATA_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 600,
-    "CACHE_KEY_PREFIX": "superset_explore_",
-    "CACHE_REDIS_HOST": VALKEY_HOST,
-    "CACHE_REDIS_PORT": VALKEY_PORT,
-    "CACHE_REDIS_DB": VALKEY_DB,
-}
+    FILTER_STATE_CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+        "CACHE_KEY_PREFIX": "superset_filter_",
+        "CACHE_REDIS_HOST": VALKEY_HOST,
+        "CACHE_REDIS_PORT": VALKEY_PORT,
+        "CACHE_REDIS_DB": VALKEY_DB,
+    }
+
+    EXPLORE_FORM_DATA_CACHE_CONFIG = {
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+        "CACHE_KEY_PREFIX": "superset_explore_",
+        "CACHE_REDIS_HOST": VALKEY_HOST,
+        "CACHE_REDIS_PORT": VALKEY_PORT,
+        "CACHE_REDIS_DB": VALKEY_DB,
+    }
+else:
+    CACHE_CONFIG = {
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_DEFAULT_TIMEOUT": 300,
+    }
+
+    DATA_CACHE_CONFIG = {
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+    }
+
+    FILTER_STATE_CACHE_CONFIG = {
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+    }
+
+    EXPLORE_FORM_DATA_CACHE_CONFIG = {
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_DEFAULT_TIMEOUT": 600,
+    }
 
 # ---------------------------------------------------------
 # Celery — Valkey as broker and result backend (Base 1)

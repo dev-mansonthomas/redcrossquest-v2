@@ -31,3 +31,5 @@ RUN chmod +x /app/superset_init.sh
 RUN mkdir -p /app/superset_home && chown superset:superset /app/superset_home
 
 USER superset
+
+CMD ["/app/superset_init.sh"]

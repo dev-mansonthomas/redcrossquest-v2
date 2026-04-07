@@ -51,18 +51,20 @@ module "superset" {
   ingress        = "INGRESS_TRAFFIC_ALL"
 
   env_vars = {
-    SUPERSET_DB_TYPE          = "mysql"
-    SUPERSET_DB_NAME          = var.rcq_db_name
-    SUPERSET_DB_PORT          = "3306"
-    SUPERSET_DB_HOST          = var.cloud_sql_connection_name
-    VALKEY_HOST               = local.valkey_host
-    VALKEY_PORT               = "6379"
-    SUPERSET_METADATA_DB_NAME = "superset_dev_db"
-    SUPERSET_METADATA_DB_PORT = "3306"
-    SUPERSET_METADATA_DB_HOST = var.cloud_sql_connection_name
-    SUPERSET_ADMIN_USERNAME   = "tom"
-    SUPERSET_CORS_ORIGINS     = "https://${var.frontend_domain},https://${var.api_domain}"
-    ENVIRONMENT               = var.environment
+    SUPERSET_DB_TYPE           = "mysql"
+    SUPERSET_DB_NAME           = var.rcq_db_name
+    SUPERSET_DB_PORT           = "3306"
+    SUPERSET_DB_HOST           = "/cloudsql/${var.cloud_sql_connection_name}"
+    VALKEY_HOST                = local.valkey_host
+    VALKEY_PORT                = "6379"
+    VALKEY_ENABLED             = "false"
+    SUPERSET_METADATA_DB_TYPE  = "mysql"
+    SUPERSET_METADATA_DB_NAME  = "superset_dev_db"
+    SUPERSET_METADATA_DB_PORT  = "3306"
+    SUPERSET_METADATA_DB_HOST  = "/cloudsql/${var.cloud_sql_connection_name}"
+    SUPERSET_ADMIN_USERNAME    = "tom"
+    SUPERSET_CORS_ORIGINS      = "https://${var.frontend_domain},https://${var.api_domain}"
+    ENVIRONMENT                = var.environment
   }
 
   secrets = {
@@ -94,7 +96,7 @@ module "api" {
   
   env_vars = {
     ENVIRONMENT = var.environment
-    DB_HOST = var.cloud_sql_connection_name
+    DB_HOST = "/cloudsql/${var.cloud_sql_connection_name}"
     DB_NAME = var.rcq_db_name
   }
   
