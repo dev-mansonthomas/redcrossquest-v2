@@ -71,7 +71,16 @@ class SupersetProvisioner:
         """Make an API request."""
         url = f"{self.base_url}/api/v1{endpoint}"
         resp = self.session.request(method, url, **kwargs)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            # Log the response body for debugging
+            try:
+                error_body = resp.json()
+                print(f"❌ API Error {resp.status_code}: {json.dumps(error_body, indent=2)}")
+            except Exception:
+                print(f"❌ API Error {resp.status_code}: {resp.text[:500]}")
+            raise
         return resp.json() if resp.content else {}
 
     def _find_existing(self, endpoint: str, col: str, value: str) -> int | None:
@@ -92,17 +101,22 @@ class SupersetProvisioner:
             print(f"✅ Database connection '{name}' already exists (id={existing_id})")
             return existing_id
 
-        # Try to create it
+        # Try to create it (modern Superset 4.x format)
         try:
             result = self._api_request(
                 "POST", "/database/",
                 json={
                     "database_name": name,
+                    "engine": "mysql",
+                    "configuration_method": "sqlalchemy_form",
                     "sqlalchemy_uri": sqlalchemy_uri,
                     "expose_in_sqllab": True,
                     "allow_ctas": False,
                     "allow_cvas": True,
                     "allow_dml": False,
+                    "extra": json.dumps({
+                        "allows_virtual_table_explore": True,
+                    }),
                 },
             )
             db_id = result["id"]
