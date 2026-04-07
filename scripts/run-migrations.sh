@@ -37,6 +37,19 @@ case "$ENV" in
     }
     ;;
   dev|test|prod)
+    # Find mysql client binary (keg-only on macOS)
+    MYSQL_CMD="mysql"
+    if ! command -v mysql >/dev/null 2>&1; then
+        if [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
+            MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
+        elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
+            MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
+        else
+            echo "❌ MySQL client not found. Install with: brew install mysql-client"
+            exit 1
+        fi
+    fi
+
     DB_HOST="${DB_HOST:-127.0.0.1}"
     DB_PORT="${DB_PORT:-3306}"
     DB_USER="${DB_USER:-root}"
@@ -46,8 +59,15 @@ case "$ENV" in
       echo "   Or set DB_HOST / DB_PORT env vars for Cloud SQL Proxy."
       exit 1
     fi
+
+    # Create temp mysql config to avoid password warning
+    MYSQL_CNF=$(mktemp)
+    chmod 600 "$MYSQL_CNF"
+    printf "[client]\npassword=%s\n" "$DB_PASS" > "$MYSQL_CNF"
+    trap "rm -f $MYSQL_CNF" EXIT
+
     run_mysql() {
-      mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" "$MYSQL_DB" "$@"
+      $MYSQL_CMD --defaults-extra-file="$MYSQL_CNF" -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$MYSQL_DB" "$@"
     }
     ;;
   *)
