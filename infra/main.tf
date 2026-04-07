@@ -33,7 +33,6 @@ resource "google_artifact_registry_repository" "docker" {
 # ─── Locals ──────────────────────────────────────────────────────────
 locals {
   valkey_host = try(
-    google_memorystore_instance.valkey.discovery_endpoints[0].address,
     google_memorystore_instance.valkey.endpoints[0].connections[0].psc_auto_connection[0].ip_address,
     "10.132.0.28"
   )
