@@ -62,7 +62,10 @@ module "superset" {
     SUPERSET_METADATA_DB_NAME  = "superset_dev_db"
     SUPERSET_METADATA_DB_PORT  = "3306"
     SUPERSET_METADATA_DB_HOST  = "/cloudsql/${var.cloud_sql_connection_name}"
-    SUPERSET_ADMIN_USERNAME    = "tom"
+    SUPERSET_ADMIN_USERNAME    = var.superset_admin_username
+    SUPERSET_ADMIN_EMAIL       = var.superset_admin_email
+    SUPERSET_ADMIN_FIRST_NAME  = var.superset_admin_first_name
+    SUPERSET_ADMIN_LAST_NAME   = var.superset_admin_last_name
     SUPERSET_CORS_ORIGINS      = "https://${var.frontend_domain},https://${var.api_domain}"
     ENVIRONMENT                = var.environment
   }
@@ -73,6 +76,7 @@ module "superset" {
     SUPERSET_SECRET_KEY       = google_secret_manager_secret.superset_secret_key.secret_id
     SUPERSET_METADATA_DB_USER = google_secret_manager_secret.superset_db_rw_username.secret_id
     SUPERSET_METADATA_DB_PASS = google_secret_manager_secret.superset_db_rw_password.secret_id
+    SUPERSET_ADMIN_PASSWORD   = google_secret_manager_secret.superset_admin_password.secret_id
   }
 
   cloud_sql_connections = [var.cloud_sql_connection_name]
@@ -235,6 +239,24 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
 
 resource "google_secret_manager_secret" "superset_db_rw_username" {
   secret_id = "rcq_superset_db_rw_username"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "superset_admin_password" {
+  secret_id = "rcq_superset_admin_password"
 
   replication {
     user_managed {
