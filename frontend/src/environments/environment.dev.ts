@@ -1,5 +1,5 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://back.dev.graph.redcrossquest.com',
-  supersetUrl: 'https://superset.dev.graph.redcrossquest.com',
+  apiUrl: 'https://dev.back.graph.redcrossquest.com',
+  supersetUrl: 'https://dev.superset.graph.redcrossquest.com',
 };

@@ -107,6 +107,7 @@ tfplan*
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+!infra/env/*.tfvars
 !infra/env/*.tfvars.example
 .terraform/
 .terraform.lock.hcl

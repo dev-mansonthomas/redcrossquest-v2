@@ -30,21 +30,53 @@ variable "rcq_db_name" {
 }
 
 variable "superset_image" {
-  description = "Superset Docker image"
+  description = "Superset Docker image (without tag)"
   type        = string
-  default     = "apache/superset:latest"
+  default     = "apache/superset"
 }
 
 variable "api_image" {
-  description = "FastAPI backend Docker image"
+  description = "FastAPI backend Docker image (without tag)"
   type        = string
-  default     = "gcr.io/rcq-fr-dev/rcq-api:latest"
+  default     = "gcr.io/rcq-fr-dev/rcq-api"
 }
 
 variable "frontend_image" {
-  description = "Angular frontend Docker image"
+  description = "Angular frontend Docker image (without tag)"
   type        = string
-  default     = "gcr.io/rcq-fr-dev/rcq-frontend:latest"
+  default     = "gcr.io/rcq-fr-dev/rcq-frontend"
+}
+
+variable "image_tag" {
+  description = "Docker image tag for all Cloud Run services"
+  type        = string
+  default     = "latest"
+}
+
+# ─── Superset admin ──────────────────────────────────────────────────
+
+variable "superset_admin_username" {
+  description = "Superset admin username"
+  type        = string
+  default     = "admin"
+}
+
+variable "superset_admin_email" {
+  description = "Superset admin email"
+  type        = string
+  default     = "admin@rcq.local"
+}
+
+variable "superset_admin_first_name" {
+  description = "Superset admin first name"
+  type        = string
+  default     = "Admin"
+}
+
+variable "superset_admin_last_name" {
+  description = "Superset admin last name"
+  type        = string
+  default     = "User"
 }
 
 # ─── Domain configuration ────────────────────────────────────────────
@@ -55,18 +87,32 @@ variable "frontend_domain" {
 }
 
 variable "api_domain" {
-  description = "Custom domain for the API (e.g., back.dev.graph.redcrossquest.com or back.graph.redcrossquest.com for prod)"
+  description = "Custom domain for the API (e.g., dev.back.graph.redcrossquest.com or back.graph.redcrossquest.com for prod)"
   type        = string
 }
 
 variable "superset_domain" {
-  description = "Custom domain for Superset (e.g., superset.dev.graph.redcrossquest.com or superset.graph.redcrossquest.com for prod)"
+  description = "Custom domain for Superset (e.g., dev.superset.graph.redcrossquest.com or superset.graph.redcrossquest.com for prod)"
   type        = string
 }
 
 variable "enable_domain_mappings" {
   description = "Whether to create Cloud Run domain mappings (requires domain verification)"
   type        = bool
-  default     = false
+  default     = true
+}
+
+# ─── Valkey (Memorystore) ────────────────────────────────────────────
+
+variable "valkey_node_type" {
+  description = "Node type for Memorystore Valkey instance"
+  type        = string
+  default     = "SHARED_CORE_NANO"
+}
+
+variable "valkey_replica_count" {
+  description = "Number of read replicas for Memorystore Valkey instance"
+  type        = number
+  default     = 0
 }
 
