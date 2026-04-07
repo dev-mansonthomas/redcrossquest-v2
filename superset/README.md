@@ -14,10 +14,10 @@ MySQL is available at `localhost:3316` (user: `rcq_readonly` / password from `.e
 
 ### Load production data
 
-Place SQL dump files in `sql-imports/` **before** first `docker compose up`:
+Place SQL dump files in `dev-sql-import/` **before** first `docker compose up`:
 ```bash
-cp /path/to/dump.sql superset/sql-imports/
-docker compose up -d mysql   # Files in sql-imports/ are auto-loaded on first start
+cp /path/to/dump.sql superset/dev-sql-import/
+docker compose up -d mysql   # Files in dev-sql-import/ are auto-loaded on first start
 ```
 
 To load data into an **existing** container:

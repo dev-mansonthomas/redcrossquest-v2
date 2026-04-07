@@ -1,13 +1,11 @@
 {
-  "dashboard_title": "Objectifs Annuels",
+  "dashboard_title": "Objectif vs Réalisé",
   "slug": "yearly-goal",
   "published": true,
-  "position_json": {},
-  "css": "",
   "json_metadata": {
-    "color_scheme": "supersetColors",
-    "refresh_frequency": 0,
-    "shared_label_colors": {}
+    "native_filter_configuration": [],
+    "chart_configuration": {},
+    "color_scheme": ""
   }
 }
 

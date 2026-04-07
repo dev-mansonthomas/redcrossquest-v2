@@ -1,15 +1,29 @@
 {
-  "name": "Cumul Objectifs par Jour",
+  "name": "Objectif vs Réalisé",
   "viz_type": "echarts_timeseries_line",
-  "description": "Montant cumulé des objectifs journaliers",
+  "description": "Montant cumulé : Objectif (pointillé) vs Réalisé (trait plein) par jour de quête",
   "params": {
     "x_axis": "jour_num",
-    "metrics": ["montant_cumule"],
-    "groupby": [],
+    "metrics": [{
+      "expressionType": "SIMPLE",
+      "column": {"column_name": "montant_cumule"},
+      "aggregate": "SUM",
+      "label": "Montant cumulé (€)"
+    }],
+    "groupby": ["serie"],
     "order_desc": true,
-    "row_limit": 100,
+    "row_limit": 10000,
     "truncate_metric": true,
-    "show_legend": true
+    "show_legend": true,
+    "rich_tooltip": true,
+    "tooltipTimeFormat": "",
+    "y_axis_format": ",.2f",
+    "x_axis_title": "Jour de quête",
+    "y_axis_title": "Montant cumulé (€)",
+    "seriesType": "line",
+    "opacity": 0.8,
+    "markerEnabled": true,
+    "markerSize": 6
   }
 }
 

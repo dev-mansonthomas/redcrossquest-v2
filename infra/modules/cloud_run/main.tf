@@ -8,12 +8,17 @@ resource "google_cloud_run_v2_service" "service" {
   name     = var.service_name
   location = var.region
   project  = var.project_id
-  
+  ingress  = var.ingress
+
   template {
     service_account = google_service_account.service.email
-    
+
     containers {
       image = var.image
+
+      ports {
+        container_port = var.container_port
+      }
       
       # Environment variables
       dynamic "env" {
@@ -42,6 +47,15 @@ resource "google_cloud_run_v2_service" "service" {
         limits = {
           cpu    = var.cpu_limit
           memory = var.memory_limit
+        }
+      }
+
+      # Cloud SQL volume mount (only when cloud_sql_connections is set)
+      dynamic "volume_mounts" {
+        for_each = length(var.cloud_sql_connections) > 0 ? [1] : []
+        content {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
         }
       }
     }

@@ -4,16 +4,11 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 
-  # Backend configuration moved to backend-local.tf for testing
-  # For production, use GCS backend:
-  # backend "gcs" {
-  #   bucket = "rcq-terraform-state-dev"  # or test/prod
-  #   prefix = "terraform/state"
-  # }
+  # Backend configuration in backend.tf (GCS)
 }
 
 provider "google" {
@@ -21,56 +16,108 @@ provider "google" {
   region  = var.region
 }
 
-# Cloud Run services
-module "metabase" {
+# ─── Artifact Registry ───────────────────────────────────────────────
+resource "google_artifact_registry_repository" "docker" {
+  location      = var.region
+  repository_id = "rcq-docker"
+  description   = "Docker images for RedCrossQuest v2"
+  format        = "DOCKER"
+
+  labels = {
+    app         = "rcq"
+    environment = var.environment
+    managed-by  = "terraform"
+  }
+}
+
+# ─── Locals ──────────────────────────────────────────────────────────
+locals {
+  valkey_host = try(
+    google_memorystore_instance.valkey.endpoints[0].connections[0].psc_auto_connection[0].ip_address,
+    "10.132.0.28"
+  )
+}
+
+# ─── Cloud Run services ──────────────────────────────────────────────
+module "superset" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_metabase"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.metabase_image
-  
+
+  service_name   = "rcq-superset"
+  project_id     = var.project_id
+  region         = var.region
+  image          = "${var.superset_image}:${var.image_tag}"
+  container_port = 8088
+  ingress        = "INGRESS_TRAFFIC_ALL"
+
   env_vars = {
-    MB_DB_TYPE = "mysql"
-    MB_DB_DBNAME = "rcq_metabase_db"
-    MB_DB_PORT = "3306"
-    MB_DB_HOST = var.cloud_sql_connection_name
+    SUPERSET_DB_TYPE           = "mysql"
+    SUPERSET_DB_NAME           = var.rcq_db_name
+    SUPERSET_DB_PORT           = "3306"
+    SUPERSET_DB_HOST           = "/cloudsql/${var.cloud_sql_connection_name}"
+    VALKEY_HOST                = local.valkey_host
+    VALKEY_PORT                = "6379"
+    VALKEY_ENABLED             = "false"
+    SUPERSET_METADATA_DB_TYPE  = "mysql"
+    SUPERSET_METADATA_DB_NAME  = "superset_dev_db"
+    SUPERSET_METADATA_DB_PORT  = "3306"
+    SUPERSET_METADATA_DB_HOST  = "/cloudsql/${var.cloud_sql_connection_name}"
+    SUPERSET_ADMIN_USERNAME    = var.superset_admin_username
+    SUPERSET_ADMIN_EMAIL       = var.superset_admin_email
+    SUPERSET_ADMIN_FIRST_NAME  = var.superset_admin_first_name
+    SUPERSET_ADMIN_LAST_NAME   = var.superset_admin_last_name
+    SUPERSET_CORS_ORIGINS      = "https://${var.frontend_domain},https://${var.api_domain}"
+    ENVIRONMENT                = var.environment
   }
-  
+
   secrets = {
-    MB_DB_USER = google_secret_manager_secret.metabase_db_user.secret_id
-    MB_DB_PASS = google_secret_manager_secret.metabase_db_password.secret_id
-    MB_ENCRYPTION_SECRET_KEY = google_secret_manager_secret.metabase_encryption_key.secret_id
+    SUPERSET_DB_USER          = google_secret_manager_secret.db_readonly_username.secret_id
+    SUPERSET_DB_PASS          = google_secret_manager_secret.db_readonly_password.secret_id
+    SUPERSET_SECRET_KEY       = google_secret_manager_secret.superset_secret_key.secret_id
+    SUPERSET_METADATA_DB_USER = google_secret_manager_secret.superset_db_rw_username.secret_id
+    SUPERSET_METADATA_DB_PASS = google_secret_manager_secret.superset_db_rw_password.secret_id
+    SUPERSET_ADMIN_PASSWORD   = google_secret_manager_secret.superset_admin_password.secret_id
   }
-  
+
   cloud_sql_connections = [var.cloud_sql_connection_name]
-  
+
   tags = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
 
 module "api" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_api"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.api_image
+
+  service_name   = "rcq-api"
+  project_id     = var.project_id
+  region         = var.region
+  image          = "${var.api_image}:${var.image_tag}"
+  container_port = 8080
+  ingress        = "INGRESS_TRAFFIC_ALL"
   
   env_vars = {
-    ENVIRONMENT = var.environment
-    DB_HOST = var.cloud_sql_connection_name
-    DB_NAME = var.rcq_db_name
+    ENVIRONMENT                  = var.environment
+    DEBUG                        = "false"
+    RCQ_DB_HOST                  = "/cloudsql/${var.cloud_sql_connection_name}"
+    RCQ_DB_PORT                  = "3306"
+    RCQ_DB_NAME                  = var.rcq_db_name
+    GOOGLE_REDIRECT_URI          = "https://${var.api_domain}/api/auth/callback"
+    FRONTEND_URL                 = "https://${var.frontend_domain}"
+    CORS_ORIGINS                 = "https://${var.frontend_domain}"
+    SUPERSET_URL                 = module.superset.service_url
+    SUPERSET_ADMIN_USERNAME      = var.superset_admin_username
+    SUPERSET_DASHBOARD_YEARLY_GOAL = "1b332c41-13bf-47d4-b18a-2e2547930367"
   }
-  
+
   secrets = {
-    DB_USER = google_secret_manager_secret.api_db_user.secret_id
-    DB_PASSWORD = google_secret_manager_secret.api_db_password.secret_id
-    GOOGLE_OAUTH_CLIENT_ID = google_secret_manager_secret.google_oauth_client_id.secret_id
+    RCQ_DB_USER                = google_secret_manager_secret.db_readonly_username.secret_id
+    RCQ_DB_PASSWORD            = google_secret_manager_secret.db_readonly_password.secret_id
+    GOOGLE_OAUTH_CLIENT_ID     = google_secret_manager_secret.google_oauth_client_id.secret_id
     GOOGLE_OAUTH_CLIENT_SECRET = google_secret_manager_secret.google_oauth_client_secret.secret_id
+    JWT_SECRET_KEY             = google_secret_manager_secret.jwt_secret_key.secret_id
+    SUPERSET_ADMIN_PASSWORD    = google_secret_manager_secret.superset_admin_password.secret_id
   }
   
   cloud_sql_connections = [var.cloud_sql_connection_name]
@@ -84,11 +131,13 @@ module "api" {
 
 module "frontend" {
   source = "./modules/cloud_run"
-  
-  service_name = "rcq_frontend"
-  project_id   = var.project_id
-  region       = var.region
-  image        = var.frontend_image
+
+  service_name   = "rcq-frontend"
+  project_id     = var.project_id
+  region         = var.region
+  image          = "${var.frontend_image}:${var.image_tag}"
+  container_port = 80
+  ingress        = "INGRESS_TRAFFIC_ALL"
   
   env_vars = {
     API_URL = module.api.service_url
@@ -105,81 +154,71 @@ module "frontend" {
 }
 
 # Secret Manager secrets
-resource "google_secret_manager_secret" "metabase_db_user" {
-  secret_id = "rcq_metabase_db_user_${var.environment}"
-  
+
+
+resource "google_secret_manager_secret" "superset_secret_key" {
+  secret_id = "rcq_superset_secret_key"
+
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
-  
+
   labels = {
     app = "rcq"
-    component = "metabase"
+    component = "superset"
     environment = var.environment
   }
 }
 
-resource "google_secret_manager_secret" "metabase_db_password" {
-  secret_id = "rcq_metabase_db_password_${var.environment}"
-  
+resource "google_secret_manager_secret" "db_readonly_username" {
+  secret_id = "rcq_db_readonly_username"
+
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
-  
+
   labels = {
     app = "rcq"
-    component = "metabase"
+    component = "database"
     environment = var.environment
   }
 }
 
-resource "google_secret_manager_secret" "metabase_encryption_key" {
-  secret_id = "rcq_metabase_encryption_key_${var.environment}"
+resource "google_secret_manager_secret" "db_readonly_password" {
+  secret_id = "rcq_db_readonly_password"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
     app = "rcq"
-    component = "metabase"
-    environment = var.environment
-  }
-}
-
-resource "google_secret_manager_secret" "api_db_user" {
-  secret_id = "rcq_api_db_user_${var.environment}"
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    app = "rcq"
-    component = "api"
-    environment = var.environment
-  }
-}
-
-resource "google_secret_manager_secret" "api_db_password" {
-  secret_id = "rcq_api_db_password_${var.environment}"
-
-  replication {
-    auto {}
-  }
-
-  labels = {
-    app = "rcq"
-    component = "api"
+    component = "database"
     environment = var.environment
   }
 }
 
 resource "google_secret_manager_secret" "google_oauth_client_id" {
-  secret_id = "rcq_google_oauth_client_id_${var.environment}"
+  secret_id = "rcq_google_oauth_client_id"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -190,10 +229,14 @@ resource "google_secret_manager_secret" "google_oauth_client_id" {
 }
 
 resource "google_secret_manager_secret" "google_oauth_client_secret" {
-  secret_id = "rcq_google_oauth_client_secret_${var.environment}"
+  secret_id = "rcq_google_oauth_client_secret"
 
   replication {
-    auto {}
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
   }
 
   labels = {
@@ -203,15 +246,154 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
   }
 }
 
-# IAM for Cloud Run services
+resource "google_secret_manager_secret" "superset_db_rw_username" {
+  secret_id = "rcq_superset_db_rw_username"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "superset_admin_password" {
+  secret_id = "rcq_superset_admin_password"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "jwt_secret_key" {
+  secret_id = "rcq_jwt_secret_key"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "auth"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "superset_db_rw_password" {
+  secret_id = "rcq_superset_db_rw_password"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
+    environment = var.environment
+  }
+}
+
+# ─── IAM for Cloud Run services ───────────────────────────────────────
 module "iam" {
   source = "./modules/iam"
 
   project_id  = var.project_id
   environment = var.environment
 
-  metabase_service_account = module.metabase.service_account_email
+  superset_service_account = module.superset.service_account_email
   api_service_account      = module.api.service_account_email
   frontend_service_account = module.frontend.service_account_email
+
+  depends_on = [
+    module.api,
+    module.superset,
+    module.frontend
+  ]
+}
+
+# ─── Custom Domain Mappings ───────────────────────────────────────────
+# Note: Domain must be verified in Google Search Console before mapping.
+# Use `gcloud domains verify <domain>` to verify ownership.
+
+resource "google_cloud_run_domain_mapping" "frontend" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.frontend_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "frontend"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.frontend.service_name
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "api" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.api_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "api"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.api.service_name
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "superset" {
+  count    = var.enable_domain_mappings ? 1 : 0
+  location = var.region
+  name     = var.superset_domain
+
+  metadata {
+    namespace = var.project_id
+    labels = {
+      app         = "rcq"
+      component   = "superset"
+      environment = var.environment
+    }
+  }
+
+  spec {
+    route_name = module.superset.service_name
+  }
 }
 

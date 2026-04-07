@@ -22,6 +22,7 @@ lib64/
 venv/
 ENV/
 env/
+!infra/env/
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
@@ -106,6 +107,8 @@ tfplan*
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+!infra/env/*.tfvars
+!infra/env/*.tfvars.example
 .terraform/
 .terraform.lock.hcl
 crash.log
@@ -175,4 +178,9 @@ secrets/
 *.csv
 *.xlsx
 *.xls
-*/sql-imports/*.sql
+**/dev-sql-import/prod-data/*
+
+# ============================================
+# Playwright MCP
+# ============================================
+.playwright-mcp/

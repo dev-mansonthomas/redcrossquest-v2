@@ -41,7 +41,7 @@ def _cookie_secure_flag() -> bool:
 
 def _require_oauth_settings() -> None:
     """Ensure Google OAuth configuration is present."""
-    if not settings.google_client_id or not settings.google_client_secret or not settings.google_redirect_uri:
+    if not settings.google_oauth_client_id or not settings.google_oauth_client_secret or not settings.google_redirect_uri:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Google OAuth is not configured",
@@ -85,8 +85,8 @@ def exchange_code_for_tokens(code: str) -> dict[str, Any]:
         GOOGLE_TOKEN_URL,
         data={
             "code": code,
-            "client_id": settings.google_client_id,
-            "client_secret": settings.google_client_secret,
+            "client_id": settings.google_oauth_client_id,
+            "client_secret": settings.google_oauth_client_secret,
             "redirect_uri": settings.google_redirect_uri,
             "grant_type": "authorization_code",
         },
@@ -236,7 +236,7 @@ async def login() -> Response:
     state = secrets.token_urlsafe(32)
     query = urlencode(
         {
-            "client_id": settings.google_client_id,
+            "client_id": settings.google_oauth_client_id,
             "redirect_uri": settings.google_redirect_uri,
             "response_type": "code",
             "scope": "openid email profile",

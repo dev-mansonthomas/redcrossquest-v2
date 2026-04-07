@@ -1,10 +1,13 @@
 """Superset Guest Token endpoint."""
+import http.cookiejar
 import json
 import logging
+import re as _re
+import urllib.request
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urljoin
+from urllib.request import Request, build_opener, HTTPCookieProcessor
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, status
 from pydantic import BaseModel
@@ -19,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/superset", tags=["superset"])
 
-# Cache for Superset admin access token
-_cached_admin_token: str | None = None
+# Cache for Superset admin session (cookie-based)
+_cached_admin_session: urllib.request.OpenerDirector | None = None
 
 
 class DashboardInfo(BaseModel):
@@ -52,24 +55,85 @@ DASHBOARD_TITLES: dict[str, str] = {
 }
 
 
+def _get_superset_admin_session() -> urllib.request.OpenerDirector:
+    """Obtain an admin session from Superset via form login, using a simple cache.
+
+    Superset 6.x does NOT honour Bearer JWT tokens for API authentication;
+    it relies on Flask session cookies instead.  This function performs a
+    browser-style form login and returns an ``OpenerDirector`` whose cookie
+    jar already contains the session cookie.
+    """
+    global _cached_admin_session  # noqa: PLW0603
+
+    if _cached_admin_session:
+        return _cached_admin_session
+
+    if not settings.superset_admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Superset admin credentials are not configured",
+        )
+
+    cj = http.cookiejar.CookieJar()
+    opener = build_opener(HTTPCookieProcessor(cj))
+    base = settings.superset_url.rstrip("/")
+
+    # Step 1: Load login page to get CSRF token
+    login_page_req = Request(f"{base}/login/")
+    with opener.open(login_page_req) as resp:
+        html = resp.read().decode()
+    csrf_match = _re.search(r'name="csrf_token"[^>]*value="([^"]*)"', html)
+    csrf_token = csrf_match.group(1) if csrf_match else ""
+
+    # Step 2: Submit login form
+    login_data = urlencode({
+        "username": settings.superset_admin_username,
+        "password": settings.superset_admin_password,
+        "csrf_token": csrf_token,
+    }).encode()
+    login_req = Request(f"{base}/login/", data=login_data, method="POST")
+    login_req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with opener.open(login_req) as resp:
+        pass  # Session cookie is now in the cookie jar
+
+    # Step 3: Get API CSRF token for mutations
+    csrf_api_req = Request(f"{base}/api/v1/security/csrf_token/")
+    with opener.open(csrf_api_req) as resp:
+        csrf_data = json.loads(resp.read().decode())
+    api_csrf = csrf_data["result"]
+
+    # Store the CSRF token and base URL on the opener for later use
+    opener._api_csrf = api_csrf  # type: ignore[attr-defined]
+    opener._base_url = base  # type: ignore[attr-defined]
+
+    _cached_admin_session = opener
+    return opener
+
+
 def _superset_api_request(
     path: str,
     *,
     method: str = "POST",
     data: dict[str, Any] | None = None,
-    access_token: str | None = None,
 ) -> dict[str, Any]:
-    """Make an HTTP request to the Superset API."""
-    url = urljoin(settings.superset_url.rstrip("/") + "/", path.lstrip("/"))
+    """Make an authenticated HTTP request to the Superset API.
+
+    Uses the session-based opener (with cookies) instead of Bearer tokens.
+    """
+    opener = _get_superset_admin_session()
+    url = urljoin(opener._base_url + "/", path.lstrip("/"))  # type: ignore[attr-defined]
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
+
+    # Add CSRF token for mutations
+    if method in ("POST", "PUT", "DELETE"):
+        headers["X-CSRFToken"] = opener._api_csrf  # type: ignore[attr-defined]
+        headers["Referer"] = opener._base_url  # type: ignore[attr-defined]
 
     body = json.dumps(data).encode() if data else None
     req = Request(url, data=body, headers=headers, method=method)
 
     try:
-        with urlopen(req, timeout=10) as resp:
+        with opener.open(req, timeout=10) as resp:
             return json.loads(resp.read().decode())
     except HTTPError as exc:
         detail = exc.read().decode() if exc.fp else str(exc)
@@ -86,38 +150,6 @@ def _superset_api_request(
         ) from exc
 
 
-def _get_superset_admin_token() -> str:
-    """Obtain an admin access token from Superset, using a simple cache."""
-    global _cached_admin_token  # noqa: PLW0603
-
-    if _cached_admin_token:
-        return _cached_admin_token
-
-    if not settings.superset_admin_password:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Superset admin credentials are not configured",
-        )
-
-    result = _superset_api_request(
-        "/api/v1/security/login",
-        data={
-            "username": settings.superset_admin_username,
-            "password": settings.superset_admin_password,
-            "provider": "db",
-        },
-    )
-    token = result.get("access_token")
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Superset login did not return an access token",
-        )
-
-    _cached_admin_token = token
-    return token
-
-
 def _get_accessible_dashboards(role: int | None) -> list[dict[str, Any]]:
     """Return the list of dashboard resources the user may access."""
     resources: list[dict[str, Any]] = []
@@ -128,9 +160,9 @@ def _get_accessible_dashboards(role: int | None) -> list[dict[str, Any]]:
 
 
 def invalidate_admin_token_cache() -> None:
-    """Clear the cached admin token (e.g. on auth failure)."""
-    global _cached_admin_token  # noqa: PLW0603
-    _cached_admin_token = None
+    """Clear the cached admin session (e.g. on auth failure)."""
+    global _cached_admin_session  # noqa: PLW0603
+    _cached_admin_session = None
 
 
 @router.get("/dashboards", response_model=DashboardListResponse)
@@ -187,8 +219,6 @@ async def get_guest_token(
             detail="No dashboards accessible for this role",
         )
 
-    admin_token = _get_superset_admin_token()
-
     guest_payload = {
         "user": {
             "username": f"guest_{ul_id}",
@@ -203,16 +233,13 @@ async def get_guest_token(
         result = _superset_api_request(
             "/api/v1/security/guest_token/",
             data=guest_payload,
-            access_token=admin_token,
         )
     except HTTPException:
-        # Admin token may have expired — retry once with a fresh token
+        # Session may have expired — retry once with a fresh session
         invalidate_admin_token_cache()
-        admin_token = _get_superset_admin_token()
         result = _superset_api_request(
             "/api/v1/security/guest_token/",
             data=guest_payload,
-            access_token=admin_token,
         )
 
     guest_token = result.get("token")

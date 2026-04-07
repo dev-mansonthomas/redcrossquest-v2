@@ -66,6 +66,22 @@ variable "allow_unauthenticated" {
   default     = true
 }
 
+variable "container_port" {
+  description = "Port the container listens on"
+  type        = number
+  default     = 8080
+}
+
+variable "ingress" {
+  description = "Ingress setting for the Cloud Run service"
+  type        = string
+  default     = "INGRESS_TRAFFIC_ALL"
+  validation {
+    condition     = contains(["INGRESS_TRAFFIC_ALL", "INGRESS_TRAFFIC_INTERNAL_ONLY", "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"], var.ingress)
+    error_message = "Ingress must be INGRESS_TRAFFIC_ALL, INGRESS_TRAFFIC_INTERNAL_ONLY, or INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER."
+  }
+}
+
 variable "tags" {
   description = "Labels to apply to the service"
   type        = map(string)

@@ -14,8 +14,8 @@ variable "environment" {
   type        = string
 }
 
-variable "metabase_service_account" {
-  description = "Metabase service account email"
+variable "superset_service_account" {
+  description = "Superset service account email"
   type        = string
 }
 
