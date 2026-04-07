@@ -67,7 +67,7 @@ case "$ENV" in
     trap "rm -f $MYSQL_CNF" EXIT
 
     run_mysql() {
-      $MYSQL_CMD --defaults-extra-file="$MYSQL_CNF" -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$MYSQL_DB" "$@"
+      $MYSQL_CMD --defaults-extra-file="$MYSQL_CNF" --get-server-public-key -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$MYSQL_DB" "$@"
     }
     ;;
   *)
