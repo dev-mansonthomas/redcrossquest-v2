@@ -98,14 +98,17 @@ module "api" {
   ingress        = "INGRESS_TRAFFIC_ALL"
   
   env_vars = {
-    ENVIRONMENT          = var.environment
-    DEBUG                = "false"
-    RCQ_DB_HOST          = "/cloudsql/${var.cloud_sql_connection_name}"
-    RCQ_DB_PORT          = "3306"
-    RCQ_DB_NAME          = var.rcq_db_name
-    GOOGLE_REDIRECT_URI  = "https://${var.api_domain}/api/auth/callback"
-    FRONTEND_URL         = "https://${var.frontend_domain}"
-    CORS_ORIGINS         = "https://${var.frontend_domain}"
+    ENVIRONMENT                  = var.environment
+    DEBUG                        = "false"
+    RCQ_DB_HOST                  = "/cloudsql/${var.cloud_sql_connection_name}"
+    RCQ_DB_PORT                  = "3306"
+    RCQ_DB_NAME                  = var.rcq_db_name
+    GOOGLE_REDIRECT_URI          = "https://${var.api_domain}/api/auth/callback"
+    FRONTEND_URL                 = "https://${var.frontend_domain}"
+    CORS_ORIGINS                 = "https://${var.frontend_domain}"
+    SUPERSET_URL                 = module.superset.service_url
+    SUPERSET_ADMIN_USERNAME      = var.superset_admin_username
+    SUPERSET_DASHBOARD_YEARLY_GOAL = "1b332c41-13bf-47d4-b18a-2e2547930367"
   }
 
   secrets = {
@@ -114,6 +117,7 @@ module "api" {
     GOOGLE_OAUTH_CLIENT_ID     = google_secret_manager_secret.google_oauth_client_id.secret_id
     GOOGLE_OAUTH_CLIENT_SECRET = google_secret_manager_secret.google_oauth_client_secret.secret_id
     JWT_SECRET_KEY             = google_secret_manager_secret.jwt_secret_key.secret_id
+    SUPERSET_ADMIN_PASSWORD    = google_secret_manager_secret.superset_admin_password.secret_id
   }
   
   cloud_sql_connections = [var.cloud_sql_connection_name]
