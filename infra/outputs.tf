@@ -51,16 +51,26 @@ output "custom_domains" {
 }
 
 output "dns_instructions" {
-  description = "DNS records to create for custom domains"
-  value = var.enable_domain_mappings ? join("\n", [
-    "Create the following CNAME records in your DNS provider:",
-    "",
-    "  ${var.frontend_domain}  -> ghs.googlehosted.com.",
-    "  ${var.api_domain}       -> ghs.googlehosted.com.",
-    "  ${var.superset_domain}  -> ghs.googlehosted.com.",
-    "",
-    "Note: It may take up to 24 hours for SSL certificates to be provisioned.",
-  ]) : "Domain mappings are disabled. Set enable_domain_mappings = true to enable."
+  description = "DNS records to add to redcrossquest.com zone (DNS zone file format)"
+  value = join("\n", concat(
+    [
+      "🌐 DNS records to add to redcrossquest.com zone:",
+      "",
+    ],
+    [
+      "  ${replace(var.frontend_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.frontend_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+      "  ${replace(var.api_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.api_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+      "  ${replace(var.superset_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.superset_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+    ],
+    var.enable_domain_mappings ? [
+      "",
+      "Note: It may take up to 24 hours for SSL certificates to be provisioned.",
+    ] : [
+      "",
+      "Note: Domain mappings are disabled. Configure these DNS records in advance.",
+      "Set enable_domain_mappings = true when ready to activate.",
+    ]
+  ))
 }
 
 # ─── Valkey (Memorystore) ─────────────────────────────────────────────
