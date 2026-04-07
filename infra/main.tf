@@ -30,6 +30,15 @@ resource "google_artifact_registry_repository" "docker" {
   }
 }
 
+# ─── Locals ──────────────────────────────────────────────────────────
+locals {
+  valkey_host = try(
+    google_memorystore_instance.valkey.discovery_endpoints[0].address,
+    google_memorystore_instance.valkey.endpoints[0].connections[0].psc_auto_connection[0].ip_address,
+    "10.132.0.28"
+  )
+}
+
 # ─── Cloud Run services ──────────────────────────────────────────────
 module "superset" {
   source = "./modules/cloud_run"
@@ -42,16 +51,26 @@ module "superset" {
   ingress        = "INGRESS_TRAFFIC_ALL"
 
   env_vars = {
-    SUPERSET_DB_TYPE = "mysql"
-    SUPERSET_DB_NAME = var.rcq_db_name
-    SUPERSET_DB_PORT = "3306"
-    SUPERSET_DB_HOST = var.cloud_sql_connection_name
+    SUPERSET_DB_TYPE          = "mysql"
+    SUPERSET_DB_NAME          = var.rcq_db_name
+    SUPERSET_DB_PORT          = "3306"
+    SUPERSET_DB_HOST          = var.cloud_sql_connection_name
+    VALKEY_HOST               = local.valkey_host
+    VALKEY_PORT               = "6379"
+    SUPERSET_METADATA_DB_NAME = "superset_dev_db"
+    SUPERSET_METADATA_DB_PORT = "3306"
+    SUPERSET_METADATA_DB_HOST = var.cloud_sql_connection_name
+    SUPERSET_ADMIN_USERNAME   = "tom"
+    SUPERSET_CORS_ORIGINS     = "https://${var.frontend_domain},https://${var.api_domain}"
+    ENVIRONMENT               = var.environment
   }
 
   secrets = {
-    SUPERSET_DB_USER = google_secret_manager_secret.db_readonly_username.secret_id
-    SUPERSET_DB_PASS = google_secret_manager_secret.db_readonly_password.secret_id
-    SUPERSET_SECRET_KEY = google_secret_manager_secret.superset_secret_key.secret_id
+    SUPERSET_DB_USER          = google_secret_manager_secret.db_readonly_username.secret_id
+    SUPERSET_DB_PASS          = google_secret_manager_secret.db_readonly_password.secret_id
+    SUPERSET_SECRET_KEY       = google_secret_manager_secret.superset_secret_key.secret_id
+    SUPERSET_METADATA_DB_USER = google_secret_manager_secret.superset_db_rw_username.secret_id
+    SUPERSET_METADATA_DB_PASS = google_secret_manager_secret.superset_db_rw_password.secret_id
   }
 
   cloud_sql_connections = [var.cloud_sql_connection_name]
@@ -208,6 +227,42 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
   labels = {
     app = "rcq"
     component = "auth"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "superset_db_rw_username" {
+  secret_id = "rcq_superset_db_rw_username"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "superset_db_rw_password" {
+  secret_id = "rcq_superset_db_rw_password"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "superset"
     environment = var.environment
   }
 }
