@@ -998,31 +998,15 @@ run_provision() {
 
     log_info "Provisioning Superset dashboards for environment: $ENV"
 
-    # Generate a temporary .env file for the provisioning script
-    local prov_env_file
-    prov_env_file="$(mktemp)"
-    trap 'rm -f "$prov_env_file"' RETURN
+    # Generate component .env files (backend/.env, superset/.env, superset/provisioning/.env.{env})
+    "$SCRIPT_DIR/scripts/generate-env.sh" "$ENV"
 
-    # Générer DB_SQLALCHEMY_URI avec Unix socket pour Cloud Run (Superset tourne dans Cloud Run)
-    # Format: mysql+mysqldb://user:pass@/dbname?unix_socket=/cloudsql/project:region:instance
-    local DB_SQLALCHEMY_URI="mysql+mysqldb://${RCQ_DB_USER}:${RCQ_DB_PASSWORD}@/${RCQ_DB_NAME}?unix_socket=/cloudsql/${CLOUD_SQL_CONNECTION_NAME}"
-
-    cat > "$prov_env_file" <<PROV_EOF
-SUPERSET_URL=${effective_superset_url}
-SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USERNAME:-admin}
-SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
-DB_CONNECTION_NAME=${DB_CONNECTION_NAME:-RCQ MySQL}
-DB_SQLALCHEMY_URI=${DB_SQLALCHEMY_URI}
-EMBEDDING_ALLOWED_DOMAINS=${effective_embedding_domains}
-BACKEND_ENV_PATH=$SCRIPT_DIR/backend/.env
-PROV_EOF
-
-    # Copy temp file to provisioning dir as .env.{env}
-    cp "$prov_env_file" "$SCRIPT_DIR/superset/provisioning/.env.${ENV}"
-
-    # Export effective URLs so Python's os.environ picks them up
+    # Export GCP-specific vars that generate-env.sh doesn't write but provisioning needs
     export SUPERSET_URL="$effective_superset_url"
     export EMBEDDING_ALLOWED_DOMAINS="$effective_embedding_domains"
+    export DB_CONNECTION_NAME="${DB_CONNECTION_NAME:-RCQ MySQL}"
+    export DB_SQLALCHEMY_URI="mysql+mysqldb://${RCQ_DB_USER}:${RCQ_DB_PASSWORD}@/${RCQ_DB_NAME}?unix_socket=/cloudsql/${CLOUD_SQL_CONNECTION_NAME}"
+    export BACKEND_ENV_PATH="$SCRIPT_DIR/backend/.env"
 
     cd "$SCRIPT_DIR/superset/provisioning"
     python3 scripts/provision_superset.py --env "$ENV" --force-update --auto-restart --no-restart
@@ -1104,6 +1088,13 @@ $BUILD_DONE  && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
 $DO_PROVISION && log_success "Provisioning: done"
+
+# ── Restore local environment ────────────────────────────────
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    echo ""
+    log_info "🔄 Restoring local environment..."
+    "$SCRIPT_DIR/scripts/generate-env.sh" local
+fi
 
 echo ""
 log_success "Deployment complete for ${ENV}!"
