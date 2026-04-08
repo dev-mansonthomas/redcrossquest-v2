@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, switchMap, of, map } from 'rxjs';
 import { UlOverrideService, UlOverride } from '../../core/services/ul-override.service';
 import { AuthService } from '../../core/services/auth.service';
 import { environment } from '../../../environments/environment';
@@ -102,10 +102,10 @@ export class AdminPageComponent {
           }
           this.loading.set(true);
           this.noResults.set(false);
-          return this.http.get<UlSearchResult[]>(
+          return this.http.get<{ results: UlSearchResult[] }>(
             `${environment.apiUrl}/api/ul/search`,
             { params: { q: query } }
-          );
+          ).pipe(map(response => response.results));
         })
       )
       .subscribe({
