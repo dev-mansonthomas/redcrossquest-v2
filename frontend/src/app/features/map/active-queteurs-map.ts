@@ -115,6 +115,11 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
   `,
   styles: [`
     :host { display: block; height: 100%; width: 100%; }
+    :host ::ng-deep .queteur-label {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
   `],
 })
 export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
