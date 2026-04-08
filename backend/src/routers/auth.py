@@ -225,6 +225,22 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
     token = extract_session_token(request)
     session_payload = decode_session_token(token)
     user_profile = get_user_profile_by_email(db, session_payload["email"])
+
+    # Super Admin UL override
+    override_ul_id = request.headers.get("X-Override-UL-Id")
+    if override_ul_id and str(user_profile.get("role")) == "9":
+        try:
+            override_id = int(override_ul_id)
+            ul_row = db.execute(
+                text("SELECT id, name FROM ul WHERE id = :id"),
+                {"id": override_id},
+            ).mappings().first()
+            if ul_row:
+                user_profile["ul_id"] = override_id
+                user_profile["ul_name"] = ul_row["name"]
+        except (ValueError, TypeError):
+            pass
+
     return user_profile
 
 
