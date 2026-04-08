@@ -28,6 +28,11 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'admin',
+        loadComponent: () =>
+          import('../admin/admin-page').then((m) => m.AdminPageComponent),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),

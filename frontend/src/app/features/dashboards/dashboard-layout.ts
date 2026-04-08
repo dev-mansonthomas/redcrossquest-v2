@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 
 interface DashboardDisplayConfig {
   emoji: string;
@@ -60,8 +61,27 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
           <div class="space-y-1 mb-3">
             <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
             <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }}</p>
-            <p class="px-3 text-sm text-gray-500">{{ getRoleEmoji(authService.user()?.role_name) }} {{ authService.user()?.role_name || 'Rôle inconnu' }}</p>
+            @if (authService.user()?.role === 9) {
+              <a routerLink="/dashboards/admin"
+                 class="block px-3 text-sm text-gray-500 hover:text-red-600 cursor-pointer transition-colors">
+                {{ getRoleEmoji(authService.user()?.role_name) }} {{ authService.user()?.role_name || 'Rôle inconnu' }}
+              </a>
+            } @else {
+              <p class="px-3 text-sm text-gray-500">{{ getRoleEmoji(authService.user()?.role_name) }} {{ authService.user()?.role_name || 'Rôle inconnu' }}</p>
+            }
           </div>
+          @if (ulOverrideService.isOverridden()) {
+            <div style="border: 2px solid #dc2626; background: #fef2f2; border-radius: 6px; padding: 8px; margin-top: 4px; margin-bottom: 8px;">
+              <p style="color: #dc2626; font-weight: bold; font-size: 12px; margin: 0;">⚠️ UL Override</p>
+              <p style="font-size: 13px; font-weight: 600; margin: 4px 0 2px;">{{ ulOverrideService.override()?.name }}</p>
+              <p style="font-size: 11px; color: #666; margin: 0 0 6px;">ID: {{ ulOverrideService.override()?.id }}</p>
+              <button
+                (click)="clearOverride()"
+                style="width: 100%; padding: 4px 8px; font-size: 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ✕ Revenir à mon UL
+              </button>
+            </div>
+          }
           <button
             (click)="authService.logout()"
             class="w-full text-left px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors">
@@ -80,6 +100,7 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
 export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly dashboardService = inject(DashboardService);
+  protected readonly ulOverrideService = inject(UlOverrideService);
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
@@ -99,6 +120,10 @@ export class DashboardLayoutComponent implements OnInit {
 
   getDashboardConfig(key: string): DashboardDisplayConfig | undefined {
     return DASHBOARD_CONFIG[key];
+  }
+
+  clearOverride(): void {
+    this.ulOverrideService.clearOverride();
   }
 }
 
