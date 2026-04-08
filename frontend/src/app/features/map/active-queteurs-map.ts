@@ -14,6 +14,7 @@ import { firstValueFrom } from 'rxjs';
 interface ActiveQueteur {
   first_name: string;
   last_name: string;
+  man: boolean;
   latitude: number | null;
   longitude: number | null;
   point_name: string | null;
@@ -58,24 +59,33 @@ const pointQueteIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-function getDurationColors(departIso: string): { bgColor: string; borderColor: string } {
+function getDurationColor(departIso: string): string {
   const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
-  if (hours < 2) {
-    return { bgColor: '#e8f5e9', borderColor: '#4caf50' };
-  } else if (hours < 4) {
-    return { bgColor: '#fff3e0', borderColor: '#ff9800' };
-  } else {
-    return { bgColor: '#ffebee', borderColor: '#f44336' };
-  }
+  if (hours < 2) return '#4caf50';
+  if (hours < 4) return '#ff9800';
+  return '#f44336';
 }
 
-function getQueteurIcon(departIso: string): L.DivIcon {
-  const { bgColor, borderColor } = getDurationColors(departIso);
+function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
+  const color = getDurationColor(q.depart);
+  const icon = q.man ? '🚹' : '🚺';
+  const label = `${icon} ${q.first_name} ${q.last_name} – ${formatDuration(q.depart)}`;
+  const html = `<div style="
+    background: ${color};
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    line-height: 1.4;
+  ">${label}</div>`;
   return L.divIcon({
-    className: 'queteur-marker',
-    html: `<div style="background: ${bgColor}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px;">🧑</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+    className: 'queteur-label',
+    html,
+    iconSize: [0, 0],   // auto-size via content
+    iconAnchor: [0, 14], // left-aligned, vertically centered
   });
 }
 
@@ -204,19 +214,20 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
           const pqLat = q.latitude!;
           const pqLng = q.longitude!;
           const [offsetLat, offsetLng] = getOffsetPosition(pqLat, pqLng, index, group.length);
-          const { borderColor } = getDurationColors(q.depart);
+          const color = getDurationColor(q.depart);
 
-          // Arrow line from point de quête to offset position
+          // Solid leader line from point de quête to label position
           const line = L.polyline(
             [[pqLat, pqLng], [offsetLat, offsetLng]],
-            { color: borderColor, weight: 2, opacity: 0.7, dashArray: '5,5' },
+            { color, weight: 2, opacity: 0.8 },
           );
           this.queteursLayer.addLayer(line);
 
-          // Quêteur marker at offset position
-          const label = `${q.first_name} ${q.last_name} - ${formatDuration(q.depart)}`;
-          const marker = L.marker([offsetLat, offsetLng], { icon: getQueteurIcon(q.depart) });
-          marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -18] });
+          // Label marker at offset position (the label IS the marker)
+          const marker = L.marker([offsetLat, offsetLng], {
+            icon: getQueteurLabelIcon(q),
+            zIndexOffset: 1000,
+          });
           this.queteursLayer.addLayer(marker);
         });
       });

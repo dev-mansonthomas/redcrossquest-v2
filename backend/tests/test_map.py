@@ -86,6 +86,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
         {
             "first_name": "Jean",
             "last_name": "Dupont",
+            "man": True,
             "latitude": 48.8566,
             "longitude": 2.3522,
             "point_name": "Mairie",
@@ -96,6 +97,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
         {
             "first_name": "Marie",
             "last_name": "Martin",
+            "man": False,
             "latitude": 48.8600,
             "longitude": 2.3400,
             "point_name": "Gare",

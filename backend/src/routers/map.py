@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/map", tags=["map"])
 
 ACTIVE_QUETEURS_QUERY = """
     SELECT
-        q.first_name, q.last_name,
+        q.first_name, q.last_name, q.man,
         pq.latitude, pq.longitude, pq.name AS point_name, pq.address,
         tq.depart,
         tq.point_quete_id
