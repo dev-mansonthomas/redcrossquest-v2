@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { ApiService } from './api.service';
+import { UlOverrideService } from './ul-override.service';
 
 export interface User {
   email: string;
@@ -15,6 +16,7 @@ export interface User {
 export class AuthService {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly ulOverrideService = inject(UlOverrideService);
 
   private readonly _user = signal<User | null>(null);
   readonly user = this._user.asReadonly();
@@ -48,6 +50,7 @@ export class AuthService {
     this._user.set(null);
     localStorage.removeItem('rcq_user');
     localStorage.removeItem('rcq_token');
+    this.ulOverrideService.clearOverride();
     this.router.navigate(['/login']);
   }
 
