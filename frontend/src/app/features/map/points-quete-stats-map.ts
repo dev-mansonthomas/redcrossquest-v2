@@ -27,7 +27,7 @@ interface PointQueteStats {
 }
 
 interface PointQueteStatsResponse {
-  points: PointQueteStats[];
+  points_quete: PointQueteStats[];
 }
 
 interface AvailableYearsResponse {
@@ -309,7 +309,7 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
       const response = await firstValueFrom(
         this.api.get<PointQueteStatsResponse>(`/api/map/points-quete-stats?years=${years}`),
       );
-      this.points = response.points.filter(p => p.latitude != null && p.longitude != null);
+      this.points = response.points_quete.filter(p => p.latitude != null && p.longitude != null);
       this.renderCircles();
 
       // Fit bounds
