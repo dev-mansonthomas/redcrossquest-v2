@@ -42,6 +42,17 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
           } @empty {
             <p class="px-3 py-2 text-sm text-gray-500">Aucun dashboard disponible</p>
           }
+          <!-- Lien statique accessible à tous les rôles -->
+          <a routerLink="/dashboards/carte-queteurs"
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+            🗺️ Carte des quêteurs
+          </a>
+          <a routerLink="/dashboards/carte-points-quete"
+             routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+             class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+            📊 Carte points de quête
+          </a>
         </nav>
 
         <!-- Footer avec user info et déconnexion -->

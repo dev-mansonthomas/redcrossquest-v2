@@ -14,6 +14,20 @@ export const DASHBOARD_ROUTES: Routes = [
         pathMatch: 'full',
       },
       {
+        path: 'carte-queteurs',
+        loadComponent: () =>
+          import('../map/active-queteurs-map').then(
+            (m) => m.ActiveQueteursMapComponent,
+          ),
+      },
+      {
+        path: 'carte-points-quete',
+        loadComponent: () =>
+          import('../map/points-quete-stats-map').then(
+            (m) => m.PointsQueteStatsMapComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),

@@ -18,6 +18,8 @@
 #   --check          Check environment readiness (DB user, secrets, etc.)
 #   --all            Do everything (build + infra + migrate + provision)
 #   --plan           Terraform plan only (dry run, no build)
+#   --services LIST  Comma-separated list of services to build (frontend,api,superset)
+#                    Default: all services. Only affects build step.
 #   --skip-confirm   Skip confirmation prompts
 #   --help           Show this help message
 # ============================================================
@@ -72,6 +74,8 @@ Options:
   --check          Check environment readiness (DB user, secrets, etc.)
   --all            Run all steps: build + infra + migrate + provision
   --plan           Terraform plan only (dry run, no build, no apply)
+  --services LIST  Comma-separated list of services to build (frontend,api,superset)
+                   Default: all services. Only affects build step.
   --skip-confirm   Skip confirmation prompts
   --help           Show this help message
 
@@ -82,7 +86,9 @@ Examples:
   ./gcp-deploy.sh dev --infra --skip-build    # Apply infrastructure without building
   ./gcp-deploy.sh dev --migrate               # Run database migrations
   ./gcp-deploy.sh dev --all                   # Full deployment
-  ./gcp-deploy.sh prod --all --skip-confirm   # Full prod deploy, no prompts
+  ./gcp-deploy.sh dev --infra --services frontend,api  # Build only frontend+api
+  ./gcp-deploy.sh dev --infra --services superset      # Build only superset
+  ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
 EOF
     exit 0
 }
@@ -116,6 +122,7 @@ PLAN_ONLY=false
 SKIP_CONFIRM=false
 SKIP_BUILD=false
 BUILD_DONE=false
+SERVICES=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -132,6 +139,7 @@ while [[ $# -gt 0 ]]; do
             DO_PROVISION=true
             shift
             ;;
+        --services)    SERVICES="$2";   shift 2 ;;
         --plan)        PLAN_ONLY=true; DO_INFRA=true; shift ;;
         --skip-confirm) SKIP_CONFIRM=true; shift ;;
         --help|-h)     show_help ;;
@@ -142,6 +150,9 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Default: build all services
+SERVICES="${SERVICES:-frontend,api,superset}"
 
 if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK; then
     log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --all, or --plan."
@@ -318,6 +329,9 @@ echo "  Region:       $GCP_REGION"
 echo "  Image tag:    $IMAGE_TAG"
 echo "  Registry:     $REGISTRY"
 echo "  Config:       $ENV_FILE"
+  if [ "$SERVICES" != "frontend,api,superset" ]; then
+      echo "  Services:     $SERVICES"
+  fi
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
@@ -582,11 +596,24 @@ build_and_push() {
         prod) build_configuration="production" ;;
     esac
 
+    # Map --services names to internal service array names
+    # --services uses: frontend, api, superset
+    # Internal arrays use: frontend, backend, superset
+    local services_filter="$SERVICES"
+    # Normalize "api" → "backend" for internal matching
+    services_filter="${services_filter//api/backend}"
+
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
         local dockerfile="${dockerfiles[$i]}"
         local context="${contexts[$i]}"
         local image="${REGISTRY}/${image_names[$i]}:${IMAGE_TAG}"
+
+        # Skip services not in --services list
+        if [[ ",$services_filter," != *",$svc,"* ]]; then
+            log_info "Skipping ${svc} (not in --services)"
+            continue
+        fi
 
         # Pass BUILD_CONFIGURATION build arg for frontend
         local extra_build_args=""
@@ -605,7 +632,7 @@ build_and_push() {
         echo ""
     done
 
-    log_success "All images built and pushed with tag: ${IMAGE_TAG}"
+    log_success "Images built and pushed with tag: ${IMAGE_TAG} (services: ${SERVICES})"
     BUILD_DONE=true
     echo ""
 }
@@ -971,31 +998,15 @@ run_provision() {
 
     log_info "Provisioning Superset dashboards for environment: $ENV"
 
-    # Generate a temporary .env file for the provisioning script
-    local prov_env_file
-    prov_env_file="$(mktemp)"
-    trap 'rm -f "$prov_env_file"' RETURN
+    # Generate component .env files (backend/.env, superset/.env, superset/provisioning/.env.{env})
+    "$SCRIPT_DIR/scripts/generate-env.sh" "$ENV"
 
-    # Générer DB_SQLALCHEMY_URI avec Unix socket pour Cloud Run (Superset tourne dans Cloud Run)
-    # Format: mysql+mysqldb://user:pass@/dbname?unix_socket=/cloudsql/project:region:instance
-    local DB_SQLALCHEMY_URI="mysql+mysqldb://${RCQ_DB_USER}:${RCQ_DB_PASSWORD}@/${RCQ_DB_NAME}?unix_socket=/cloudsql/${CLOUD_SQL_CONNECTION_NAME}"
-
-    cat > "$prov_env_file" <<PROV_EOF
-SUPERSET_URL=${effective_superset_url}
-SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USERNAME:-admin}
-SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
-DB_CONNECTION_NAME=${DB_CONNECTION_NAME:-RCQ MySQL}
-DB_SQLALCHEMY_URI=${DB_SQLALCHEMY_URI}
-EMBEDDING_ALLOWED_DOMAINS=${effective_embedding_domains}
-BACKEND_ENV_PATH=$SCRIPT_DIR/backend/.env
-PROV_EOF
-
-    # Copy temp file to provisioning dir as .env.{env}
-    cp "$prov_env_file" "$SCRIPT_DIR/superset/provisioning/.env.${ENV}"
-
-    # Export effective URLs so Python's os.environ picks them up
+    # Export GCP-specific vars that generate-env.sh doesn't write but provisioning needs
     export SUPERSET_URL="$effective_superset_url"
     export EMBEDDING_ALLOWED_DOMAINS="$effective_embedding_domains"
+    export DB_CONNECTION_NAME="${DB_CONNECTION_NAME:-RCQ MySQL}"
+    export DB_SQLALCHEMY_URI="mysql+mysqldb://${RCQ_DB_USER}:${RCQ_DB_PASSWORD}@/${RCQ_DB_NAME}?unix_socket=/cloudsql/${CLOUD_SQL_CONNECTION_NAME}"
+    export BACKEND_ENV_PATH="$SCRIPT_DIR/backend/.env"
 
     cd "$SCRIPT_DIR/superset/provisioning"
     python3 scripts/provision_superset.py --env "$ENV" --force-update --auto-restart --no-restart
@@ -1023,6 +1034,9 @@ echo ""
 echo "  Environment:  $ENV"
 echo "  Project:      $GCP_PROJECT_ID"
 echo "  Image tag:    $IMAGE_TAG"
+if [ "$SERVICES" != "frontend,api,superset" ]; then
+    echo "  Services:     $SERVICES"
+fi
 echo ""
 
 # Show Terraform outputs if infra or provision was run
@@ -1074,6 +1088,13 @@ $BUILD_DONE  && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
 $DO_PROVISION && log_success "Provisioning: done"
+
+# ── Restore local environment ────────────────────────────────
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    echo ""
+    log_info "🔄 Restoring local environment..."
+    "$SCRIPT_DIR/scripts/generate-env.sh" local
+fi
 
 echo ""
 log_success "Deployment complete for ${ENV}!"
