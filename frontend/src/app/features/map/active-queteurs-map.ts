@@ -138,6 +138,31 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
       box-shadow: none !important;
       overflow: visible !important;
     }
+    :host ::ng-deep .refresh-control a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      font-size: 18px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    :host ::ng-deep .refresh-control a:hover {
+      background: #f4f4f4;
+    }
+    :host ::ng-deep .refresh-control.refreshing a {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    :host ::ng-deep .refresh-control.refreshing a span {
+      animation: refresh-spin 0.8s linear infinite;
+    }
+    @keyframes refresh-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   `],
 })
 export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
@@ -167,6 +192,8 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  private refreshControlEl: HTMLElement | null = null;
+
   private initMap(): void {
     if (!this.mapContainer?.nativeElement) return;
     this.map = L.map(this.mapContainer.nativeElement).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
@@ -176,6 +203,37 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     }).addTo(this.map);
     this.pointsQueteLayer.addTo(this.map);
     this.queteursLayer.addTo(this.map);
+
+    // Refresh button control
+    const self = this;
+    const RefreshControl = L.Control.extend({
+      options: { position: 'topright' as L.ControlPosition },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control refresh-control');
+        container.innerHTML = '<a href="#" title="Rafraîchir les quêteurs"><span style="display:inline-block">🔄</span></a>';
+        L.DomEvent.disableClickPropagation(container);
+        container.querySelector('a')!.addEventListener('click', (e: Event) => {
+          e.preventDefault();
+          self.onRefreshClick();
+        });
+        self.refreshControlEl = container;
+        return container;
+      },
+    });
+    new RefreshControl().addTo(this.map);
+  }
+
+  private async onRefreshClick(): Promise<void> {
+    if (this.refreshControlEl) {
+      this.refreshControlEl.classList.add('refreshing');
+    }
+    try {
+      await this.loadQueteurs();
+    } finally {
+      if (this.refreshControlEl) {
+        this.refreshControlEl.classList.remove('refreshing');
+      }
+    }
   }
 
   private async loadPointsQuete(): Promise<void> {
