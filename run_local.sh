@@ -10,6 +10,8 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # --- Help ---
 show_help() {
     echo "Usage: ./run_local.sh [OPTIONS]"
@@ -39,42 +41,27 @@ show_config() {
     echo "📋 Configuration actuelle RCQ V2"
     echo ""
 
-    # Load env files
-    if [ -f superset/.env ]; then
-        export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
+    # Load env from root .env
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$' | xargs)
     fi
 
-    echo "🔧 Backend (backend/.env):"
-    if [ -f backend/.env ]; then
-        local env_val
-        env_val=$(grep '^SUPERSET_DASHBOARD_YEARLY_GOAL=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  SUPERSET_DASHBOARD_YEARLY_GOAL = ${env_val:-<non défini>}"
-        env_val=$(grep '^SUPERSET_URL=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  SUPERSET_URL                   = ${env_val:-<non défini>}"
-        env_val=$(grep '^ENVIRONMENT=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  ENVIRONMENT                    = ${env_val:-<non défini>}"
-        env_val=$(grep '^RCQ_DB_HOST=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  RCQ_DB_HOST                    = ${env_val:-<non défini>}"
-        env_val=$(grep '^RCQ_DB_NAME=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  RCQ_DB_NAME                    = ${env_val:-<non défini>}"
-        env_val=$(grep '^CORS_ORIGINS=' backend/.env 2>/dev/null | cut -d= -f2)
-        echo "  CORS_ORIGINS                   = ${env_val:-<non défini>}"
-    else
-        echo "  ⚠️  backend/.env non trouvé"
-    fi
+    echo "🔧 Backend:"
+    echo "  ENVIRONMENT                    = ${ENVIRONMENT:-<non défini>}"
+    echo "  RCQ_DB_HOST                    = ${RCQ_DB_HOST:-<non défini>}"
+    echo "  RCQ_DB_NAME                    = ${RCQ_DB_NAME:-<non défini>}"
+    echo "  SUPERSET_URL                   = ${SUPERSET_URL:-<non défini>}"
+    echo "  SUPERSET_DASHBOARD_YEARLY_GOAL = ${SUPERSET_DASHBOARD_YEARLY_GOAL:-<non défini>}"
+    echo "  CORS_ORIGINS                   = ${CORS_ORIGINS:-<non défini>}"
 
     echo ""
-    echo "🐳 Superset (superset/.env):"
-    if [ -f superset/.env ]; then
-        echo "  MYSQL_DATABASE                 = ${MYSQL_DATABASE:-<non défini>}"
-        echo "  MYSQL_USER                     = ${MYSQL_USER:-<non défini>}"
-        echo "  MYSQL_ROOT_PASSWORD            = ${MYSQL_ROOT_PASSWORD:0:3}***"
-        echo "  SUPERSET_ADMIN_USERNAME        = ${SUPERSET_ADMIN_USERNAME:-<non défini>}"
-        echo "  SUPERSET_ADMIN_PASSWORD        = ${SUPERSET_ADMIN_PASSWORD:0:2}***"
-        echo "  SUPERSET_CORS_ORIGINS          = ${SUPERSET_CORS_ORIGINS:-<non défini>}"
-    else
-        echo "  ⚠️  superset/.env non trouvé"
-    fi
+    echo "🐳 Superset:"
+    echo "  MYSQL_DATABASE                 = ${MYSQL_DATABASE:-<non défini>}"
+    echo "  MYSQL_USER                     = ${MYSQL_USER:-<non défini>}"
+    echo "  MYSQL_ROOT_PASSWORD            = ${MYSQL_ROOT_PASSWORD:0:3}***"
+    echo "  SUPERSET_ADMIN_USERNAME        = ${SUPERSET_ADMIN_USERNAME:-<non défini>}"
+    echo "  SUPERSET_ADMIN_PASSWORD        = ${SUPERSET_ADMIN_PASSWORD:0:2}***"
+    echo "  SUPERSET_CORS_ORIGINS          = ${SUPERSET_CORS_ORIGINS:-<non défini>}"
 
     echo ""
     echo "📍 Services URLs:"
@@ -90,9 +77,9 @@ show_config() {
 restart_service() {
     local service="$1"
 
-    # Load environment variables from superset/.env
-    if [ -f superset/.env ]; then
-        export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
+    # Load environment variables from root .env
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$' | xargs)
     fi
 
     case "$service" in
@@ -246,11 +233,6 @@ if [ "$ACTION" = "restart" ]; then
     exit 0
 fi
 
-# Load environment variables from superset/.env
-if [ -f superset/.env ]; then
-    export $(grep -v '^#' superset/.env | grep -v '^$' | xargs)
-fi
-
 echo "🚀 Starting RCQ V2 Development Environment..."
 echo ""
 
@@ -264,6 +246,15 @@ fi
 if ! docker compose version > /dev/null 2>&1; then
     echo "❌ Error: 'docker compose' is not available. Please update Docker."
     exit 1
+fi
+
+# Generate component .env files from root .env
+echo "📝 Generating environment files from root .env..."
+"$SCRIPT_DIR/scripts/generate-env.sh" local
+
+# Load environment variables from root .env (for use in this script)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$' | xargs)
 fi
 
 # Stop any existing containers
