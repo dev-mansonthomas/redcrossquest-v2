@@ -21,6 +21,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'carte-points-quete',
+        loadComponent: () =>
+          import('../map/points-quete-stats-map').then(
+            (m) => m.PointsQueteStatsMapComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),
