@@ -6,10 +6,12 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SupersetService } from '../../core/services/superset.service';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 
 @Component({
   selector: 'app-dashboard-view',
@@ -51,9 +53,25 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly supersetService = inject(SupersetService);
   private readonly dashboardService = inject(DashboardService);
+  private readonly ulOverrideService = inject(UlOverrideService);
 
   title = signal('');
   error = signal('');
+  private currentDashboardUuid: string | null = null;
+  private overrideInitialized = false;
+
+  private readonly overrideEffect = effect(() => {
+    // Read the signal to track it
+    this.ulOverrideService.override();
+    if (!this.overrideInitialized) {
+      this.overrideInitialized = true;
+      return;
+    }
+    // UL override changed — reload the dashboard
+    if (this.currentDashboardUuid) {
+      this.reloadDashboard(this.currentDashboardUuid);
+    }
+  });
 
   async ngOnInit(): Promise<void> {
     const slug = this.route.snapshot.paramMap.get('slug');
@@ -73,6 +91,7 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
       }
 
       this.title.set(dashboard.title);
+      this.currentDashboardUuid = dashboard.uuid;
 
       await this.supersetService.embedDashboard(
         dashboard.uuid,
@@ -87,6 +106,22 @@ export class DashboardViewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.container?.nativeElement) {
       this.container.nativeElement.innerHTML = '';
+    }
+  }
+
+  private async reloadDashboard(uuid: string): Promise<void> {
+    try {
+      this.error.set('');
+      if (this.container?.nativeElement) {
+        this.container.nativeElement.innerHTML = '';
+      }
+      await this.supersetService.embedDashboard(
+        uuid,
+        this.container.nativeElement
+      );
+    } catch (err) {
+      this.error.set('Erreur lors du rechargement du dashboard');
+      console.error('Dashboard reload error:', err);
     }
   }
 }

@@ -6,9 +6,11 @@ import {
   ElementRef,
   ViewChild,
   AfterViewInit,
+  effect,
 } from '@angular/core';
 import * as L from 'leaflet';
 import { ApiService } from '../../core/services/api.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 import { firstValueFrom } from 'rxjs';
 
 interface ActiveQueteur {
@@ -169,13 +171,25 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
 
   private readonly api = inject(ApiService);
+  private readonly ulOverrideService = inject(UlOverrideService);
   private map: L.Map | null = null;
   private pointsQueteLayer = L.layerGroup();
   private queteursLayer = L.layerGroup();
   private pollingTimer: ReturnType<typeof setInterval> | null = null;
   private pointsQueteBounds: L.LatLngExpression[] = [];
+  private overrideInitialized = false;
 
   readonly noQueteurs = signal(false);
+
+  private readonly overrideEffect = effect(() => {
+    this.ulOverrideService.override();
+    if (!this.overrideInitialized) {
+      this.overrideInitialized = true;
+      return;
+    }
+    this.loadPointsQuete();
+    this.loadQueteurs();
+  });
 
   async ngAfterViewInit(): Promise<void> {
     this.initMap();

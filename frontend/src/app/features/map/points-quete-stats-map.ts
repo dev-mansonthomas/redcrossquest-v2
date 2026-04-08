@@ -6,9 +6,11 @@ import {
   ElementRef,
   ViewChild,
   AfterViewInit,
+  effect,
 } from '@angular/core';
 import * as L from 'leaflet';
 import { ApiService } from '../../core/services/api.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 import { firstValueFrom } from 'rxjs';
 
 interface PointQueteStats {
@@ -204,10 +206,21 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
 
   private readonly api = inject(ApiService);
+  private readonly ulOverrideService = inject(UlOverrideService);
   private map: L.Map | null = null;
   private circlesLayer = L.layerGroup();
   private badgesLayer = L.layerGroup();
   private refreshControlEl: HTMLElement | null = null;
+  private overrideInitialized = false;
+
+  private readonly overrideEffect = effect(() => {
+    this.ulOverrideService.override();
+    if (!this.overrideInitialized) {
+      this.overrideInitialized = true;
+      return;
+    }
+    this.loadStats();
+  });
 
   readonly viewModes: ViewMode[] = ['total_amount', 'hourly_rate', 'tronc_count', 'total_hours'];
   readonly viewLabels = VIEW_LABELS;
