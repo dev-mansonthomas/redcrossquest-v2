@@ -91,6 +91,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
             "point_name": "Mairie",
             "address": "1 rue de la Mairie",
             "depart": depart_time,
+            "point_quete_id": 1,
         },
         {
             "first_name": "Marie",
@@ -100,6 +101,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
             "point_name": "Gare",
             "address": "10 place de la Gare",
             "depart": depart_time,
+            "point_quete_id": 2,
         },
     ]
 

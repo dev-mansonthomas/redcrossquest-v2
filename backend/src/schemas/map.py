@@ -15,6 +15,7 @@ class ActiveQueteur(BaseModel):
     point_name: Optional[str] = None
     address: Optional[str] = None
     depart: datetime
+    point_quete_id: int
 
     model_config = {"from_attributes": True}
 

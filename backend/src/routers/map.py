@@ -13,7 +13,8 @@ ACTIVE_QUETEURS_QUERY = """
     SELECT
         q.first_name, q.last_name,
         pq.latitude, pq.longitude, pq.name AS point_name, pq.address,
-        tq.depart
+        tq.depart,
+        tq.point_quete_id
     FROM tronc_queteur tq
     JOIN queteur q ON q.id = tq.queteur_id
     JOIN point_quete pq ON pq.id = tq.point_quete_id

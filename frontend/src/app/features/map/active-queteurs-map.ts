@@ -19,6 +19,7 @@ interface ActiveQueteur {
   point_name: string | null;
   address: string | null;
   depart: string;
+  point_quete_id: number;
 }
 
 interface ActiveQueteursResponse {
@@ -57,25 +58,38 @@ const pointQueteIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-function getQueteurIcon(departIso: string): L.DivIcon {
+function getDurationColors(departIso: string): { bgColor: string; borderColor: string } {
   const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
-  let bgColor: string, borderColor: string;
   if (hours < 2) {
-    bgColor = '#e8f5e9';
-    borderColor = '#4caf50';
+    return { bgColor: '#e8f5e9', borderColor: '#4caf50' };
   } else if (hours < 4) {
-    bgColor = '#fff3e0';
-    borderColor = '#ff9800';
+    return { bgColor: '#fff3e0', borderColor: '#ff9800' };
   } else {
-    bgColor = '#ffebee';
-    borderColor = '#f44336';
+    return { bgColor: '#ffebee', borderColor: '#f44336' };
   }
+}
+
+function getQueteurIcon(departIso: string): L.DivIcon {
+  const { bgColor, borderColor } = getDurationColors(departIso);
   return L.divIcon({
     className: 'queteur-marker',
     html: `<div style="background: ${bgColor}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px;">🧑</div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
+}
+
+function getOffsetPosition(lat: number, lng: number, index: number, total: number): [number, number] {
+  const OFFSET = 0.0008; // ~80m at Paris latitude
+  if (total === 1) {
+    // Single quêteur: offset to upper-right
+    return [lat + OFFSET * 0.7, lng + OFFSET * 0.7];
+  }
+  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+  return [
+    lat + OFFSET * Math.sin(angle),
+    lng + OFFSET * Math.cos(angle),
+  ];
 }
 
 @Component({
@@ -176,13 +190,36 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
       this.queteursLayer.clearLayers();
       this.noQueteurs.set(queteurs.length === 0);
 
+      // Group quêteurs by point_quete_id
+      const grouped = new Map<number, ActiveQueteur[]>();
       for (const q of queteurs) {
-        const latLng: L.LatLngExpression = [q.latitude!, q.longitude!];
-        const label = `${q.first_name} ${q.last_name} - ${formatDuration(q.depart)}`;
-        const marker = L.marker(latLng, { icon: getQueteurIcon(q.depart) });
-        marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -18] });
-        this.queteursLayer.addLayer(marker);
+        const group = grouped.get(q.point_quete_id) || [];
+        group.push(q);
+        grouped.set(q.point_quete_id, group);
       }
+
+      // For each group, spread quêteurs in a circle around the point de quête
+      grouped.forEach((group) => {
+        group.forEach((q, index) => {
+          const pqLat = q.latitude!;
+          const pqLng = q.longitude!;
+          const [offsetLat, offsetLng] = getOffsetPosition(pqLat, pqLng, index, group.length);
+          const { borderColor } = getDurationColors(q.depart);
+
+          // Arrow line from point de quête to offset position
+          const line = L.polyline(
+            [[pqLat, pqLng], [offsetLat, offsetLng]],
+            { color: borderColor, weight: 2, opacity: 0.7, dashArray: '5,5' },
+          );
+          this.queteursLayer.addLayer(line);
+
+          // Quêteur marker at offset position
+          const label = `${q.first_name} ${q.last_name} - ${formatDuration(q.depart)}`;
+          const marker = L.marker([offsetLat, offsetLng], { icon: getQueteurIcon(q.depart) });
+          marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -18] });
+          this.queteursLayer.addLayer(marker);
+        });
+      });
     } catch (err) {
       console.error('Failed to load active quêteurs', err);
     }
