@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
-from ..schemas.map import ActiveQueteur, ActiveQueteursResponse
+from ..schemas.map import ActiveQueteur, ActiveQueteursResponse, PointQuete, PointsQueteResponse
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/map", tags=["map"])
@@ -37,3 +37,26 @@ async def get_active_queteurs(
 
     queteurs = [ActiveQueteur(**row) for row in rows]
     return ActiveQueteursResponse(queteurs=queteurs)
+
+
+POINTS_QUETE_QUERY = """
+    SELECT pq.id, pq.name, pq.latitude, pq.longitude, pq.address
+    FROM point_quete pq
+    WHERE pq.ul_id = :ul_id
+      AND pq.enabled = 1
+"""
+
+
+@router.get("/points-quete", response_model=PointsQueteResponse)
+async def get_points_quete(
+    request: FastAPIRequest,
+    db: Session = Depends(get_rcq_db),
+) -> PointsQueteResponse:
+    """Return all enabled points de quête for the user's UL."""
+    user = get_authenticated_user(request, db)
+    ul_id = user["ul_id"]
+
+    rows = db.execute(text(POINTS_QUETE_QUERY), {"ul_id": ul_id}).mappings().all()
+
+    points = [PointQuete(**row) for row in rows]
+    return PointsQueteResponse(points_quete=points)

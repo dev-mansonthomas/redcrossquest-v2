@@ -148,3 +148,101 @@ def test_active_queteurs_filters_by_ul_id(client, monkeypatch, auth_token):
         assert params["ul_id"] == 456
     finally:
         app.dependency_overrides.clear()
+
+
+# ─── Points de quête tests ───────────────────────────────────────────
+
+
+def test_points_quete_requires_auth(client):
+    """GET /api/map/points-quete without auth should return 401."""
+    response = client.get("/api/map/points-quete")
+    assert response.status_code == 401
+
+
+def test_points_quete_returns_empty_list(client, monkeypatch, auth_token):
+    """GET /api/map/points-quete should return empty list when no points exist."""
+    _mock_authenticated_user(monkeypatch)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/map/points-quete",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"points_quete": []}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_points_quete_returns_data(client, monkeypatch, auth_token):
+    """GET /api/map/points-quete should return point de quête data."""
+    _mock_authenticated_user(monkeypatch)
+
+    mock_rows = [
+        {
+            "id": 1,
+            "name": "Mairie",
+            "latitude": 48.8566,
+            "longitude": 2.3522,
+            "address": "1 rue de la Mairie",
+        },
+        {
+            "id": 2,
+            "name": "Gare",
+            "latitude": 48.8600,
+            "longitude": 2.3400,
+            "address": "10 place de la Gare",
+        },
+    ]
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = mock_rows
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/map/points-quete",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["points_quete"]) == 2
+        assert data["points_quete"][0]["name"] == "Mairie"
+        assert data["points_quete"][0]["latitude"] == 48.8566
+        assert data["points_quete"][1]["name"] == "Gare"
+        assert data["points_quete"][1]["id"] == 2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_points_quete_filters_by_ul_id(client, monkeypatch, auth_token):
+    """The SQL query should use the authenticated user's ul_id."""
+    _mock_authenticated_user(monkeypatch, ul_id=789)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/map/points-quete",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+
+        # Verify the SQL was called with the correct ul_id
+        call_args = mock_db.execute.call_args
+        params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+        assert params["ul_id"] == 789
+    finally:
+        app.dependency_overrides.clear()

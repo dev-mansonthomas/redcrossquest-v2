@@ -23,3 +23,21 @@ class ActiveQueteursResponse(BaseModel):
     """Response for the active quêteurs endpoint."""
 
     queteurs: list[ActiveQueteur]
+
+
+class PointQuete(BaseModel):
+    """A point de quête (collection point)."""
+
+    id: int
+    name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PointsQueteResponse(BaseModel):
+    """Response for the points de quête endpoint."""
+
+    points_quete: list[PointQuete]

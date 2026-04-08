@@ -1,6 +1,5 @@
 import {
   Component,
-  OnInit,
   OnDestroy,
   inject,
   signal,
@@ -26,13 +25,21 @@ interface ActiveQueteursResponse {
   queteurs: ActiveQueteur[];
 }
 
-// Fix Leaflet default icon paths (broken by bundlers)
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+interface PointQuete {
+  id: number;
+  name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+}
+
+interface PointsQueteResponse {
+  points_quete: PointQuete[];
+}
+
+// Default center: Paris
+const DEFAULT_CENTER: L.LatLngExpression = [48.8566, 2.3522];
+const DEFAULT_ZOOM = 13;
 
 function formatDuration(departIso: string): string {
   const diff = Date.now() - new Date(departIso).getTime();
@@ -43,6 +50,34 @@ function formatDuration(departIso: string): string {
   return `${hours}h ${String(minutes).padStart(2, '0')}min`;
 }
 
+const pointQueteIcon = L.divIcon({
+  className: 'point-quete-marker',
+  html: '<div style="background: #5b8def; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 12px; font-weight: bold;">📍</span></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+function getQueteurIcon(departIso: string): L.DivIcon {
+  const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
+  let bgColor: string, borderColor: string;
+  if (hours < 2) {
+    bgColor = '#e8f5e9';
+    borderColor = '#4caf50';
+  } else if (hours < 4) {
+    bgColor = '#fff3e0';
+    borderColor = '#ff9800';
+  } else {
+    bgColor = '#ffebee';
+    borderColor = '#f44336';
+  }
+  return L.divIcon({
+    className: 'queteur-marker',
+    html: `<div style="background: ${bgColor}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 18px;">🧑</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
 @Component({
   selector: 'app-active-queteurs-map',
   standalone: true,
@@ -51,13 +86,7 @@ function formatDuration(departIso: string): string {
       <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
         <h2 class="text-lg font-semibold text-gray-800">🗺️ Carte des quêteurs actifs</h2>
       </div>
-      @if (noQueteurs()) {
-        <div class="flex-1 flex items-center justify-center">
-          <p class="text-gray-500 text-lg">Aucun quêteur en cours de quête</p>
-        </div>
-      } @else {
-        <div #mapContainer class="flex-1" style="min-height: 0;"></div>
-      }
+      <div #mapContainer class="flex-1" style="min-height: 0;"></div>
     </div>
   `,
   styles: [`
@@ -69,15 +98,18 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
 
   private readonly api = inject(ApiService);
   private map: L.Map | null = null;
-  private markersLayer = L.layerGroup();
+  private pointsQueteLayer = L.layerGroup();
+  private queteursLayer = L.layerGroup();
   private pollingTimer: ReturnType<typeof setInterval> | null = null;
+  private pointsQueteBounds: L.LatLngExpression[] = [];
 
   readonly noQueteurs = signal(false);
 
   async ngAfterViewInit(): Promise<void> {
-    await this.loadAndRender();
-    // Poll every 5 minutes
-    this.pollingTimer = setInterval(() => this.loadAndRender(), 5 * 60 * 1000);
+    this.initMap();
+    await this.loadPointsQuete();
+    await this.loadQueteurs();
+    this.pollingTimer = setInterval(() => this.loadQueteurs(), 5 * 60 * 1000);
   }
 
   ngOnDestroy(): void {
@@ -88,7 +120,51 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private async loadAndRender(): Promise<void> {
+  private initMap(): void {
+    if (!this.mapContainer?.nativeElement) return;
+    this.map = L.map(this.mapContainer.nativeElement).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(this.map);
+    this.pointsQueteLayer.addTo(this.map);
+    this.queteursLayer.addTo(this.map);
+  }
+
+  private async loadPointsQuete(): Promise<void> {
+    try {
+      const response = await firstValueFrom(
+        this.api.get<PointsQueteResponse>('/api/map/points-quete'),
+      );
+      const points = response.points_quete.filter(
+        (p) => p.latitude != null && p.longitude != null,
+      );
+
+      this.pointsQueteLayer.clearLayers();
+      this.pointsQueteBounds = [];
+
+      for (const p of points) {
+        const latLng: L.LatLngExpression = [p.latitude!, p.longitude!];
+        this.pointsQueteBounds.push(latLng);
+        const marker = L.marker(latLng, { icon: pointQueteIcon });
+        if (p.name) {
+          marker.bindTooltip(p.name, { permanent: true, direction: 'top', offset: [0, -14] });
+        }
+        this.pointsQueteLayer.addLayer(marker);
+      }
+
+      // Center map on all points de quête bounds
+      if (this.map && this.pointsQueteBounds.length > 0) {
+        this.map.fitBounds(L.latLngBounds(this.pointsQueteBounds), { padding: [40, 40], maxZoom: 15 });
+      } else if (this.map) {
+        this.map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+      }
+    } catch (err) {
+      console.error('Failed to load points de quête', err);
+    }
+  }
+
+  private async loadQueteurs(): Promise<void> {
     try {
       const response = await firstValueFrom(
         this.api.get<ActiveQueteursResponse>('/api/map/active-queteurs'),
@@ -97,53 +173,18 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
         (q) => q.latitude != null && q.longitude != null,
       );
 
-      if (queteurs.length === 0) {
-        this.noQueteurs.set(true);
-        return;
+      this.queteursLayer.clearLayers();
+      this.noQueteurs.set(queteurs.length === 0);
+
+      for (const q of queteurs) {
+        const latLng: L.LatLngExpression = [q.latitude!, q.longitude!];
+        const label = `${q.first_name} ${q.last_name} - ${formatDuration(q.depart)}`;
+        const marker = L.marker(latLng, { icon: getQueteurIcon(q.depart) });
+        marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -18] });
+        this.queteursLayer.addLayer(marker);
       }
-
-      this.noQueteurs.set(false);
-
-      // Wait a tick so the container is visible (ngIf just toggled)
-      await new Promise((r) => setTimeout(r, 0));
-
-      if (!this.map) {
-        this.initMap();
-      }
-
-      this.renderMarkers(queteurs);
     } catch (err) {
       console.error('Failed to load active quêteurs', err);
-    }
-  }
-
-  private initMap(): void {
-    if (!this.mapContainer?.nativeElement) return;
-    this.map = L.map(this.mapContainer.nativeElement);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(this.map);
-    this.markersLayer.addTo(this.map);
-  }
-
-  private renderMarkers(queteurs: ActiveQueteur[]): void {
-    this.markersLayer.clearLayers();
-
-    const bounds: L.LatLngExpression[] = [];
-
-    for (const q of queteurs) {
-      const latLng: L.LatLngExpression = [q.latitude!, q.longitude!];
-      bounds.push(latLng);
-
-      const label = `${q.first_name} ${q.last_name} - ${formatDuration(q.depart)}`;
-      const marker = L.marker(latLng);
-      marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
-      this.markersLayer.addLayer(marker);
-    }
-
-    if (this.map && bounds.length > 0) {
-      this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
     }
   }
 }
