@@ -8,6 +8,7 @@ import { environment } from '../../../environments/environment';
 interface UlSearchResult {
   id: number;
   name: string;
+  postal_code: string | null;
 }
 
 @Component({
@@ -46,7 +47,7 @@ interface UlSearchResult {
         <h2 class="text-lg font-semibold text-gray-700 mb-4">Changer d'UL</h2>
         <input
           type="text"
-          placeholder="Rechercher une UL par nom..."
+          placeholder="Rechercher une UL par nom, code postal ou ID..."
           [value]="searchTerm()"
           (input)="onSearchInput($event)"
           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
@@ -65,7 +66,7 @@ interface UlSearchResult {
                   (click)="selectUl(ul)"
                   class="w-full text-left px-4 py-3 hover:bg-red-50 transition-colors">
                   <span class="font-medium text-gray-800">{{ ul.name }}</span>
-                  <span class="text-sm text-gray-400 ml-2">ID: {{ ul.id }}</span>
+                  <span class="text-sm text-gray-500 ml-2">({{ ul.postal_code || '?' }}) — ID: {{ ul.id }}</span>
                 </button>
               </li>
             }

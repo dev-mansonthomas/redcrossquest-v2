@@ -7,6 +7,7 @@ class UlSearchResult(BaseModel):
 
     id: int
     name: str
+    postal_code: str | None = None
 
 
 class UlSearchResponse(BaseModel):

@@ -29,14 +29,17 @@ async def search_ul(
 
     rows = db.execute(
         text(
-            "SELECT id, name FROM ul "
+            "SELECT id, name, postal_code FROM ul "
             "WHERE date_demarrage_rcq IS NOT NULL "
-            "AND name LIKE :q "
+            "AND (name LIKE :q OR postal_code LIKE :q OR CAST(id AS CHAR) LIKE :q) "
             "ORDER BY name "
             "LIMIT 20"
         ),
         {"q": f"%{q}%"},
     ).mappings().all()
 
-    results = [UlSearchResult(id=row["id"], name=row["name"]) for row in rows]
+    results = [
+        UlSearchResult(id=row["id"], name=row["name"], postal_code=row["postal_code"])
+        for row in rows
+    ]
     return UlSearchResponse(results=results)
