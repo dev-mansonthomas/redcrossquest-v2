@@ -93,6 +93,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
             "address": "1 rue de la Mairie",
             "depart": depart_time,
             "point_quete_id": 1,
+            "point_code": "MAI01",
         },
         {
             "first_name": "Marie",
@@ -104,6 +105,7 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
             "address": "10 place de la Gare",
             "depart": depart_time,
             "point_quete_id": 2,
+            "point_code": None,
         },
     ]
 
@@ -195,6 +197,8 @@ def test_points_quete_returns_data(client, monkeypatch, auth_token):
             "latitude": 48.8566,
             "longitude": 2.3522,
             "address": "1 rue de la Mairie",
+            "type": 1,
+            "code": "MAI01",
         },
         {
             "id": 2,
@@ -202,6 +206,8 @@ def test_points_quete_returns_data(client, monkeypatch, auth_token):
             "latitude": 48.8600,
             "longitude": 2.3400,
             "address": "10 place de la Gare",
+            "type": 2,
+            "code": "GAR01",
         },
     ]
 

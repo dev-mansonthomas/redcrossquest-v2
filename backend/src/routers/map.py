@@ -14,7 +14,8 @@ ACTIVE_QUETEURS_QUERY = """
         q.first_name, q.last_name, q.man,
         pq.latitude, pq.longitude, pq.name AS point_name, pq.address,
         tq.depart,
-        tq.point_quete_id
+        tq.point_quete_id,
+        pq.code AS point_code
     FROM tronc_queteur tq
     JOIN queteur q ON q.id = tq.queteur_id
     JOIN point_quete pq ON pq.id = tq.point_quete_id
@@ -41,7 +42,7 @@ async def get_active_queteurs(
 
 
 POINTS_QUETE_QUERY = """
-    SELECT pq.id, pq.name, pq.latitude, pq.longitude, pq.address
+    SELECT pq.id, pq.name, pq.latitude, pq.longitude, pq.address, pq.type, pq.code
     FROM point_quete pq
     WHERE pq.ul_id = :ul_id
       AND pq.enabled = 1

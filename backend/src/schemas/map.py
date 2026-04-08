@@ -17,6 +17,7 @@ class ActiveQueteur(BaseModel):
     address: Optional[str] = None
     depart: datetime
     point_quete_id: int
+    point_code: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +36,8 @@ class PointQuete(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     address: Optional[str] = None
+    type: int = 1
+    code: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -21,6 +21,7 @@ interface ActiveQueteur {
   address: string | null;
   depart: string;
   point_quete_id: number;
+  point_code: string | null;
 }
 
 interface ActiveQueteursResponse {
@@ -33,6 +34,8 @@ interface PointQuete {
   latitude: number | null;
   longitude: number | null;
   address: string | null;
+  type: number;
+  code: string | null;
 }
 
 interface PointsQueteResponse {
@@ -52,12 +55,24 @@ function formatDuration(departIso: string): string {
   return `${hours}h ${String(minutes).padStart(2, '0')}min`;
 }
 
-const pointQueteIcon = L.divIcon({
-  className: 'point-quete-marker',
-  html: '<div style="background: #5b8def; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><span style="color: white; font-size: 12px; font-weight: bold;">📍</span></div>',
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-});
+function getPointQueteIcon(type: number): L.DivIcon {
+  let emoji: string;
+  let bg: string;
+  switch (type) {
+    case 1: emoji = '🚦'; bg = '#5b8def'; break;   // Voie Publique/Feux Rouge — bleu
+    case 2: emoji = '🚶'; bg = '#4caf50'; break;   // Piéton — vert
+    case 3: emoji = '🏪'; bg = '#ff9800'; break;   // Commerçant — orange
+    case 4: emoji = '🏠'; bg = '#9c27b0'; break;   // Base UL — violet
+    case 5: emoji = '📌'; bg = '#9e9e9e'; break;   // Autre — gris
+    default: emoji = '📍'; bg = '#5b8def'; break;
+  }
+  return L.divIcon({
+    className: 'point-quete-marker',
+    html: `<div style="background: ${bg}; width: 28px; height: 28px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><span style="font-size: 14px;">${emoji}</span></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
 
 function getDurationColor(departIso: string): string {
   const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
@@ -69,7 +84,8 @@ function getDurationColor(departIso: string): string {
 function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
   const color = getDurationColor(q.depart);
   const icon = q.man ? '🚹' : '🚺';
-  const label = `${icon} ${q.first_name} ${q.last_name} – ${formatDuration(q.depart)}`;
+  const pointLabel = q.point_code || q.point_name || '';
+  const label = `${icon} ${q.first_name} ${q.last_name} – ${pointLabel} – ${formatDuration(q.depart)}`;
   const html = `<div style="
     display: inline-block;
     background: ${color};
@@ -177,9 +193,9 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
       for (const p of points) {
         const latLng: L.LatLngExpression = [p.latitude!, p.longitude!];
         this.pointsQueteBounds.push(latLng);
-        const marker = L.marker(latLng, { icon: pointQueteIcon });
+        const marker = L.marker(latLng, { icon: getPointQueteIcon(p.type) });
         if (p.name) {
-          marker.bindTooltip(p.name, { permanent: true, direction: 'top', offset: [0, -14] });
+          marker.bindTooltip(p.name, { direction: 'top', offset: [0, -14] });
         }
         this.pointsQueteLayer.addLayer(marker);
       }
