@@ -71,6 +71,7 @@ function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
   const icon = q.man ? '🚹' : '🚺';
   const label = `${icon} ${q.first_name} ${q.last_name} – ${formatDuration(q.depart)}`;
   const html = `<div style="
+    display: inline-block;
     background: ${color};
     color: #fff;
     padding: 4px 10px;
@@ -84,13 +85,13 @@ function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
   return L.divIcon({
     className: 'queteur-label',
     html,
-    iconSize: [0, 0],   // auto-size via content
+    iconSize: [0, 0],   // let content determine size
     iconAnchor: [0, 14], // left-aligned, vertically centered
   });
 }
 
 function getOffsetPosition(lat: number, lng: number, index: number, total: number): [number, number] {
-  const OFFSET = 0.0008; // ~80m at Paris latitude
+  const OFFSET = 0.002; // ~200m at Paris latitude
   if (total === 1) {
     // Single quêteur: offset to upper-right
     return [lat + OFFSET * 0.7, lng + OFFSET * 0.7];
@@ -119,6 +120,7 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
       background: none !important;
       border: none !important;
       box-shadow: none !important;
+      overflow: visible !important;
     }
   `],
 })
