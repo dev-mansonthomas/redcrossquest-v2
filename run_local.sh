@@ -340,7 +340,7 @@ provision_dashboards() {
 
     # Run provisioning script locally (requires python3)
     if command -v python3 &> /dev/null; then
-        cd superset/provisioning && python3 scripts/provision_superset.py --env dev $force_flag --auto-restart --no-restart
+        cd superset/provisioning && python3 scripts/provision_superset.py --env local $force_flag --auto-restart --no-restart
         cd - > /dev/null
     else
         echo "❌ python3 not found. Install Python 3 to run provisioning."
