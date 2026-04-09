@@ -54,8 +54,6 @@ class Settings(BaseSettings):
 
     # Superset Dashboard UUIDs
     superset_dashboard_yearly_goal: str = ""
-    superset_dashboard_comptage_tresorier: str = ""
-    superset_dashboard_leaderboard: str = ""
 
     @property
     def rcq_database_url(self) -> str:

@@ -12,8 +12,6 @@ interface DashboardDisplayConfig {
 
 const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
   kpi_yearly: { emoji: '📊', label: 'Objectifs Annuels', route: '/dashboards/kpi' },
-  counting_treasurer: { emoji: '🧮', label: 'Comptage Trésorier', route: '/dashboards/comptage' },
-  leaderboard_current_year: { emoji: '🏆', label: 'Leaderboard', route: '/dashboards/leaderboard' },
 };
 
 @Component({
