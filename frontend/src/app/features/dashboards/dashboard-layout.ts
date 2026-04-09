@@ -4,16 +4,6 @@ import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 
-interface DashboardDisplayConfig {
-  emoji: string;
-  label: string;
-  route: string;
-}
-
-const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
-  kpi_yearly: { emoji: '📊', label: 'Objectifs Annuels', route: '/dashboards/kpi' },
-};
-
 @Component({
   selector: 'app-dashboard-layout',
   standalone: true,
@@ -29,17 +19,13 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
 
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
-          @for (dashboard of dashboardService.dashboards(); track dashboard.key) {
-            @if (getDashboardConfig(dashboard.key); as config) {
-              <a [routerLink]="config.route"
-                 routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-                 [routerLinkActiveOptions]="{exact: false}"
-                 class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-                {{ config.emoji }} {{ config.label }}
-              </a>
-            }
-          } @empty {
-            <p class="px-3 py-2 text-sm text-gray-500">Aucun dashboard disponible</p>
+          <!-- Lien statique Objectifs Annuels -->
+          @if ([1, 2, 3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/kpi"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Objectifs Annuels
+            </a>
           }
           <!-- Lien statique accessible à tous les rôles -->
           <a routerLink="/dashboards/carte-queteurs"
@@ -121,10 +107,6 @@ export class DashboardLayoutComponent implements OnInit {
 
   getRoleEmoji(roleName: string | undefined): string {
     return this.ROLE_EMOJIS[roleName || ''] || '🎭';
-  }
-
-  getDashboardConfig(key: string): DashboardDisplayConfig | undefined {
-    return DASHBOARD_CONFIG[key];
   }
 
   clearOverride(): void {
