@@ -13,7 +13,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
       <!-- Sidebar - Thème clair -->
       <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <!-- Header avec logo -->
-        <div class="px-4 py-4 border-b border-gray-200 flex items-center">
+        <div class="h-14 px-4 border-b border-gray-200 flex items-center">
           <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
         </div>
 
@@ -82,7 +82,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
       </aside>
 
       <!-- Main content -->
-      <main class="flex-1 overflow-hidden bg-gray-50">
+      <main class="flex-1 overflow-hidden bg-gray-50 flex flex-col">
         <router-outlet />
       </main>
     </div>

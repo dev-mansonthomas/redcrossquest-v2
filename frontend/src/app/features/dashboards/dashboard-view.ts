@@ -19,7 +19,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header avec style cohérent -->
-      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
+      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center shrink-0">
         <h2 class="text-lg font-semibold text-gray-800">{{ title() }}</h2>
       </div>
       @if (error()) {

@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import health, auth, embed, map, money_bags, superset, ul
+from .routers import health, auth, config, embed, map, money_bags, superset, ul
 
 # Create FastAPI application
 app = FastAPI(
@@ -25,6 +25,7 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(config.router)
 app.include_router(embed.router)
 app.include_router(map.router)
 app.include_router(money_bags.router)

@@ -85,7 +85,7 @@ function formatNumber(n: number): string {
   standalone: true,
   template: `
     <div class="h-full w-full flex flex-col bg-white">
-      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between">
+      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
         <h2 class="text-lg font-semibold text-gray-800">📊 Carte analytique des points de quête</h2>
         <div class="flex items-center gap-3">
           <!-- View mode buttons -->

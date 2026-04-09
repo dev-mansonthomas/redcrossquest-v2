@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # Superset Dashboard UUIDs
     superset_dashboard_yearly_goal: str = ""
 
+    # RCQ URLs (for linking to legacy app)
+    rcq_base_url: str = "https://redcrossquest.croix-rouge.fr"
+    rcq_tronc_queteur_uri: str = "#!/tronc_queteur/edit/"
+
     @property
     def rcq_database_url(self) -> str:
         """Construct MySQL database URL for SQLAlchemy."""

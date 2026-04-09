@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
 from ..schemas.money_bags import (
+    BagTroncsResponse,
     MoneyBagDetail,
     MoneyBagItem,
     MoneyBagSummary,
     MoneyBagsResponse,
+    TroncQueteurItem,
 )
 from .auth import get_authenticated_user
 
@@ -90,6 +92,30 @@ WHERE deleted = 0 AND comptage IS NOT NULL
 """
 
 
+
+COINS_TRONCS_QUERY = """
+SELECT tq.id AS tronc_queteur_id, q.first_name, q.last_name,
+  pq.name AS point_quete_name, tq.tronc_id
+FROM tronc_queteur tq
+JOIN queteur q ON tq.queteur_id = q.id
+JOIN point_quete pq ON tq.point_quete_id = pq.id
+WHERE tq.deleted = 0 AND tq.comptage IS NOT NULL
+  AND tq.ul_id = :ul_id AND YEAR(tq.comptage) = :year
+  AND tq.coins_money_bag_id = :bag_id
+ORDER BY tq.id
+"""
+
+BILLS_TRONCS_QUERY = """
+SELECT tq.id AS tronc_queteur_id, q.first_name, q.last_name,
+  pq.name AS point_quete_name, tq.tronc_id
+FROM tronc_queteur tq
+JOIN queteur q ON tq.queteur_id = q.id
+JOIN point_quete pq ON tq.point_quete_id = pq.id
+WHERE tq.deleted = 0 AND tq.comptage IS NOT NULL
+  AND tq.ul_id = :ul_id AND YEAR(tq.comptage) = :year
+  AND tq.bills_money_bag_id = :bag_id
+ORDER BY tq.id
+"""
 
 COIN_DENOMINATIONS = [
     ("2€", "euro2", 2.0, 8.5),
@@ -203,3 +229,34 @@ async def get_money_bag_detail(
         tronc_count=int(row["tronc_count"]),
         items=items,
     )
+
+
+@router.get("/{bag_id}/troncs", response_model=BagTroncsResponse)
+async def get_money_bag_troncs(
+    bag_id: str,
+    request: FastAPIRequest,
+    type: str = Query(..., description="Type de sac: 'coins' ou 'bills'"),
+    year: int = Query(default=None, description="Année (défaut: année courante)"),
+    db: Session = Depends(get_rcq_db),
+) -> BagTroncsResponse:
+    """Return the list of tronc_queteurs contributing to a specific money bag."""
+    user = get_authenticated_user(request, db)
+    _check_role(user)
+
+    if type not in ("coins", "bills"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le paramètre 'type' doit être 'coins' ou 'bills'",
+        )
+
+    if year is None:
+        year = datetime.now().year
+
+    ul_id = user["ul_id"]
+    params = {"ul_id": ul_id, "year": year, "bag_id": bag_id}
+
+    query = COINS_TRONCS_QUERY if type == "coins" else BILLS_TRONCS_QUERY
+    rows = db.execute(text(query), params).mappings().all()
+
+    troncs = [TroncQueteurItem(**row) for row in rows]
+    return BagTroncsResponse(troncs=troncs)

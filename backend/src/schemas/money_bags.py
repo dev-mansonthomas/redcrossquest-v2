@@ -37,3 +37,28 @@ class MoneyBagDetail(BaseModel):
     total_amount: float
     tronc_count: int
     items: list[MoneyBagItem]
+
+
+class TroncQueteurItem(BaseModel):
+    """A tronc_queteur contributing to a money bag."""
+
+    tronc_queteur_id: int
+    first_name: str
+    last_name: str
+    point_quete_name: str
+    tronc_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class BagTroncsResponse(BaseModel):
+    """Response for the money bag troncs endpoint."""
+
+    troncs: list[TroncQueteurItem]
+
+
+class RcqUrlsResponse(BaseModel):
+    """Response for the RCQ URLs config endpoint."""
+
+    base_url: str
+    tronc_queteur_uri: str
