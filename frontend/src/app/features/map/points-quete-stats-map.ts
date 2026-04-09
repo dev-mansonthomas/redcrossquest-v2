@@ -85,51 +85,45 @@ function formatNumber(n: number): string {
   standalone: true,
   template: `
     <div class="h-full w-full flex flex-col bg-white">
-      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
+      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-800">📊 Carte analytique des points de quête</h2>
-      </div>
-      <div class="relative flex-1" style="min-height: 0;">
-        <div #mapContainer class="h-full w-full"></div>
-        <!-- View mode buttons -->
-        <div class="view-buttons-container">
-          @for (mode of viewModes; track mode) {
-            <button
-              [class.active]="currentView() === mode"
-              (click)="setView(mode)"
-              class="view-btn">
-              {{ viewLabels[mode] }}
-            </button>
-          }
+        <div class="flex items-center gap-3">
+          <!-- View mode buttons -->
+          <div class="flex rounded-lg overflow-hidden border border-gray-300 shadow-sm">
+            @for (mode of viewModes; track mode) {
+              <button
+                [class.active]="currentView() === mode"
+                (click)="setView(mode)"
+                class="view-btn">
+                {{ viewLabels[mode] }}
+              </button>
+            }
+          </div>
+          <!-- Year selector -->
+          <div class="flex gap-1">
+            @for (year of availableYears(); track year) {
+              <button
+                [class.active]="selectedYears().has(year)"
+                (click)="toggleYear(year)"
+                class="year-chip">
+                {{ year }}
+              </button>
+            }
+          </div>
+          <button
+            (click)="onRefreshClick()"
+            [disabled]="refreshing()"
+            class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
+            [class.animate-spin-slow]="refreshing()">
+            🔄
+          </button>
         </div>
-        <!-- Year selector -->
-        <div class="year-chips-container">
-          @for (year of availableYears(); track year) {
-            <button
-              [class.active]="selectedYears().has(year)"
-              (click)="toggleYear(year)"
-              class="year-chip">
-              {{ year }}
-            </button>
-          }
-        </div>
       </div>
+      <div #mapContainer class="flex-1" style="min-height: 0;"></div>
     </div>
   `,
   styles: [`
     :host { display: block; height: 100%; width: 100%; }
-    .view-buttons-container {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: flex;
-      gap: 0;
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      overflow: hidden;
-    }
     .view-btn {
       padding: 6px 14px;
       font-size: 13px;
@@ -143,17 +137,6 @@ function formatNumber(n: number): string {
     }
     .view-btn:hover { background: #f0f0f0; }
     .view-btn.active { background: #3b82f6; color: white; }
-    .year-chips-container {
-      position: absolute;
-      top: 50px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
     .year-chip {
       padding: 4px 10px;
       font-size: 12px;
@@ -164,7 +147,6 @@ function formatNumber(n: number): string {
       color: #555;
       cursor: pointer;
       transition: all 0.2s;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .year-chip:hover { border-color: #3b82f6; }
     .year-chip.active { background: #3b82f6; color: white; border-color: #3b82f6; }
@@ -177,29 +159,8 @@ function formatNumber(n: number): string {
     :host ::ng-deep .pq-stats-tooltip {
       max-width: 300px;
     }
-    :host ::ng-deep .refresh-control a {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
-      font-size: 18px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    :host ::ng-deep .refresh-control a:hover { background: #f4f4f4; }
-    :host ::ng-deep .refresh-control.refreshing a {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-    :host ::ng-deep .refresh-control.refreshing a span {
-      animation: refresh-spin 0.8s linear infinite;
-    }
-    @keyframes refresh-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
+    .animate-spin-slow { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   `],
 })
 export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
@@ -210,7 +171,6 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
   private map: L.Map | null = null;
   private circlesLayer = L.layerGroup();
   private badgesLayer = L.layerGroup();
-  private refreshControlEl: HTMLElement | null = null;
   private overrideInitialized = false;
 
   private readonly overrideEffect = effect(() => {
@@ -227,6 +187,7 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
   readonly currentView = signal<ViewMode>('total_amount');
   readonly availableYears = signal<number[]>([]);
   readonly selectedYears = signal<Set<number>>(new Set());
+  readonly refreshing = signal(false);
 
   private points: PointQueteStats[] = [];
 
@@ -268,32 +229,14 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
     }).addTo(this.map);
     this.circlesLayer.addTo(this.map);
     this.badgesLayer.addTo(this.map);
-
-    // Refresh button
-    const self = this;
-    const RefreshControl = L.Control.extend({
-      options: { position: 'topright' as L.ControlPosition },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control refresh-control');
-        container.innerHTML = '<a href="#" title="Rafraîchir"><span style="display:inline-block">🔄</span></a>';
-        L.DomEvent.disableClickPropagation(container);
-        container.querySelector('a')!.addEventListener('click', (e: Event) => {
-          e.preventDefault();
-          self.onRefreshClick();
-        });
-        self.refreshControlEl = container;
-        return container;
-      },
-    });
-    new RefreshControl().addTo(this.map);
   }
 
-  private async onRefreshClick(): Promise<void> {
-    if (this.refreshControlEl) this.refreshControlEl.classList.add('refreshing');
+  async onRefreshClick(): Promise<void> {
+    this.refreshing.set(true);
     try {
       await this.loadStats();
     } finally {
-      if (this.refreshControlEl) this.refreshControlEl.classList.remove('refreshing');
+      this.refreshing.set(false);
     }
   }
 
