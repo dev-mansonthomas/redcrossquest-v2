@@ -95,82 +95,88 @@ interface RcqUrls {
           <div class="mx-4 mt-2 p-3 bg-red-50 text-red-600 rounded-lg border border-red-200 text-sm">{{ error() }}</div>
         }
 
-        <!-- Row 1 — Detail zone (only when a bag is selected) -->
-        @if (selectedBag()) {
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 overflow-auto" style="flex: 6; min-height: 0;">
-            <!-- Left column: Bag detail table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 overflow-auto">
-              @if (detailLoading()) {
-                <p class="text-sm text-gray-400">Chargement du détail...</p>
-              } @else if (bagDetail()) {
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="text-base font-semibold text-gray-800">{{ bagDetail()!.bag_id }}</h3>
-                  <div class="text-sm text-gray-600">
-                    <span class="font-medium">{{ bagDetail()!.weight_grams }} g</span>
-                    <span class="mx-1">|</span>
-                    <span class="font-bold text-green-700">{{ bagDetail()!.total_amount | number:'1.2-2' }} €</span>
+        <!-- Row 1 — Detail zone (always visible, fixed height) -->
+        <div class="flex overflow-hidden" style="flex: 6; min-height: 0;">
+          @if (selectedBag()) {
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 overflow-auto">
+              <!-- Left column: Bag detail table -->
+              <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 overflow-auto">
+                @if (detailLoading()) {
+                  <p class="text-sm text-gray-400">Chargement du détail...</p>
+                } @else if (bagDetail()) {
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-semibold text-gray-800">{{ bagDetail()!.bag_id }}</h3>
+                    <div class="text-sm text-gray-600">
+                      <span class="font-medium">{{ bagDetail()!.weight_grams }} g</span>
+                      <span class="mx-1">|</span>
+                      <span class="font-bold text-green-700">{{ bagDetail()!.total_amount | number:'1.2-2' }} €</span>
+                    </div>
                   </div>
-                </div>
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="text-left text-gray-500 border-b">
-                      <th class="pb-1">Type</th>
-                      <th class="pb-1 text-right">Nombre</th>
-                      <th class="pb-1 text-right">Total €</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (item of bagDetail()!.items; track item.type) {
-                      <tr class="border-b border-gray-50">
-                        <td class="py-1">{{ item.type }}</td>
-                        <td class="py-1 text-right">{{ item.count }}</td>
-                        <td class="py-1 text-right">{{ item.amount | number:'1.2-2' }} €</td>
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="text-left text-gray-500 border-b">
+                        <th class="pb-1">Type</th>
+                        <th class="pb-1 text-right">Nombre</th>
+                        <th class="pb-1 text-right">Total €</th>
                       </tr>
-                    }
-                  </tbody>
-                </table>
-              }
-            </div>
+                    </thead>
+                    <tbody>
+                      @for (item of bagDetail()!.items; track item.type) {
+                        <tr class="border-b border-gray-50">
+                          <td class="py-1">{{ item.type }}</td>
+                          <td class="py-1 text-right">{{ item.count }}</td>
+                          <td class="py-1 text-right">{{ item.amount | number:'1.2-2' }} €</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+              </div>
 
-            <!-- Right column: Tronc_queteurs list -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 overflow-auto">
-              <h3 class="text-base font-semibold text-gray-800 mb-3">Tronc Quêteurs</h3>
-              @if (troncsLoading()) {
-                <p class="text-sm text-gray-400">Chargement des troncs...</p>
-              } @else if (troncs().length === 0) {
-                <p class="text-sm text-gray-400 italic">Aucun tronc</p>
-              } @else {
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="text-left text-gray-500 border-b">
-                      <th class="pb-1">ID TQ</th>
-                      <th class="pb-1">Nom</th>
-                      <th class="pb-1">Prénom</th>
-                      <th class="pb-1">Point de quête</th>
-                      <th class="pb-1 text-right">ID Tronc</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (tq of troncs(); track tq.tronc_queteur_id) {
-                      <tr
-                        (click)="openTroncQueteur(tq.tronc_queteur_id)"
-                        class="border-b border-gray-50 cursor-pointer hover:bg-blue-50 transition-colors">
-                        <td class="py-1">{{ tq.tronc_queteur_id }}</td>
-                        <td class="py-1">{{ tq.last_name }}</td>
-                        <td class="py-1">{{ tq.first_name }}</td>
-                        <td class="py-1">{{ tq.point_quete_name }}</td>
-                        <td class="py-1 text-right">{{ tq.tronc_id }}</td>
+              <!-- Right column: Tronc_queteurs list -->
+              <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 overflow-auto">
+                <h3 class="text-base font-semibold text-gray-800 mb-3">Tronc Quêteurs</h3>
+                @if (troncsLoading()) {
+                  <p class="text-sm text-gray-400">Chargement des troncs...</p>
+                } @else if (troncs().length === 0) {
+                  <p class="text-sm text-gray-400 italic">Aucun tronc</p>
+                } @else {
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="text-left text-gray-500 border-b">
+                        <th class="pb-1">ID TQ</th>
+                        <th class="pb-1">Nom</th>
+                        <th class="pb-1">Prénom</th>
+                        <th class="pb-1">Point de quête</th>
+                        <th class="pb-1 text-right">ID Tronc</th>
                       </tr>
-                    }
-                  </tbody>
-                </table>
-              }
+                    </thead>
+                    <tbody>
+                      @for (tq of troncs(); track tq.tronc_queteur_id) {
+                        <tr
+                          (click)="openTroncQueteur(tq.tronc_queteur_id)"
+                          class="border-b border-gray-50 cursor-pointer hover:bg-blue-50 transition-colors">
+                          <td class="py-1">{{ tq.tronc_queteur_id }}</td>
+                          <td class="py-1">{{ tq.last_name }}</td>
+                          <td class="py-1">{{ tq.first_name }}</td>
+                          <td class="py-1">{{ tq.point_quete_name }}</td>
+                          <td class="py-1 text-right">{{ tq.tronc_id }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+              </div>
             </div>
-          </div>
-        }
+          } @else {
+            <div class="flex-1 flex items-center justify-center">
+              <p class="text-2xl text-gray-300 font-medium">Sélectionnez un sac</p>
+            </div>
+          }
+        </div>
 
         <!-- Row 2 — Bag cards (scrollable grid) -->
-        <div class="p-4 overflow-auto" [style.flex]="selectedBag() ? '4' : '1'">
+        <div class="p-4 overflow-auto" style="flex: 4; min-height: 0;">
           @if (filteredBags().length === 0 && !loading()) {
             <p class="text-sm text-gray-400 italic">Aucun sac</p>
           }
