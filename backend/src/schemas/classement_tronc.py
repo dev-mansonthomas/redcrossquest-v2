@@ -4,18 +4,17 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class TroncRanking(BaseModel):
-    """A single tronc ranking entry (one row per tronc_queteur)."""
+class QueteurBestTronc(BaseModel):
+    """Un quêteur avec ses meilleurs troncs (MAX par métrique)."""
 
-    tronc_queteur_id: int
     queteur_id: int
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    point_quete_name: Optional[str] = None
-    total_euro: float
-    hours: float
-    weight_kg: float
-    efficiency_euro_per_hour: Optional[float] = None
+    secteur: Optional[int] = None
+    best_montant: float
+    best_poids_kg: float
+    best_duree_h: float
+    best_taux_horaire: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -23,7 +22,7 @@ class TroncRanking(BaseModel):
 class ClassementTroncResponse(BaseModel):
     """Response for the classement-tronc leaderboard endpoint."""
 
-    queteurs: list[TroncRanking]
+    queteurs: list[QueteurBestTronc]
 
 
 class TroncChampion(BaseModel):

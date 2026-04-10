@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
 from ..schemas.classement_tronc import (
-    TroncRanking,
+    QueteurBestTronc,
     ClassementTroncResponse,
     TroncChampion,
     TroncsChampionsResponse,
@@ -31,24 +31,25 @@ def _check_role(user: dict) -> None:
 
 TRONC_LEADERBOARD_QUERY = """
     SELECT
-      tqe.id AS tronc_queteur_id,
       q.id AS queteur_id,
       q.first_name,
       q.last_name,
-      pq.name AS point_quete_name,
-      ROUND(tqe.total_amount, 2) AS total_euro,
-      ROUND(tqe.duration_minutes / 60.0, 2) AS hours,
-      ROUND(tqe.weight / 1000, 2) AS weight_kg,
-      ROUND(
-        tqe.total_amount / NULLIF(tqe.duration_minutes / 60.0, 0),
-        2
-      ) AS efficiency_euro_per_hour
+      q.secteur,
+      ROUND(MAX(tqe.total_amount), 2) AS best_montant,
+      ROUND(MAX(tqe.weight) / 1000, 2) AS best_poids_kg,
+      ROUND(MAX(tqe.duration_minutes) / 60.0, 2) AS best_duree_h,
+      ROUND(MAX(
+        tqe.total_amount / NULLIF(tqe.duration_minutes / 60.0, 0)
+      ), 2) AS best_taux_horaire
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
-    JOIN point_quete pq ON tqe.point_quete_id = pq.id
-    WHERE tqe.ul_id = :ul_id AND YEAR(tqe.depart) = :year
+    WHERE tqe.ul_id = :ul_id
+      AND YEAR(tqe.depart) = :year
+      AND tqe.deleted = 0
+      AND tqe.comptage IS NOT NULL
     {secteur_filter}
-    ORDER BY total_euro DESC
+    GROUP BY q.id, q.first_name, q.last_name, q.secteur
+    ORDER BY best_montant DESC
 """
 
 CHAMPION_TRONCS_QUERY = """
@@ -96,7 +97,7 @@ async def get_classement_tronc(
     params = {"ul_id": user["ul_id"], "year": year, **secteur_params}
 
     rows = db.execute(text(query), params).mappings().all()
-    queteurs = [TroncRanking(**row) for row in rows]
+    queteurs = [QueteurBestTronc(**row) for row in rows]
     return ClassementTroncResponse(queteurs=queteurs)
 
 

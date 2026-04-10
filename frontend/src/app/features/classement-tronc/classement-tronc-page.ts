@@ -8,10 +8,11 @@ interface QueteurTroncRow {
   queteur_id: number;
   first_name: string;
   last_name: string;
-  best_euro: number;
-  best_weight_kg: number;
-  longest_duration_hours: number;
-  best_euro_per_hour: number | null;
+  secteur: number | null;
+  best_montant: number;
+  best_poids_kg: number;
+  best_duree_h: number;
+  best_taux_horaire: number | null;
 }
 
 interface BestTroncRow {
@@ -20,7 +21,7 @@ interface BestTroncRow {
   hours: number;
   weight_kg: number;
   point_quete_name: string;
-  champion_of: string[];
+  champion_types: string[];
 }
 
 interface RcqUrls {
@@ -28,7 +29,7 @@ interface RcqUrls {
   tronc_queteur_uri: string;
 }
 
-type SortColumn = 'best_euro' | 'best_weight_kg' | 'longest_duration_hours' | 'best_euro_per_hour';
+type SortColumn = 'best_montant' | 'best_poids_kg' | 'best_duree_h' | 'best_taux_horaire';
 type SortDirection = 'asc' | 'desc';
 
 const CHAMPION_BADGES: Record<string, string> = {
@@ -103,13 +104,13 @@ const CHAMPION_COLORS: Record<string, string> = {
                 <th class="px-3 py-2 text-left font-semibold text-gray-600">Nom</th>
                 <th class="px-3 py-2 text-left font-semibold text-gray-600">Prénom</th>
                 <th class="px-3 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:text-red-600 select-none"
-                    (click)="toggleSort('best_euro')">Meilleur €{{ sortIndicator('best_euro') }}</th>
+                    (click)="toggleSort('best_montant')">Meilleur €{{ sortIndicator('best_montant') }}</th>
                 <th class="px-3 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:text-red-600 select-none"
-                    (click)="toggleSort('best_weight_kg')">Meilleur poids (kg){{ sortIndicator('best_weight_kg') }}</th>
+                    (click)="toggleSort('best_poids_kg')">Meilleur poids (kg){{ sortIndicator('best_poids_kg') }}</th>
                 <th class="px-3 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:text-red-600 select-none"
-                    (click)="toggleSort('longest_duration_hours')">Plus longue durée (h){{ sortIndicator('longest_duration_hours') }}</th>
+                    (click)="toggleSort('best_duree_h')">Plus longue durée (h){{ sortIndicator('best_duree_h') }}</th>
                 <th class="px-3 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:text-red-600 select-none"
-                    (click)="toggleSort('best_euro_per_hour')">Meilleur €/h{{ sortIndicator('best_euro_per_hour') }}</th>
+                    (click)="toggleSort('best_taux_horaire')">Meilleur €/h{{ sortIndicator('best_taux_horaire') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -123,10 +124,10 @@ const CHAMPION_COLORS: Record<string, string> = {
                   <td class="px-3 py-2 text-gray-500 font-mono">{{ i + 1 }}</td>
                   <td class="px-3 py-2 font-medium text-gray-800">{{ q.last_name }}</td>
                   <td class="px-3 py-2 text-gray-700">{{ q.first_name }}</td>
-                  <td class="px-3 py-2 text-right font-medium text-gray-800">{{ q.best_euro | number:'1.2-2' }}</td>
-                  <td class="px-3 py-2 text-right text-gray-700">{{ q.best_weight_kg | number:'1.2-2' }}</td>
-                  <td class="px-3 py-2 text-right text-gray-700">{{ q.longest_duration_hours | number:'1.1-1' }}</td>
-                  <td class="px-3 py-2 text-right text-gray-700">{{ q.best_euro_per_hour != null ? (q.best_euro_per_hour | number:'1.2-2') : '—' }}</td>
+                  <td class="px-3 py-2 text-right font-medium text-gray-800">{{ q.best_montant | number:'1.2-2' }}</td>
+                  <td class="px-3 py-2 text-right text-gray-700">{{ q.best_poids_kg | number:'1.2-2' }}</td>
+                  <td class="px-3 py-2 text-right text-gray-700">{{ q.best_duree_h | number:'1.1-1' }}</td>
+                  <td class="px-3 py-2 text-right text-gray-700">{{ q.best_taux_horaire != null ? (q.best_taux_horaire | number:'1.2-2') : '—' }}</td>
                 </tr>
                 <!-- Drill-down -->
                 @if (expandedQueteurId() === q.queteur_id) {
@@ -163,7 +164,7 @@ const CHAMPION_COLORS: Record<string, string> = {
                                   <td class="px-3 py-1.5 text-gray-700">{{ t.point_quete_name }}</td>
                                   <td class="px-3 py-1.5">
                                     <div class="flex flex-wrap gap-1">
-                                      @for (c of t.champion_of; track c) {
+                                      @for (c of t.champion_types; track c) {
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ championColor(c) }}">{{ championLabel(c) }}</span>
                                       }
                                     </div>
@@ -203,7 +204,7 @@ export class ClassementTroncPageComponent {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly queteurs = signal<QueteurTroncRow[]>([]);
-  readonly sortColumn = signal<SortColumn>('best_euro');
+  readonly sortColumn = signal<SortColumn>('best_montant');
   readonly sortDirection = signal<SortDirection>('desc');
   readonly expandedQueteurId = signal<number | null>(null);
   readonly bestTroncs = signal<BestTroncRow[]>([]);
@@ -289,7 +290,7 @@ export class ClassementTroncPageComponent {
     try {
       const resp = await firstValueFrom(
         this.api.get<{ troncs: BestTroncRow[] }>(
-          `/api/classement-tronc/${queteur.queteur_id}/best-troncs?year=${this.selectedYear()}`
+          `/api/classement-tronc/${queteur.queteur_id}/troncs-champions?year=${this.selectedYear()}`
         )
       );
       this.bestTroncs.set(resp.troncs || []);

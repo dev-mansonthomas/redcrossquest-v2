@@ -75,26 +75,24 @@ def test_classement_tronc_returns_data(client, monkeypatch, auth_token):
 
     mock_rows = [
         {
-            "tronc_queteur_id": 10,
             "queteur_id": 1,
             "first_name": "Jean",
             "last_name": "Dupont",
-            "point_quete_name": "Mairie",
-            "total_euro": 150.50,
-            "hours": 5.25,
-            "weight_kg": 2.10,
-            "efficiency_euro_per_hour": 28.67,
+            "secteur": 1,
+            "best_montant": 150.50,
+            "best_poids_kg": 2.10,
+            "best_duree_h": 5.25,
+            "best_taux_horaire": 28.67,
         },
         {
-            "tronc_queteur_id": 11,
             "queteur_id": 2,
             "first_name": "Marie",
             "last_name": "Martin",
-            "point_quete_name": "Gare",
-            "total_euro": 120.00,
-            "hours": 4.00,
-            "weight_kg": 1.80,
-            "efficiency_euro_per_hour": 30.00,
+            "secteur": 2,
+            "best_montant": 120.00,
+            "best_poids_kg": 1.80,
+            "best_duree_h": 4.00,
+            "best_taux_horaire": 30.00,
         },
     ]
 
@@ -112,9 +110,12 @@ def test_classement_tronc_returns_data(client, monkeypatch, auth_token):
         assert response.status_code == 200
         data = response.json()
         assert len(data["queteurs"]) == 2
-        assert data["queteurs"][0]["tronc_queteur_id"] == 10
+        assert data["queteurs"][0]["queteur_id"] == 1
         assert data["queteurs"][0]["first_name"] == "Jean"
-        assert data["queteurs"][0]["total_euro"] == 150.50
+        assert data["queteurs"][0]["best_montant"] == 150.50
+        assert data["queteurs"][0]["best_poids_kg"] == 2.10
+        assert data["queteurs"][0]["best_duree_h"] == 5.25
+        assert data["queteurs"][0]["best_taux_horaire"] == 28.67
         assert data["queteurs"][1]["queteur_id"] == 2
     finally:
         app.dependency_overrides.clear()
