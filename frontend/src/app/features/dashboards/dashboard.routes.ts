@@ -47,6 +47,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'vue-globale',
+        loadComponent: () =>
+          import('../ul-overview/ul-overview-page').then(
+            (m) => m.UlOverviewPageComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),
