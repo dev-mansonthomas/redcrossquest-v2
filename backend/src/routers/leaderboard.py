@@ -1,4 +1,4 @@
-"""Leaderboard endpoints for collector rankings."""
+"""Leaderboard endpoints for quêteur rankings."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as FastAPIRequest, status
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
 from ..schemas.leaderboard import (
-    CollectorRanking,
+    QueteurRanking,
     LeaderboardResponse,
     TroncDetail,
     TroncsResponse,
@@ -70,7 +70,7 @@ async def get_leaderboard(
     year: int = Query(default=None, description="Année (défaut: année courante)"),
     db: Session = Depends(get_rcq_db),
 ) -> LeaderboardResponse:
-    """Return collector leaderboard ranked by total amount collected."""
+    """Return quêteur leaderboard ranked by total amount collected."""
     user = get_authenticated_user(request, db)
     _check_role(user)
 
@@ -82,18 +82,18 @@ async def get_leaderboard(
         text(LEADERBOARD_QUERY), {"ul_id": ul_id, "year": year}
     ).mappings().all()
 
-    collectors = [CollectorRanking(**row) for row in rows]
-    return LeaderboardResponse(collectors=collectors)
+    queteurs = [QueteurRanking(**row) for row in rows]
+    return LeaderboardResponse(queteurs=queteurs)
 
 
 @router.get("/{queteur_id}/troncs", response_model=TroncsResponse)
-async def get_collector_troncs(
+async def get_queteur_troncs(
     queteur_id: int,
     request: FastAPIRequest,
     year: int = Query(default=None, description="Année (défaut: année courante)"),
     db: Session = Depends(get_rcq_db),
 ) -> TroncsResponse:
-    """Return tronc details for a specific collector (drill-down)."""
+    """Return tronc details for a specific quêteur (drill-down)."""
     user = get_authenticated_user(request, db)
     _check_role(user)
 

@@ -109,10 +109,10 @@ def test_leaderboard_returns_data(client, monkeypatch, auth_token):
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data["collectors"]) == 2
-        assert data["collectors"][0]["first_name"] == "Jean"
-        assert data["collectors"][0]["total_euro"] == 150.50
-        assert data["collectors"][1]["queteur_id"] == 2
+        assert len(data["queteurs"]) == 2
+        assert data["queteurs"][0]["first_name"] == "Jean"
+        assert data["queteurs"][0]["total_euro"] == 150.50
+        assert data["queteurs"][1]["queteur_id"] == 2
     finally:
         app.dependency_overrides.clear()
 
@@ -132,7 +132,7 @@ def test_leaderboard_role_9_allowed(client, monkeypatch, auth_token):
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 200
-        assert response.json() == {"collectors": []}
+        assert response.json() == {"queteurs": []}
     finally:
         app.dependency_overrides.clear()
 

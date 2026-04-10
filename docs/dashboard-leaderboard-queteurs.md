@@ -1,7 +1,7 @@
-# 5.2 Leaderboard Collecteurs
+# 5.2 Leaderboard Quêteurs
 
 ## Description
-Classement des collecteurs (quêteurs) pour une année donnée, avec drill-down sur les troncs individuels.
+Classement des quêteurs pour une année donnée, avec drill-down sur les troncs individuels.
 
 ## Accès
 - Rôles : 4 (Admin UL), 9 (Super Admin)
@@ -9,7 +9,7 @@ Classement des collecteurs (quêteurs) pour une année donnée, avec drill-down 
 ## Interface
 
 ### Header
-- Titre : "🏆 Leaderboard Collecteurs"
+- Titre : "🏆 Leaderboard Quêteurs"
 - Sélecteur d'année (par défaut : année courante)
 - Bouton refresh 🔄
 
@@ -22,8 +22,8 @@ Colonnes :
 - Colonnes triables en cliquant sur l'en-tête (Total €, Heures, Nb sorties, Poids, Efficacité)
 - Le rang se recalcule selon la colonne de tri active
 
-### Drill-down — Troncs d'un collecteur
-Au clic sur une ligne du classement, afficher en dessous (expand) la liste des tronc_queteur du collecteur :
+### Drill-down — Troncs d'un quêteur
+Au clic sur une ligne du classement, afficher en dessous (expand) la liste des tronc_queteur du quêteur :
 
 | ID TQ | Total € | Temps de quête | Poids (kg) | Point de quête |
 |-------|---------|----------------|------------|----------------|

@@ -39,7 +39,7 @@ type SortDirection = 'asc' | 'desc';
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
       <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
-        <h2 class="text-lg font-semibold text-gray-800">🏆 Leaderboard Collecteurs</h2>
+        <h2 class="text-lg font-semibold text-gray-800">🏆 Leaderboard Quêteurs</h2>
         <div class="flex items-center gap-3">
           <select
             [value]="selectedYear()"
@@ -69,7 +69,7 @@ type SortDirection = 'asc' | 'desc';
             <span class="ml-3 text-gray-500">Chargement...</span>
           </div>
         } @else if (sortedQueteurs().length === 0 && !error()) {
-          <div class="text-center py-12 text-gray-500">Aucun collecteur trouvé pour cette année.</div>
+          <div class="text-center py-12 text-gray-500">Aucun quêteur trouvé pour cette année.</div>
         } @else {
           <table class="w-full text-sm border-collapse">
             <thead>
@@ -284,11 +284,11 @@ export class LeaderboardPageComponent {
     this.error.set('');
     try {
       const resp = await firstValueFrom(
-        this.api.get<{ collectors: QueteurRow[] }>(
+        this.api.get<{ queteurs: QueteurRow[] }>(
           `/api/leaderboard?year=${this.selectedYear()}`
         )
       );
-      this.queteurs.set(resp.collectors || []);
+      this.queteurs.set(resp.queteurs || []);
     } catch (err) {
       this.error.set('Erreur lors du chargement du classement');
       console.error('Failed to load leaderboard', err);

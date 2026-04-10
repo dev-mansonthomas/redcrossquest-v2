@@ -4,8 +4,8 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class CollectorRanking(BaseModel):
-    """A collector's aggregated ranking entry."""
+class QueteurRanking(BaseModel):
+    """A quêteur's aggregated ranking entry."""
 
     queteur_id: int
     first_name: Optional[str] = None
@@ -22,11 +22,11 @@ class CollectorRanking(BaseModel):
 class LeaderboardResponse(BaseModel):
     """Response for the leaderboard endpoint."""
 
-    collectors: list[CollectorRanking]
+    queteurs: list[QueteurRanking]
 
 
 class TroncDetail(BaseModel):
-    """A single tronc detail for a collector."""
+    """A single tronc detail for a quêteur."""
 
     tronc_queteur_id: int
     total_euro: float
@@ -38,6 +38,6 @@ class TroncDetail(BaseModel):
 
 
 class TroncsResponse(BaseModel):
-    """Response for the collector troncs drill-down endpoint."""
+    """Response for the quêteur troncs drill-down endpoint."""
 
     troncs: list[TroncDetail]
