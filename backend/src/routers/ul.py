@@ -6,10 +6,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..cache import cache_get, cache_set
+from ..cache import cache_delete, cache_get, cache_set
 from ..database import get_rcq_db
 from ..routers.auth import get_authenticated_user
-from ..schemas.ul import SecteurStats, UlOverviewResponse, UlSearchResponse, UlSearchResult
+from ..schemas.ul import (
+    ActivityYear,
+    FinancialYear,
+    HoursBySector,
+    QueteursBySector,
+    UlOverviewResponse,
+    UlSearchResponse,
+    UlSearchResult,
+)
 
 router = APIRouter(prefix="/api", tags=["ul"])
 
@@ -23,8 +31,14 @@ SECTEUR_LABELS: dict[int, str] = {
     6: "Spécial",
 }
 
-# Cache TTL for UL overview (5 minutes)
-UL_OVERVIEW_CACHE_TTL = 300
+# Roles allowed to access UL overview
+OVERVIEW_ALLOWED_ROLES = {"4", "9"}
+
+# Cache TTL for UL overview (1 hour)
+UL_OVERVIEW_CACHE_TTL = 3600
+
+# Number of years to fetch
+NUM_YEARS = 5
 
 
 @router.get("/ul/search", response_model=UlSearchResponse)
@@ -61,97 +75,175 @@ async def search_ul(
 
 
 # ---------------------------------------------------------------------------
-# Vue globale UL — overview endpoint
+# Vue globale UL — overview endpoint (multi-year)
 # ---------------------------------------------------------------------------
 
-UL_NAME_QUERY = """
-    SELECT name FROM ul WHERE id = :ul_id
+FINANCIALS_QUERY = """
+    SELECT
+      YEAR(tqe.depart) AS year,
+      ROUND(SUM(
+        COALESCE(tqe.euro500, 0) * 500 + COALESCE(tqe.euro200, 0) * 200 +
+        COALESCE(tqe.euro100, 0) * 100 + COALESCE(tqe.euro50, 0) * 50 +
+        COALESCE(tqe.euro20, 0) * 20 + COALESCE(tqe.euro10, 0) * 10 +
+        COALESCE(tqe.euro5, 0) * 5
+      ), 2) AS total_billets,
+      ROUND(SUM(
+        COALESCE(tqe.euro2, 0) * 2 + COALESCE(tqe.euro1, 0) * 1 +
+        COALESCE(tqe.cents50, 0) * 0.5 + COALESCE(tqe.cents20, 0) * 0.2 +
+        COALESCE(tqe.cents10, 0) * 0.1 + COALESCE(tqe.cents5, 0) * 0.05 +
+        COALESCE(tqe.cents2, 0) * 0.02 + COALESCE(tqe.cent1, 0) * 0.01
+      ), 2) AS total_pieces,
+      ROUND(SUM(COALESCE(tqe.don_creditcard, 0)), 2) AS total_cb,
+      ROUND(SUM(COALESCE(tqe.don_cheque, 0)), 2) AS total_cheques
+    FROM v_tronc_queteur_enriched tqe
+    WHERE tqe.ul_id = :ul_id
+      AND YEAR(tqe.depart) >= :min_year
+      AND tqe.deleted = 0
+      AND tqe.comptage IS NOT NULL
+    GROUP BY YEAR(tqe.depart)
+    ORDER BY year
 """
 
-OVERVIEW_QUERY = """
+HOURS_BY_SECTOR_QUERY = """
     SELECT
-        q.secteur,
-        COUNT(DISTINCT q.id) AS nb_queteurs,
-        ROUND(SUM(tqe.total_amount), 2) AS total_euro,
-        ROUND(SUM(tqe.duration_minutes) / 60.0, 2) AS total_hours,
-        COUNT(*) AS nb_sorties,
-        ROUND(SUM(tqe.weight) / 1000, 2) AS total_weight_kg
+      YEAR(tqe.depart) AS year,
+      q.secteur,
+      ROUND(SUM(tqe.duration_minutes) / 60.0, 2) AS total_hours
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
-    WHERE tqe.ul_id = :ul_id AND YEAR(tqe.depart) = :year
-    GROUP BY q.secteur
-    ORDER BY q.secteur
+    JOIN point_quete pq ON tqe.point_quete_id = pq.id
+    WHERE tqe.ul_id = :ul_id
+      AND YEAR(tqe.depart) >= :min_year
+      AND tqe.deleted = 0 AND tqe.comptage IS NOT NULL
+      AND pq.type IN (1, 2)
+    GROUP BY YEAR(tqe.depart), q.secteur
+    ORDER BY year, q.secteur
 """
+
+QUETEURS_BY_SECTOR_QUERY = """
+    SELECT
+      YEAR(tqe.depart) AS year,
+      q.secteur,
+      COUNT(DISTINCT tqe.queteur_id) AS nb_queteurs
+    FROM v_tronc_queteur_enriched tqe
+    JOIN queteur q ON tqe.queteur_id = q.id
+    WHERE tqe.ul_id = :ul_id
+      AND YEAR(tqe.depart) >= :min_year
+      AND tqe.deleted = 0 AND tqe.comptage IS NOT NULL
+      AND tqe.total_amount > 0
+    GROUP BY YEAR(tqe.depart), q.secteur
+    ORDER BY year, q.secteur
+"""
+
+ACTIVITY_QUERY = """
+    SELECT
+      YEAR(tqe.depart) AS year,
+      COUNT(*) AS nb_tronc_queteur,
+      COUNT(DISTINCT tqe.point_quete_id) AS nb_points_quete,
+      COUNT(DISTINCT tqe.tronc_id) AS nb_troncs
+    FROM v_tronc_queteur_enriched tqe
+    WHERE tqe.ul_id = :ul_id
+      AND YEAR(tqe.depart) >= :min_year
+      AND tqe.deleted = 0 AND tqe.comptage IS NOT NULL
+    GROUP BY YEAR(tqe.depart)
+    ORDER BY year
+"""
+
+
+def _check_overview_role(user: dict) -> None:
+    """Raise 403 if the user role is not allowed."""
+    if str(user.get("role")) not in OVERVIEW_ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé aux rôles admin ou super admin",
+        )
 
 
 @router.get("/ul/overview", response_model=UlOverviewResponse)
 async def get_ul_overview(
     request: Request,
-    year: int = Query(default=None, description="Année (défaut: année courante)"),
+    refresh: bool = Query(default=False, description="Force cache refresh"),
     db: Session = Depends(get_rcq_db),
 ) -> UlOverviewResponse:
-    """Return a global overview of the UL's quête activity for a given year.
+    """Return a multi-year overview of the UL's quête activity.
 
-    Includes total KPIs and a breakdown by quêteur secteur (type).
-    Results are cached in Valkey for 5 minutes.
+    Returns the last 5 years of data for 4 chart types.
+    Results are cached in Valkey for 1 hour.
     """
     user = get_authenticated_user(request, db)
+    _check_overview_role(user)
     ul_id = user["ul_id"]
 
-    if year is None:
-        year = datetime.now().year
+    cache_key = f"rcq:ul_overview:{ul_id}"
 
-    # --- Check cache ---
-    cache_key = f"ul_overview:{ul_id}:{year}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        cached["from_cache"] = True
-        return UlOverviewResponse(**cached)
+    # --- Invalidate cache if refresh requested ---
+    if refresh:
+        cache_delete(cache_key)
+    else:
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return UlOverviewResponse(**cached)
 
-    # --- UL name ---
-    ul_row = db.execute(text(UL_NAME_QUERY), {"ul_id": ul_id}).mappings().first()
-    ul_name = ul_row["name"] if ul_row else None
+    current_year = datetime.now().year
+    min_year = current_year - NUM_YEARS + 1
+    years = list(range(min_year, current_year + 1))
+    params: dict[str, Any] = {"ul_id": ul_id, "min_year": min_year}
 
-    # --- Secteur breakdown ---
-    rows = db.execute(text(OVERVIEW_QUERY), {"ul_id": ul_id, "year": year}).mappings().all()
-
-    secteurs: list[SecteurStats] = []
-    total_euro = 0.0
-    total_hours = 0.0
-    total_queteurs = 0
-    nb_sorties = 0
-    total_weight_kg = 0.0
-
-    for row in rows:
-        secteur_id = int(row["secteur"])
-        label = SECTEUR_LABELS.get(secteur_id, f"Secteur {secteur_id}")
-        s = SecteurStats(
-            secteur=secteur_id,
-            label=label,
-            nb_queteurs=int(row["nb_queteurs"]),
-            total_euro=float(row["total_euro"] or 0),
-            total_hours=float(row["total_hours"] or 0),
-            nb_sorties=int(row["nb_sorties"]),
-            total_weight_kg=float(row["total_weight_kg"] or 0),
+    # --- Query 1: Financials ---
+    fin_rows = db.execute(text(FINANCIALS_QUERY), params).mappings().all()
+    financials = [
+        FinancialYear(
+            year=int(r["year"]),
+            total_billets=float(r["total_billets"] or 0),
+            total_pieces=float(r["total_pieces"] or 0),
+            total_cb=float(r["total_cb"] or 0),
+            total_cheques=float(r["total_cheques"] or 0),
         )
-        secteurs.append(s)
-        total_euro += s.total_euro
-        total_hours += s.total_hours
-        total_queteurs += s.nb_queteurs
-        nb_sorties += s.nb_sorties
-        total_weight_kg += s.total_weight_kg
+        for r in fin_rows
+    ]
+
+    # --- Query 2: Hours by sector ---
+    hrs_rows = db.execute(text(HOURS_BY_SECTOR_QUERY), params).mappings().all()
+    hours_by_sector = [
+        HoursBySector(
+            year=int(r["year"]),
+            secteur=int(r["secteur"]),
+            label=SECTEUR_LABELS.get(int(r["secteur"]), f"Secteur {r['secteur']}"),
+            total_hours=float(r["total_hours"] or 0),
+        )
+        for r in hrs_rows
+    ]
+
+    # --- Query 3: Quêteurs by sector ---
+    q_rows = db.execute(text(QUETEURS_BY_SECTOR_QUERY), params).mappings().all()
+    queteurs_by_sector = [
+        QueteursBySector(
+            year=int(r["year"]),
+            secteur=int(r["secteur"]),
+            label=SECTEUR_LABELS.get(int(r["secteur"]), f"Secteur {r['secteur']}"),
+            nb_queteurs=int(r["nb_queteurs"]),
+        )
+        for r in q_rows
+    ]
+
+    # --- Query 4: Activity metrics ---
+    act_rows = db.execute(text(ACTIVITY_QUERY), params).mappings().all()
+    activity_metrics = [
+        ActivityYear(
+            year=int(r["year"]),
+            nb_tronc_queteur=int(r["nb_tronc_queteur"]),
+            nb_points_quete=int(r["nb_points_quete"]),
+            nb_troncs=int(r["nb_troncs"]),
+        )
+        for r in act_rows
+    ]
 
     result = UlOverviewResponse(
-        year=year,
-        ul_id=ul_id,
-        ul_name=ul_name,
-        total_euro=round(total_euro, 2),
-        total_hours=round(total_hours, 2),
-        total_queteurs=total_queteurs,
-        nb_sorties=nb_sorties,
-        total_weight_kg=round(total_weight_kg, 2),
-        secteurs=secteurs,
-        from_cache=False,
+        years=years,
+        financials=financials,
+        hours_by_sector=hours_by_sector,
+        queteurs_by_sector=queteurs_by_sector,
+        activity_metrics=activity_metrics,
     )
 
     # --- Store in cache ---

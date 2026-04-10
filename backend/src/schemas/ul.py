@@ -19,33 +19,46 @@ class UlSearchResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Vue globale UL — overview
+# Vue globale UL — overview (multi-year)
 # ---------------------------------------------------------------------------
 
-class SecteurStats(BaseModel):
-    """Aggregated stats for a quêteur secteur (type)."""
+class FinancialYear(BaseModel):
+    """Financial totals for a single year, broken down by payment type."""
+    year: int
+    total_billets: float = 0
+    total_pieces: float = 0
+    total_cb: float = 0
+    total_cheques: float = 0
 
+
+class HoursBySector(BaseModel):
+    """Hours of quête for a given year and sector."""
+    year: int
+    secteur: int
+    label: str
+    total_hours: float = 0
+
+
+class QueteursBySector(BaseModel):
+    """Distinct quêteurs for a given year and sector."""
+    year: int
     secteur: int
     label: str
     nb_queteurs: int = 0
-    total_euro: float = 0
-    total_hours: float = 0
-    nb_sorties: int = 0
-    total_weight_kg: float = 0
 
-    model_config = {"from_attributes": True}
+
+class ActivityYear(BaseModel):
+    """Activity metrics for a single year."""
+    year: int
+    nb_tronc_queteur: int = 0
+    nb_points_quete: int = 0
+    nb_troncs: int = 0
 
 
 class UlOverviewResponse(BaseModel):
-    """Global overview of a UL's quête activity for a given year."""
-
-    year: int
-    ul_id: int
-    ul_name: Optional[str] = None
-    total_euro: float = 0
-    total_hours: float = 0
-    total_queteurs: int = 0
-    nb_sorties: int = 0
-    total_weight_kg: float = 0
-    secteurs: list[SecteurStats] = []
-    from_cache: bool = False
+    """Multi-year overview of a UL's quête activity (last 5 years)."""
+    years: list[int] = []
+    financials: list[FinancialYear] = []
+    hours_by_sector: list[HoursBySector] = []
+    queteurs_by_sector: list[QueteursBySector] = []
+    activity_metrics: list[ActivityYear] = []

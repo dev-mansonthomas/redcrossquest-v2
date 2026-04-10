@@ -1,105 +1,150 @@
 import { Component, inject, signal, effect } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 
-// ── Interfaces ──────────────────────────────────────────────────────
-interface FinancialItem {
-  label: string;
-  amount: number;
+// ── API response interfaces ─────────────────────────────────────────
+interface FinancialYear {
+  year: number;
+  total_billets: number;
+  total_pieces: number;
+  total_cb: number;
+  total_cheques: number;
 }
 
 interface HoursBySector {
-  sector: string;
-  hours: number;
+  year: number;
+  secteur: number;
+  label: string;
+  total_hours: number;
 }
 
 interface QueteursBySector {
-  sector: string;
-  count: number;
-}
-
-interface ActivityMetric {
+  year: number;
+  secteur: number;
   label: string;
-  value: number;
+  nb_queteurs: number;
 }
 
-interface FinancialsResponse {
-  financials: FinancialItem[];
+interface ActivityYear {
+  year: number;
+  nb_tronc_queteur: number;
+  nb_points_quete: number;
+  nb_troncs: number;
+}
+
+interface OverviewResponse {
+  years: number[];
+  financials: FinancialYear[];
   hours_by_sector: HoursBySector[];
-}
-
-interface ActivityResponse {
   queteurs_by_sector: QueteursBySector[];
-  activity_metrics: ActivityMetric[];
+  activity_metrics: ActivityYear[];
 }
 
-// ── Sector colors ───────────────────────────────────────────────────
-const SECTOR_COLORS: Record<string, string> = {
-  'Bénévole': '#E30613',
-  'Bénévole d\'un jour': '#9C27B0',
-  'Ancien bénévole': '#795548',
-  'Commerçant': '#FF9800',
-  'Spécial': '#616161',
-};
-
-const DEFAULT_SECTOR_ORDER = ['Bénévole', 'Bénévole d\'un jour', 'Ancien bénévole', 'Commerçant', 'Spécial'];
-
-function getSectorColor(sector: string): string {
-  return SECTOR_COLORS[sector] || '#9E9E9E';
-}
-
-// ── Mock data (fallback while backend is being implemented) ─────────
-const MOCK_FINANCIALS: FinancialsResponse = {
-  financials: [
-    { label: 'Espèces', amount: 12450.80 },
-    { label: 'Chèques', amount: 3200.00 },
-    { label: 'CB', amount: 8750.50 },
-    { label: 'Autres', amount: 1100.00 },
-  ],
-  hours_by_sector: DEFAULT_SECTOR_ORDER.map((s, i) => ({ sector: s, hours: [120, 45, 30, 60, 10][i] })),
-};
-
-const MOCK_ACTIVITY: ActivityResponse = {
-  queteurs_by_sector: DEFAULT_SECTOR_ORDER.map((s, i) => ({ sector: s, count: [42, 15, 8, 22, 3][i] })),
-  activity_metrics: [
-    { label: 'Troncs comptés', value: 187 },
-    { label: 'Sorties', value: 312 },
-    { label: 'Points de quête actifs', value: 45 },
-    { label: 'Jours de quête', value: 9 },
-  ],
-};
+// ── Sector config ───────────────────────────────────────────────────
+const SECTOR_DATASETS = [
+  { label: 'Bénévole', color: '#E30613' },
+  { label: "Bénévole d'un jour", color: '#9C27B0' },
+  { label: 'Ancien bénévole', color: '#795548' },
+  { label: 'Commerçant', color: '#FF9800' },
+  { label: 'Spécial', color: '#616161' },
+];
 
 @Component({
   selector: 'app-ul-overview-page',
   standalone: true,
-  imports: [DecimalPipe, BaseChartDirective],
-  templateUrl: './ul-overview-page.html',
+  imports: [BaseChartDirective],
+  template: `
+    <div class="h-full w-full flex flex-col bg-white">
+      <!-- Header -->
+      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+        <h2 class="text-lg font-semibold text-gray-800">📊 Vue globale UL</h2>
+        <button
+          (click)="refresh()"
+          class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          title="Actualiser">
+          🔄
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 overflow-auto p-4">
+        @if (loading()) {
+          <div class="flex items-center justify-center h-64">
+            <div class="text-gray-500 text-sm">Chargement...</div>
+          </div>
+        } @else {
+          @if (error()) {
+            <div class="mb-4 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {{ error() }}
+            </div>
+          }
+
+          <!-- Row 1: Financials + Hours by sector -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
+              <div style="height: 300px;">
+                <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
+              <div style="height: 300px;">
+                <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Quêteurs by sector + Activity -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
+              <div style="height: 300px;">
+                <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
+              <div style="height: 300px;">
+                <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  `,
 })
 export class UlOverviewPageComponent {
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 
-  readonly selectedYear = signal(new Date().getFullYear());
-  readonly yearOptions = signal<number[]>(this.buildYearOptions());
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly useMock = signal(false);
 
   // ── Chart data signals ──────────────────────────────────────────
   readonly financialsChartData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
-  readonly financialsChartOptions = signal<ChartOptions<'bar'>>(this.buildBarOptions('Montants (€)'));
+  readonly hoursChartData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
+  readonly queteursChartData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
+  readonly activityChartData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
 
-  readonly hoursChartData = signal<ChartData<'doughnut'>>({ labels: [], datasets: [] });
-  readonly hoursChartOptions = signal<ChartOptions<'doughnut'>>(this.buildDoughnutOptions());
+  // ── Chart options ───────────────────────────────────────────────
+  readonly stackedBarOptions = signal<ChartOptions<'bar'>>({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } } },
+    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+  });
 
-  readonly queteursChartData = signal<ChartData<'doughnut'>>({ labels: [], datasets: [] });
-  readonly queteursChartOptions = signal<ChartOptions<'doughnut'>>(this.buildDoughnutOptions());
-
-  readonly activityMetrics = signal<ActivityMetric[]>([]);
+  readonly groupedBarOptions = signal<ChartOptions<'bar'>>({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } } },
+    scales: { x: { stacked: false }, y: { beginAtZero: true } },
+  });
 
   private overrideInitialized = false;
 
@@ -116,121 +161,90 @@ export class UlOverviewPageComponent {
     this.loadData();
   }
 
-  onYearChange(event: Event): void {
-    const year = parseInt((event.target as HTMLSelectElement).value, 10);
-    this.selectedYear.set(year);
-    this.loadData();
-  }
-
   refresh(): void {
-    this.loadData();
+    this.loadData(true);
   }
 
-  // continued in template and private methods below
-  private async loadData(): Promise<void> {
+  private async loadData(forceRefresh = false): Promise<void> {
     this.loading.set(true);
     this.error.set('');
-    this.useMock.set(false);
 
     try {
-      const [financials, activity] = await Promise.all([
-        this.loadFinancials(),
-        this.loadActivity(),
-      ]);
-      this.applyFinancials(financials);
-      this.applyActivity(activity);
+      const url = forceRefresh ? '/api/ul/overview?refresh=true' : '/api/ul/overview';
+      const data = await firstValueFrom(this.api.get<OverviewResponse>(url));
+      this.applyData(data);
     } catch {
-      // Fallback to mock data
-      this.useMock.set(true);
-      this.applyFinancials(MOCK_FINANCIALS);
-      this.applyActivity(MOCK_ACTIVITY);
+      this.error.set('Erreur lors du chargement des données.');
     } finally {
       this.loading.set(false);
     }
   }
 
-  private async loadFinancials(): Promise<FinancialsResponse> {
-    return firstValueFrom(
-      this.api.get<FinancialsResponse>(`/api/ul-overview/financials?year=${this.selectedYear()}`)
-    );
-  }
+  private applyData(data: OverviewResponse): void {
+    const yearLabels = data.years.map(y => String(y));
 
-  private async loadActivity(): Promise<ActivityResponse> {
-    return firstValueFrom(
-      this.api.get<ActivityResponse>(`/api/ul-overview/activity?year=${this.selectedYear()}`)
-    );
-  }
-
-  private applyFinancials(data: FinancialsResponse): void {
+    // ── Chart 1.1: Financials (stacked) ──
     this.financialsChartData.set({
-      labels: data.financials.map(f => f.label),
-      datasets: [{
-        data: data.financials.map(f => f.amount),
-        backgroundColor: '#E30613',
-        borderRadius: 4,
-        label: 'Montant (€)',
-      }],
+      labels: yearLabels,
+      datasets: [
+        { label: 'Pièces', data: this.mapByYear(data.years, data.financials, 'total_pieces'), backgroundColor: '#FFC107', stack: 'total' },
+        { label: 'Billets', data: this.mapByYear(data.years, data.financials, 'total_billets'), backgroundColor: '#4CAF50', stack: 'total' },
+        { label: 'CB', data: this.mapByYear(data.years, data.financials, 'total_cb'), backgroundColor: '#2196F3', stack: 'total' },
+        { label: 'Chèques', data: this.mapByYear(data.years, data.financials, 'total_cheques'), backgroundColor: '#FF9800', stack: 'total' },
+      ],
     });
 
-    const sectors = data.hours_by_sector.map(h => h.sector);
-    const colors = sectors.map(s => getSectorColor(s));
+    // ── Chart 1.2: Hours by sector (stacked) ──
     this.hoursChartData.set({
-      labels: sectors,
-      datasets: [{
-        data: data.hours_by_sector.map(h => h.hours),
-        backgroundColor: colors,
-      }],
+      labels: yearLabels,
+      datasets: SECTOR_DATASETS.map(s => ({
+        label: s.label,
+        data: this.mapSectorByYear(data.years, data.hours_by_sector, s.label, 'total_hours'),
+        backgroundColor: s.color,
+        stack: 'hours',
+      })),
     });
-  }
 
-  private applyActivity(data: ActivityResponse): void {
-    const sectors = data.queteurs_by_sector.map(q => q.sector);
-    const colors = sectors.map(s => getSectorColor(s));
+    // ── Chart 2.1: Quêteurs by sector (stacked) ──
     this.queteursChartData.set({
-      labels: sectors,
-      datasets: [{
-        data: data.queteurs_by_sector.map(q => q.count),
-        backgroundColor: colors,
-      }],
+      labels: yearLabels,
+      datasets: SECTOR_DATASETS.map(s => ({
+        label: s.label,
+        data: this.mapSectorByYear(data.years, data.queteurs_by_sector, s.label, 'nb_queteurs'),
+        backgroundColor: s.color,
+        stack: 'queteurs',
+      })),
     });
-    this.activityMetrics.set(data.activity_metrics);
+
+    // ── Chart 2.2: Activity (grouped, NOT stacked) ──
+    this.activityChartData.set({
+      labels: yearLabels,
+      datasets: [
+        { label: 'Sorties', data: this.mapByYear(data.years, data.activity_metrics, 'nb_tronc_queteur'), backgroundColor: '#2196F3' },
+        { label: 'Points de quête', data: this.mapByYear(data.years, data.activity_metrics, 'nb_points_quete'), backgroundColor: '#4CAF50' },
+        { label: 'Troncs', data: this.mapByYear(data.years, data.activity_metrics, 'nb_troncs'), backgroundColor: '#FF9800' },
+      ],
+    });
   }
 
-  private buildBarOptions(yLabel: string): ChartOptions<'bar'> {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: { display: true, text: yLabel },
-        },
-      },
-    };
+  /** Map a simple year-keyed array to ordered values by year. */
+  private mapByYear<T extends { year: number }>(years: number[], items: T[], field: keyof T): number[] {
+    const byYear = new Map(items.map(i => [i.year, i]));
+    return years.map(y => {
+      const item = byYear.get(y);
+      return item ? Number(item[field]) : 0;
+    });
   }
 
-  private buildDoughnutOptions(): ChartOptions<'doughnut'> {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { padding: 12, usePointStyle: true },
-        },
-      },
-    };
-  }
-
-  private buildYearOptions(): number[] {
-    const current = new Date().getFullYear();
-    const years: number[] = [];
-    for (let y = current; y >= current - 10; y--) {
-      years.push(y);
-    }
-    return years;
+  /** Map sector data (year + label) to ordered values by year for a given sector label. */
+  private mapSectorByYear<T extends { year: number; label: string }>(
+    years: number[], items: T[], sectorLabel: string, field: keyof T
+  ): number[] {
+    const filtered = items.filter(i => i.label === sectorLabel);
+    const byYear = new Map(filtered.map(i => [i.year, i]));
+    return years.map(y => {
+      const item = byYear.get(y);
+      return item ? Number(item[field]) : 0;
+    });
   }
 }
