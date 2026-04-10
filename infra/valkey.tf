@@ -1,7 +1,8 @@
 # ─── Memorystore for Valkey 9 ─────────────────────────────────────────
 # Valkey instance with IAM Auth (no password required).
-# Used by Superset (cache + Celery broker/result backend on DB 1).
-# Backend does not use Valkey currently (DB 0 reserved for future use).
+# DB allocation:
+#   - DB 0: Backend (cache, reserved for future use)
+#   - DB 1: Superset (cache + Celery broker/result backend)
 
 # Enable the Memorystore API
 resource "google_project_service" "memorystore_api" {
@@ -62,10 +63,17 @@ resource "google_memorystore_instance" "valkey" {
   ]
 }
 
-# ─── IAM — Valkey access for Superset service account ─────────────────
+# ─── IAM — Valkey access for Cloud Run service accounts ──────────────
 # Superset (Cloud Run) needs dbConnectionUser to connect to Valkey with IAM Auth
 resource "google_project_iam_member" "superset_valkey_access" {
   project = var.project_id
   role    = "roles/memorystore.dbConnectionUser"
   member  = "serviceAccount:${module.superset.service_account_email}"
+}
+
+# API (Cloud Run) needs dbConnectionUser to connect to Valkey with IAM Auth (DB 0)
+resource "google_project_iam_member" "api_valkey_access" {
+  project = var.project_id
+  role    = "roles/memorystore.dbConnectionUser"
+  member  = "serviceAccount:${module.api.service_account_email}"
 }

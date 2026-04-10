@@ -109,6 +109,9 @@ module "api" {
     SUPERSET_URL                 = module.superset.service_url
     SUPERSET_ADMIN_USERNAME      = var.superset_admin_username
     SUPERSET_DASHBOARD_YEARLY_GOAL = "1b332c41-13bf-47d4-b18a-2e2547930367"
+    VALKEY_HOST                  = local.valkey_host
+    VALKEY_PORT                  = "6379"
+    VALKEY_DB                    = "0"
   }
 
   secrets = {

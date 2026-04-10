@@ -1,6 +1,27 @@
 name: rcq
 
 services:
+  # -------------------------------------------------------
+  # Valkey 9 (valkey-bundle: Redis-compatible + JSON module)
+  # Shared by Superset (DB 1) and Backend (DB 0, future)
+  # Must start BEFORE superset/docker-compose.yml
+  # -------------------------------------------------------
+  valkey:
+    image: valkey/valkey-bundle
+    container_name: rcq_valkey
+    ports:
+      - "6389:6379"  # External 6389 to avoid conflict with CLEF on 6379
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - rcq_default
+
   backend:
     build:
       context: ./backend
@@ -18,6 +39,9 @@ services:
       - RCQ_DB_HOST=rcq_mysql  # Connect directly to MySQL container
       - RCQ_DB_PORT=3306       # Internal Docker port, not external 3316
       - SUPERSET_URL=http://rcq_superset:8088
+      - VALKEY_HOST=rcq_valkey
+      - VALKEY_PORT=6379       # Internal Docker port, not external 6389
+      - VALKEY_DB=0
     command: uvicorn src.main:app --host 0.0.0.0 --port 8010 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
@@ -47,9 +71,11 @@ services:
 
 networks:
   rcq_default:
-    external: true  # Use the network created by superset/docker-compose.yml
+    # Shared network between docker-compose.dev.yml and superset/docker-compose.yml
+    # Both compose files use name: rcq, so this network is rcq_default
 
 volumes:
   backend-cache:
   frontend-cache:
+  valkey_data:
 

@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Frontend
     frontend_url: str = "http://localhost:4210"
 
+    # Valkey (Redis-compatible cache)
+    valkey_host: str = "localhost"
+    valkey_port: int = 6379
+    valkey_db: int = 0
+
     # Superset (Wave 2)
     superset_url: str = "http://localhost:8088"
     superset_admin_username: str = "admin"

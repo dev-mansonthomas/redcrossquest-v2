@@ -133,6 +133,7 @@ restart_service() {
             ;;
         all)
             echo "🔄 Redémarrage de tous les services (force-recreate)..."
+            docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate valkey
             docker compose -p rcq -f superset/docker-compose.yml up -d --force-recreate
             docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate
             echo "⏳ Attente des services..."
@@ -262,9 +263,28 @@ echo "🛑 Stopping any existing containers..."
 docker compose -p rcq -f docker-compose.dev.yml down 2>/dev/null || true
 docker compose -p rcq -f superset/docker-compose.yml down 2>/dev/null || true
 
-# Start infrastructure (MySQL, Superset, Valkey)
+# Start Valkey first (needed by Superset)
 echo ""
-echo "🐳 Starting infrastructure (MySQL, Superset, Valkey)..."
+echo "🔑 Starting Valkey (valkey-bundle)..."
+docker compose -p rcq -f docker-compose.dev.yml up -d valkey
+
+# Wait for Valkey
+echo -n "  Valkey: "
+for i in {1..30}; do
+    if docker exec rcq_valkey valkey-cli ping > /dev/null 2>&1; then
+        echo "✅ Ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ Timeout"
+        exit 1
+    fi
+    sleep 1
+done
+
+# Start infrastructure (MySQL, Superset)
+echo ""
+echo "🐳 Starting infrastructure (MySQL, Superset)..."
 docker compose -p rcq -f superset/docker-compose.yml up -d --build
 
 # Wait for MySQL
@@ -356,20 +376,6 @@ for i in {1..90}; do
         break
     fi
     if [ $i -eq 90 ]; then
-        echo "❌ Timeout"
-        exit 1
-    fi
-    sleep 1
-done
-
-# Wait for Valkey
-echo -n "  Valkey: "
-for i in {1..30}; do
-    if docker exec rcq_valkey valkey-cli ping > /dev/null 2>&1; then
-        echo "✅ Ready"
-        break
-    fi
-    if [ $i -eq 30 ]; then
         echo "❌ Timeout"
         exit 1
     fi

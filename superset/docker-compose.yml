@@ -1,4 +1,5 @@
-# RCQ V2 — MySQL + Apache Superset + Celery + Valkey
+# RCQ V2 — MySQL + Apache Superset + Celery
+# Valkey is in the root docker-compose.dev.yml (valkey-bundle image)
 # Usage: cd superset && docker compose up -d
 
 name: rcq
@@ -34,24 +35,8 @@ services:
     restart: unless-stopped
 
   # -------------------------------------------------------
-  # Phase 2: Valkey 9 (Redis-compatible) — Base 1 for Superset
-  # -------------------------------------------------------
-  valkey:
-    image: valkey/valkey:9-alpine
-    container_name: rcq_valkey
-    ports:
-      - "6389:6379"  # External 6389 to avoid conflict with CLEF on 6379
-    volumes:
-      - valkey_data:/data
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-  # -------------------------------------------------------
   # Phase 2: Apache Superset — Web UI
+  # Valkey (rcq_valkey) is accessed via the rcq_default network
   # -------------------------------------------------------
   superset:
     build:
@@ -67,16 +52,13 @@ services:
       SUPERSET_ADMIN_FIRST_NAME: ${SUPERSET_ADMIN_FIRST_NAME:-Admin}
       SUPERSET_ADMIN_LAST_NAME: ${SUPERSET_ADMIN_LAST_NAME:-User}
       SUPERSET_CORS_ORIGINS: ${SUPERSET_CORS_ORIGINS:-http://localhost:4210,http://localhost:8010}
-      VALKEY_HOST: valkey
+      VALKEY_HOST: rcq_valkey
       VALKEY_PORT: "6379"  # Internal container port (unchanged)
       VALKEY_DB: ${VALKEY_DB:-1}
     ports:
       - "8088:8088"
     volumes:
       - superset_home:/app/superset_home
-    depends_on:
-      valkey:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 30s
@@ -96,17 +78,14 @@ services:
     command: celery --app=superset.tasks.celery_app:app worker --loglevel=INFO
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-CHANGE_ME_TO_A_RANDOM_SECRET_KEY}
-      VALKEY_HOST: valkey
+      VALKEY_HOST: rcq_valkey
       VALKEY_PORT: "6379"  # Internal container port (unchanged)
       VALKEY_DB: ${VALKEY_DB:-1}
     depends_on:
-      valkey:
-        condition: service_healthy
       superset:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
   mysql_data:
-  valkey_data:
   superset_home:
