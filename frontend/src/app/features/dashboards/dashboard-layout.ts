@@ -53,6 +53,13 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
             </a>
           }
           @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/classement-tronc"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🏆 Classement Tronc
+            </a>
+          }
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
             <a routerLink="/dashboards/vue-globale"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">

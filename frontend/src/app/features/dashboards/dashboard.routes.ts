@@ -47,6 +47,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'classement-tronc',
+        loadComponent: () =>
+          import('../classement-tronc/classement-tronc-page').then(
+            (m) => m.ClassementTroncPageComponent,
+          ),
+      },
+      {
         path: 'vue-globale',
         loadComponent: () =>
           import('../ul-overview/ul-overview-page').then(
