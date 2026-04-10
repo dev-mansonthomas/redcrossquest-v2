@@ -84,7 +84,8 @@ Importe les fichiers SQL suivants dans l'ordre :
 | Fichier | Description |
 |---------|-------------|
 | `superset/dev-sql-import/01-rcq_prod_2026.sql` | Dump principal de la base |
-| `superset/dev-sql-import/02-add-trigger_and_anonymise.sql` | Triggers et anonymisation |
+| `superset/dev-sql-import/02-add-trigger.sql` | Trigger `tronc_queteur_update` |
+| `superset/dev-sql-import/03-anonymise.sql` | Anonymisation des données sensibles |
 | `superset/deploy-sql/01-quete-dates.sql` | Table `quete_dates` |
 | `superset/deploy-sql/02-migrate-utf8mb4.sql` | Migration charset UTF-8 MB4 |
 

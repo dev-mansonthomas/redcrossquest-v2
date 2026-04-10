@@ -327,11 +327,17 @@ init_database() {
             echo "   ✅ Main SQL dump imported"
         fi
 
-        # Run trigger and anonymization (dev setup)
-        if [ -f "superset/dev-sql-import/02-add-trigger_and_anonymise.sql" ]; then
-            echo "   📥 Running 02-add-trigger_and_anonymise.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/02-add-trigger_and_anonymise.sql
-            echo "   ✅ Trigger and anonymization applied"
+        # Run trigger (dev setup)
+        if [ -f "superset/dev-sql-import/02-add-trigger.sql" ]; then
+            echo "   📥 Running 02-add-trigger.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/02-add-trigger.sql
+            echo "   ✅ Trigger applied"
+        fi
+        # Anonymise sensitive data (dev setup)
+        if [ -f "superset/dev-sql-import/03-anonymise.sql" ]; then
+            echo "   📥 Running 03-anonymise.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/03-anonymise.sql
+            echo "   ✅ Data anonymised"
         fi
 
         # Create quete_dates reference table and seed data (deploy migration)
