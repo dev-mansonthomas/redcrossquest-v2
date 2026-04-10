@@ -20,6 +20,8 @@
 #   --plan           Terraform plan only (dry run, no build)
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
 #                    Default: all services. Only affects build step.
+#   --dump-prod      Dump production DB to SQL file (prod only)
+#   --copy-prod      Copy latest prod dump into dev/test DB
 #   --skip-confirm   Skip confirmation prompts
 #   --help           Show this help message
 # ============================================================
@@ -76,6 +78,8 @@ Options:
   --plan           Terraform plan only (dry run, no build, no apply)
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
                    Default: all services. Only affects build step.
+  --dump-prod      Dump production database to a SQL file (ENV=prod only)
+  --copy-prod      Copy latest prod dump into dev/test DB (ENV=dev|test only)
   --skip-confirm   Skip confirmation prompts
   --help           Show this help message
 
@@ -89,6 +93,8 @@ Examples:
   ./gcp-deploy.sh dev --infra --services frontend,api  # Build only frontend+api
   ./gcp-deploy.sh dev --infra --services superset      # Build only superset
   ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
+  ./gcp-deploy.sh prod --dump-prod                     # Dump prod DB to SQL file
+  ./gcp-deploy.sh dev --copy-prod                      # Import latest prod dump into dev
 EOF
     exit 0
 }
@@ -122,6 +128,8 @@ PLAN_ONLY=false
 SKIP_CONFIRM=false
 SKIP_BUILD=false
 BUILD_DONE=false
+DO_DUMP_PROD=false
+DO_COPY_PROD=false
 SERVICES=""
 
 while [[ $# -gt 0 ]]; do
@@ -141,6 +149,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --services)    SERVICES="$2";   shift 2 ;;
         --plan)        PLAN_ONLY=true; DO_INFRA=true; shift ;;
+        --dump-prod)   DO_DUMP_PROD=true; shift ;;
+        --copy-prod)   DO_COPY_PROD=true; shift ;;
         --skip-confirm) SKIP_CONFIRM=true; shift ;;
         --help|-h)     show_help ;;
         *)
@@ -154,9 +164,19 @@ done
 # Default: build all services
 SERVICES="${SERVICES:-frontend,api,superset}"
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --all, or --plan."
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, or --plan."
     echo "Run './gcp-deploy.sh --help' for usage."
+    exit 1
+fi
+
+# Validate --dump-prod / --copy-prod environment constraints
+if $DO_DUMP_PROD && [ "$ENV" != "prod" ]; then
+    log_error "--dump-prod can only be used with ENV=prod"
+    exit 1
+fi
+if $DO_COPY_PROD && [ "$ENV" = "prod" ]; then
+    log_error "--copy-prod cannot be used with ENV=prod (use dev or test)"
     exit 1
 fi
 
@@ -339,19 +359,23 @@ $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
 $DO_PROVISION && echo "    ✦ Provision Superset dashboards"
+$DO_DUMP_PROD && echo "    ✦ Dump production database"
+$DO_COPY_PROD && echo "    ✦ Copy production data to ${ENV}"
 echo ""
-echo "  🌐 DNS CNAME records required (add to redcrossquest.com zone):"
-echo ""
-FRONTEND_DOMAIN="$(grep -E '^frontend_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-API_DOMAIN="$(grep -E '^api_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-SUPERSET_DOMAIN="$(grep -E '^superset_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${FRONTEND_DOMAIN%.redcrossquest.com}"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${API_DOMAIN%.redcrossquest.com}"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${SUPERSET_DOMAIN%.redcrossquest.com}"
-echo ""
+if [ -f "$TFVARS_FILE" ]; then
+    echo "  🌐 DNS CNAME records required (add to redcrossquest.com zone):"
+    echo ""
+    FRONTEND_DOMAIN="$(grep -E '^frontend_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    API_DOMAIN="$(grep -E '^api_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    SUPERSET_DOMAIN="$(grep -E '^superset_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${FRONTEND_DOMAIN%.redcrossquest.com}"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${API_DOMAIN%.redcrossquest.com}"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${SUPERSET_DOMAIN%.redcrossquest.com}"
+    echo ""
+fi
 
-# Skip confirmation for --check (read-only mode) or --skip-confirm
-if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION); then
+# Skip confirmation for --check (read-only mode), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
+if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD); then
     if [ "$ENV" = "prod" ]; then
         echo -e "${RED}⚠️  WARNING: You are deploying to PRODUCTION!${NC}"
         echo ""
@@ -642,6 +666,33 @@ if $DO_BUILD; then
 fi
 
 
+# ── Helper: Find mysql/mysqldump binaries ─────────────────────
+# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
+# Handles keg-only installs on macOS / Homebrew.
+find_mysql_cmds() {
+    if command -v mysql >/dev/null 2>&1; then
+        MYSQL_CMD="mysql"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
+    else
+        log_error "MySQL client not found. Install with: brew install mysql-client"
+        return 1
+    fi
+
+    if command -v mysqldump >/dev/null 2>&1; then
+        MYSQLDUMP_CMD="mysqldump"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
+    else
+        log_error "mysqldump not found. Install with: brew install mysql-client"
+        return 1
+    fi
+}
+
 # ── Helper: Create MySQL read-only user ──────────────────────
 create_readonly_user() {
     log_info "Checking if MySQL user 'rcq_readonly' exists..."
@@ -764,6 +815,187 @@ SQL_EOF
         log_success "MySQL user '${SUPERSET_DB_RW_USER}' created with ALL PRIVILEGES on '${superset_db}'."
     fi
 
+    echo ""
+}
+
+
+# ── Helper: Dump production database ──────────────────────────
+dump_prod_database() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Dump production database"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    find_mysql_cmds
+
+    require_var MIGRATION_DB_PASSWORD "dump-prod"
+    require_var MIGRATION_DB_NAME "dump-prod"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    local mysql_cnf
+    mysql_cnf=$(mktemp)
+    chmod 600 "$mysql_cnf"
+    printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
+    trap "rm -f $mysql_cnf" RETURN
+
+    local dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    mkdir -p "$dump_dir"
+
+    local dump_date
+    dump_date=$(date +%Y-%m-%d)
+    local dump_file="${dump_dir}/${dump_date}-RCQ-FR-PROD-data.sql"
+
+    if [ -f "$dump_file" ]; then
+        log_warn "Dump file already exists: $dump_file"
+        if ! $SKIP_CONFIRM; then
+            read -r -p "Overwrite? [y/N] " response
+            case "$response" in
+                [yY][eE][sS]|[yY]) ;;
+                *)
+                    log_info "Aborted."
+                    return
+                    ;;
+            esac
+        fi
+    fi
+
+    log_info "Dumping database '${MIGRATION_DB_NAME}' to ${dump_file}..."
+
+    $MYSQLDUMP_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        --databases "$MIGRATION_DB_NAME" \
+        --triggers \
+        --routines \
+        --single-transaction \
+        --set-gtid-purged=OFF \
+        --column-statistics=0 \
+        > "$dump_file"
+
+    local file_size
+    file_size=$(du -h "$dump_file" | cut -f1)
+    log_success "Dump complete: ${dump_file} (${file_size})"
+    echo ""
+}
+
+
+# ── Helper: Copy production data to dev/test ──────────────────
+copy_prod_to_env() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Copy production data to ${ENV}"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    local start_time
+    start_time=$(date +%s)
+
+    find_mysql_cmds
+
+    require_var MIGRATION_DB_PASSWORD "copy-prod"
+    require_var MIGRATION_DB_NAME "copy-prod"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    # Find the latest dump file
+    local dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    if [ ! -d "$dump_dir" ]; then
+        log_error "Dump directory not found: $dump_dir"
+        log_info "Run './gcp-deploy.sh prod --dump-prod' first to create a dump."
+        exit 1
+    fi
+
+    local dump_file
+    dump_file=$(ls -t "$dump_dir"/*-RCQ-FR-PROD-data.sql 2>/dev/null | head -1)
+    if [ -z "$dump_file" ]; then
+        log_error "No production dump file found in $dump_dir"
+        log_info "Run './gcp-deploy.sh prod --dump-prod' first to create a dump."
+        exit 1
+    fi
+
+    local file_size
+    file_size=$(du -h "$dump_file" | cut -f1)
+    log_info "Using dump: $(basename "$dump_file") (${file_size})"
+    log_info "Target database: ${MIGRATION_DB_NAME}"
+
+    if ! $SKIP_CONFIRM; then
+        echo ""
+        echo -e "${RED}⚠️  WARNING: This will DROP and recreate database '${MIGRATION_DB_NAME}'!${NC}"
+        read -r -p "Continue? [y/N] " response
+        case "$response" in
+            [yY][eE][sS]|[yY]) ;;
+            *)
+                log_info "Aborted."
+                return
+                ;;
+        esac
+    fi
+
+    local mysql_cnf
+    mysql_cnf=$(mktemp)
+    chmod 600 "$mysql_cnf"
+    printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
+    trap "rm -f $mysql_cnf" RETURN
+
+    # Step 1: Drop and recreate database
+    log_info "Dropping database '${MIGRATION_DB_NAME}'..."
+    $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        -e "DROP DATABASE IF EXISTS \`${MIGRATION_DB_NAME}\`;"
+
+    log_info "Creating database '${MIGRATION_DB_NAME}'..."
+    $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        -e "CREATE DATABASE \`${MIGRATION_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+    # Step 2: Import dump with schema name replacement
+    log_info "Importing dump (renaming schema to '${MIGRATION_DB_NAME}')..."
+    sed -E "s/rcq_fr_(prod|dev|test)_db/${MIGRATION_DB_NAME}/g" "$dump_file" \
+        | $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+            -h "$db_host" -P "$db_port" -u "$db_user"
+
+    log_success "Import complete."
+
+    # Step 3: Run anonymisation script
+    local anonymise_script="$SCRIPT_DIR/superset/dev-sql-import/03-anonymise.sql"
+    if [ -f "$anonymise_script" ]; then
+        log_info "Running anonymisation script..."
+        $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+            -h "$db_host" -P "$db_port" -u "$db_user" \
+            "$MIGRATION_DB_NAME" < "$anonymise_script"
+        log_success "Anonymisation complete."
+    else
+        log_warn "Anonymisation script not found: $anonymise_script — skipping."
+    fi
+
+    # Step 4: Run migrations
+    local migration_script="$SCRIPT_DIR/scripts/run-migrations.sh"
+    if [ -x "$migration_script" ]; then
+        log_info "Running migrations..."
+        export DB_HOST="$db_host"
+        export DB_PORT="$db_port"
+        export MIGRATION_DB_NAME="${MIGRATION_DB_NAME}"
+        "$migration_script" "$ENV" "$db_user" "$MIGRATION_DB_PASSWORD"
+        log_success "Migrations complete."
+    else
+        log_warn "Migration script not found or not executable: $migration_script — skipping."
+    fi
+
+    local end_time
+    end_time=$(date +%s)
+    local duration=$(( end_time - start_time ))
+
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    log_success "Copy-prod summary"
+    echo "  Dump file:    $(basename "$dump_file")"
+    echo "  Target DB:    ${MIGRATION_DB_NAME}"
+    echo "  Environment:  ${ENV}"
+    echo "  Duration:     ${duration}s"
+    echo "═══════════════════════════════════════════════"
     echo ""
 }
 
@@ -1024,6 +1256,23 @@ if $DO_PROVISION; then
 fi
 
 # ══════════════════════════════════════════════════════════════
+# Step 5: Dump / Copy production database
+# ══════════════════════════════════════════════════════════════
+if $DO_DUMP_PROD; then
+    ensure_cloud_sql_proxy
+    MIGRATION_DB_HOST="127.0.0.1"
+    MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
+    dump_prod_database
+fi
+
+if $DO_COPY_PROD; then
+    ensure_cloud_sql_proxy
+    MIGRATION_DB_HOST="127.0.0.1"
+    MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
+    copy_prod_to_env
+fi
+
+# ══════════════════════════════════════════════════════════════
 # Summary & Output
 # ══════════════════════════════════════════════════════════════
 echo ""
@@ -1088,6 +1337,8 @@ $BUILD_DONE  && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
 $DO_PROVISION && log_success "Provisioning: done"
+$DO_DUMP_PROD && log_success "Dump production DB: done"
+$DO_COPY_PROD && log_success "Copy production data: done"
 
 # ── Restore local environment ────────────────────────────────
 if [ -f "$SCRIPT_DIR/.env" ]; then
