@@ -258,6 +258,10 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$' | xargs)
 fi
 
+# Create shared Docker network (must exist before any compose up)
+# Both docker-compose.dev.yml and superset/docker-compose.yml use this as external
+docker network create rcq_default 2>/dev/null || true
+
 # Stop any existing containers
 echo "🛑 Stopping any existing containers..."
 docker compose -p rcq -f docker-compose.dev.yml down 2>/dev/null || true

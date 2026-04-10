@@ -71,8 +71,9 @@ services:
 
 networks:
   rcq_default:
-    # Shared network between docker-compose.dev.yml and superset/docker-compose.yml
-    # Both compose files use name: rcq, so this network is rcq_default
+    external: true
+    # Created by run_local.sh before any compose up
+    # Shared between docker-compose.dev.yml and superset/docker-compose.yml
 
 volumes:
   backend-cache:
