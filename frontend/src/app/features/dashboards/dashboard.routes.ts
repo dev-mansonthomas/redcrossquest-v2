@@ -40,10 +40,10 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
-        path: 'leaderboard',
+        path: 'classement-global',
         loadComponent: () =>
-          import('../leaderboard/leaderboard-page').then(
-            (m) => m.LeaderboardPageComponent,
+          import('../classement-global/classement-global-page').then(
+            (m) => m.ClassementGlobalPageComponent,
           ),
       },
       {

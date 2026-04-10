@@ -1,22 +1,53 @@
-"""Leaderboard endpoints for quêteur rankings."""
+"""Classement Global endpoints for quêteur rankings."""
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as FastAPIRequest, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
-from ..schemas.leaderboard import (
+from ..schemas.classement import (
     QueteurRanking,
-    LeaderboardResponse,
+    ClassementGlobalResponse,
     TroncDetail,
     TroncsResponse,
 )
 from .auth import get_authenticated_user
 
-router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
+router = APIRouter(prefix="/api/classement-global", tags=["classement-global"])
 
 ALLOWED_ROLES = {"4", "9"}
+
+SECTEUR_MAPPING: dict[str, list[int]] = {
+    "benevole": [1, 2],
+    "benevole_jour": [3],
+    "ancien": [4],
+    "commercant": [5],
+    "special": [6],
+}
+
+
+def build_secteur_filter(secteur: Optional[str]) -> tuple[str, dict]:
+    """Return (SQL clause, params dict) for the secteur filter.
+
+    If *secteur* is ``None`` or empty, returns an empty clause so that all
+    sectors are included.  Otherwise maps the human-readable key to the
+    corresponding ``q.secteur`` value(s).
+    """
+    if not secteur:
+        return "", {}
+
+    values = SECTEUR_MAPPING.get(secteur)
+    if values is None:
+        return "", {}
+
+    if len(values) == 1:
+        return "AND q.secteur = :secteur_val", {"secteur_val": values[0]}
+
+    placeholders = ", ".join(f":sv{i}" for i in range(len(values)))
+    params = {f"sv{i}": v for i, v in enumerate(values)}
+    return f"AND q.secteur IN ({placeholders})", params
 
 
 def _check_role(user: dict) -> None:
@@ -28,7 +59,7 @@ def _check_role(user: dict) -> None:
         )
 
 
-LEADERBOARD_QUERY = """
+LEADERBOARD_QUERY_BASE = """
     SELECT
       q.id AS queteur_id,
       q.first_name,
@@ -44,6 +75,7 @@ LEADERBOARD_QUERY = """
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
     WHERE tqe.ul_id = :ul_id AND YEAR(tqe.depart) = :year
+    {secteur_filter}
     GROUP BY q.id, q.first_name, q.last_name
     ORDER BY total_euro DESC
 """
@@ -57,33 +89,36 @@ TRONCS_QUERY = """
       pq.name AS point_quete_name
     FROM v_tronc_queteur_enriched tqe
     JOIN point_quete pq ON tqe.point_quete_id = pq.id
+    JOIN queteur q ON tqe.queteur_id = q.id
     WHERE tqe.queteur_id = :queteur_id
       AND tqe.ul_id = :ul_id
       AND YEAR(tqe.depart) = :year
+      {secteur_filter}
     ORDER BY tqe.depart DESC
 """
 
 
-@router.get("", response_model=LeaderboardResponse)
-async def get_leaderboard(
+@router.get("", response_model=ClassementGlobalResponse)
+async def get_classement_global(
     request: FastAPIRequest,
     year: int = Query(default=None, description="Année (défaut: année courante)"),
+    secteur: str = Query(default=None, description="Filtre secteur"),
     db: Session = Depends(get_rcq_db),
-) -> LeaderboardResponse:
-    """Return quêteur leaderboard ranked by total amount collected."""
+) -> ClassementGlobalResponse:
+    """Return quêteur classement ranked by total amount collected."""
     user = get_authenticated_user(request, db)
     _check_role(user)
 
     if year is None:
         year = datetime.now().year
 
-    ul_id = user["ul_id"]
-    rows = db.execute(
-        text(LEADERBOARD_QUERY), {"ul_id": ul_id, "year": year}
-    ).mappings().all()
+    secteur_clause, secteur_params = build_secteur_filter(secteur)
+    query = LEADERBOARD_QUERY_BASE.format(secteur_filter=secteur_clause)
+    params = {"ul_id": user["ul_id"], "year": year, **secteur_params}
 
+    rows = db.execute(text(query), params).mappings().all()
     queteurs = [QueteurRanking(**row) for row in rows]
-    return LeaderboardResponse(queteurs=queteurs)
+    return ClassementGlobalResponse(queteurs=queteurs)
 
 
 @router.get("/{queteur_id}/troncs", response_model=TroncsResponse)
@@ -91,6 +126,7 @@ async def get_queteur_troncs(
     queteur_id: int,
     request: FastAPIRequest,
     year: int = Query(default=None, description="Année (défaut: année courante)"),
+    secteur: str = Query(default=None, description="Filtre secteur"),
     db: Session = Depends(get_rcq_db),
 ) -> TroncsResponse:
     """Return tronc details for a specific quêteur (drill-down)."""
@@ -100,11 +136,15 @@ async def get_queteur_troncs(
     if year is None:
         year = datetime.now().year
 
-    ul_id = user["ul_id"]
-    rows = db.execute(
-        text(TRONCS_QUERY),
-        {"queteur_id": queteur_id, "ul_id": ul_id, "year": year},
-    ).mappings().all()
+    secteur_clause, secteur_params = build_secteur_filter(secteur)
+    query = TRONCS_QUERY.format(secteur_filter=secteur_clause)
+    params = {
+        "queteur_id": queteur_id,
+        "ul_id": user["ul_id"],
+        "year": year,
+        **secteur_params,
+    }
 
+    rows = db.execute(text(query), params).mappings().all()
     troncs = [TroncDetail(**row) for row in rows]
     return TroncsResponse(troncs=troncs)

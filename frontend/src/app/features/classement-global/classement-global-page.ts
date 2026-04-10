@@ -32,15 +32,26 @@ type SortColumn = 'total_euro' | 'total_hours' | 'nb_sorties' | 'total_weight_kg
 type SortDirection = 'asc' | 'desc';
 
 @Component({
-  selector: 'app-leaderboard-page',
+  selector: 'app-classement-global-page',
   standalone: true,
   imports: [DecimalPipe],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
       <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
-        <h2 class="text-lg font-semibold text-gray-800">🏆 Leaderboard Quêteurs</h2>
+        <h2 class="text-lg font-semibold text-gray-800">🏆 Classement Global</h2>
         <div class="flex items-center gap-3">
+          <select
+            [value]="selectedSecteur()"
+            (change)="onSecteurChange($event)"
+            class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500">
+            <option value="">Tous secteurs</option>
+            <option value="benevole">Bénévole</option>
+            <option value="benevole_jour">Bénévole d'un jour</option>
+            <option value="ancien">Ancien bénévole</option>
+            <option value="commercant">Commerçant</option>
+            <option value="special">Spécial</option>
+          </select>
           <select
             [value]="selectedYear()"
             (change)="onYearChange($event)"
@@ -163,11 +174,12 @@ type SortDirection = 'asc' | 'desc';
     }
   `],
 })
-export class LeaderboardPageComponent {
+export class ClassementGlobalPageComponent {
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 
   readonly selectedYear = signal(new Date().getFullYear());
+  readonly selectedSecteur = signal('');
   readonly yearOptions = signal<number[]>(this.buildYearOptions());
   readonly loading = signal(false);
   readonly error = signal('');
@@ -218,6 +230,14 @@ export class LeaderboardPageComponent {
     this.loadQueteurs();
   }
 
+  onSecteurChange(event: Event): void {
+    const secteur = (event.target as HTMLSelectElement).value;
+    this.selectedSecteur.set(secteur);
+    this.expandedQueteurId.set(null);
+    this.troncs.set([]);
+    this.loadQueteurs();
+  }
+
   refresh(): void {
     this.expandedQueteurId.set(null);
     this.troncs.set([]);
@@ -248,9 +268,10 @@ export class LeaderboardPageComponent {
     this.troncsLoading.set(true);
     this.troncs.set([]);
     try {
+      const secteurParam = this.selectedSecteur() ? `&secteur=${this.selectedSecteur()}` : '';
       const resp = await firstValueFrom(
         this.api.get<{ troncs: TroncRow[] }>(
-          `/api/leaderboard/${queteur.queteur_id}/troncs?year=${this.selectedYear()}`
+          `/api/classement-global/${queteur.queteur_id}/troncs?year=${this.selectedYear()}${secteurParam}`
         )
       );
       this.troncs.set(resp.troncs);
@@ -283,15 +304,16 @@ export class LeaderboardPageComponent {
     this.loading.set(true);
     this.error.set('');
     try {
+      const secteurParam = this.selectedSecteur() ? `&secteur=${this.selectedSecteur()}` : '';
       const resp = await firstValueFrom(
         this.api.get<{ queteurs: QueteurRow[] }>(
-          `/api/leaderboard?year=${this.selectedYear()}`
+          `/api/classement-global?year=${this.selectedYear()}${secteurParam}`
         )
       );
       this.queteurs.set(resp.queteurs || []);
     } catch (err) {
       this.error.set('Erreur lors du chargement du classement');
-      console.error('Failed to load leaderboard', err);
+      console.error('Failed to load classement', err);
     } finally {
       this.loading.set(false);
     }

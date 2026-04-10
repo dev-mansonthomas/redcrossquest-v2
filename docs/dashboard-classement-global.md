@@ -1,4 +1,4 @@
-# 5.2 Leaderboard Quêteurs
+# 5.2 Classement Global
 
 ## Description
 Classement des quêteurs pour une année donnée, avec drill-down sur les troncs individuels.
@@ -9,7 +9,8 @@ Classement des quêteurs pour une année donnée, avec drill-down sur les troncs
 ## Interface
 
 ### Header
-- Titre : "🏆 Leaderboard Quêteurs"
+- Titre : "🏆 Classement Global"
+- Sélecteur de secteur (Tous secteurs | Bénévole | Bénévole d'un jour | Ancien bénévole | Commerçant | Spécial)
 - Sélecteur d'année (par défaut : année courante)
 - Bouton refresh 🔄
 

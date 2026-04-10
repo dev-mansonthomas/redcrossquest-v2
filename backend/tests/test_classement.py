@@ -1,11 +1,11 @@
-"""Tests for leaderboard endpoints."""
+"""Tests for classement-global endpoints."""
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.routers import auth, leaderboard as lb_router
+from src.routers import auth, classement as cl_router
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +33,7 @@ def auth_token():
 
 def _mock_admin_user(monkeypatch, ul_id=100, role="4"):
     monkeypatch.setattr(
-        lb_router,
+        cl_router,
         "get_authenticated_user",
         lambda request, db: {
             "email": "admin@croix-rouge.fr",
@@ -45,15 +45,15 @@ def _mock_admin_user(monkeypatch, ul_id=100, role="4"):
     )
 
 
-# ─── GET /api/leaderboard ───────────────────────────────────────────
+# ─── GET /api/classement-global ───────────────────────────────────────────
 
 
-def test_leaderboard_requires_auth(client):
-    response = client.get("/api/leaderboard?year=2025")
+def test_classement_requires_auth(client):
+    response = client.get("/api/classement-global?year=2025")
     assert response.status_code == 401
 
 
-def test_leaderboard_forbidden_for_non_admin(client, monkeypatch, auth_token):
+def test_classement_forbidden_for_non_admin(client, monkeypatch, auth_token):
     _mock_admin_user(monkeypatch, role="2")
 
     mock_db = MagicMock()
@@ -62,7 +62,7 @@ def test_leaderboard_forbidden_for_non_admin(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard?year=2025",
+            "/api/classement-global?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 403
@@ -70,7 +70,7 @@ def test_leaderboard_forbidden_for_non_admin(client, monkeypatch, auth_token):
         app.dependency_overrides.clear()
 
 
-def test_leaderboard_returns_data(client, monkeypatch, auth_token):
+def test_classement_returns_data(client, monkeypatch, auth_token):
     _mock_admin_user(monkeypatch)
 
     mock_rows = [
@@ -104,7 +104,7 @@ def test_leaderboard_returns_data(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard?year=2025",
+            "/api/classement-global?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 200
@@ -117,7 +117,7 @@ def test_leaderboard_returns_data(client, monkeypatch, auth_token):
         app.dependency_overrides.clear()
 
 
-def test_leaderboard_role_9_allowed(client, monkeypatch, auth_token):
+def test_classement_role_9_allowed(client, monkeypatch, auth_token):
     _mock_admin_user(monkeypatch, role="9")
 
     mock_db = MagicMock()
@@ -128,7 +128,7 @@ def test_leaderboard_role_9_allowed(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard?year=2025",
+            "/api/classement-global?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 200
@@ -137,11 +137,11 @@ def test_leaderboard_role_9_allowed(client, monkeypatch, auth_token):
         app.dependency_overrides.clear()
 
 
-# ─── GET /api/leaderboard/{queteur_id}/troncs ────────────────────────
+# ─── GET /api/classement-global/{queteur_id}/troncs ────────────────────────
 
 
 def test_troncs_requires_auth(client):
-    response = client.get("/api/leaderboard/1/troncs?year=2025")
+    response = client.get("/api/classement-global/1/troncs?year=2025")
     assert response.status_code == 401
 
 
@@ -154,7 +154,7 @@ def test_troncs_forbidden_for_non_admin(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard/1/troncs?year=2025",
+            "/api/classement-global/1/troncs?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 403
@@ -190,7 +190,7 @@ def test_troncs_returns_data(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard/1/troncs?year=2025",
+            "/api/classement-global/1/troncs?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 200
@@ -214,7 +214,7 @@ def test_troncs_filters_by_ul_id_and_queteur(client, monkeypatch, auth_token):
 
     try:
         response = client.get(
-            "/api/leaderboard/42/troncs?year=2025",
+            "/api/classement-global/42/troncs?year=2025",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code == 200
@@ -224,5 +224,55 @@ def test_troncs_filters_by_ul_id_and_queteur(client, monkeypatch, auth_token):
         assert params["ul_id"] == 456
         assert params["queteur_id"] == 42
         assert params["year"] == 2025
+    finally:
+        app.dependency_overrides.clear()
+
+
+# ─── Secteur filter ──────────────────────────────────────────────────────────
+
+
+def test_classement_with_secteur_benevole(client, monkeypatch, auth_token):
+    _mock_admin_user(monkeypatch)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/classement-global?year=2025&secteur=benevole",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+
+        call_args = mock_db.execute.call_args
+        params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+        assert params["sv0"] == 1
+        assert params["sv1"] == 2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_classement_with_secteur_commercant(client, monkeypatch, auth_token):
+    _mock_admin_user(monkeypatch)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/classement-global?year=2025&secteur=commercant",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+
+        call_args = mock_db.execute.call_args
+        params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+        assert params["secteur_val"] == 5
     finally:
         app.dependency_overrides.clear()

@@ -1,4 +1,4 @@
-"""Leaderboard schemas for API responses."""
+"""Classement Global schemas for API responses."""
 from typing import Optional
 
 from pydantic import BaseModel
@@ -19,8 +19,8 @@ class QueteurRanking(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class LeaderboardResponse(BaseModel):
-    """Response for the leaderboard endpoint."""
+class ClassementGlobalResponse(BaseModel):
+    """Response for the classement-global endpoint."""
 
     queteurs: list[QueteurRanking]
 
