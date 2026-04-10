@@ -143,7 +143,22 @@ export class UlOverviewPageComponent {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } } },
-    scales: { x: { stacked: false }, y: { beginAtZero: true } },
+    scales: {
+      x: { stacked: false },
+      y: {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        title: { display: true, text: 'Sorties' },
+      },
+      y1: {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        title: { display: true, text: 'Points / Troncs' },
+        grid: { drawOnChartArea: false },
+      },
+    },
   });
 
   private overrideInitialized = false;
@@ -216,13 +231,13 @@ export class UlOverviewPageComponent {
       })),
     });
 
-    // ── Chart 2.2: Activity (grouped, NOT stacked) ──
+    // ── Chart 2.2: Activity (grouped, dual Y axis) ──
     this.activityChartData.set({
       labels: yearLabels,
       datasets: [
-        { label: 'Sorties', data: this.mapByYear(data.years, data.activity_metrics, 'nb_tronc_queteur'), backgroundColor: '#2196F3' },
-        { label: 'Points de quête', data: this.mapByYear(data.years, data.activity_metrics, 'nb_points_quete'), backgroundColor: '#4CAF50' },
-        { label: 'Troncs', data: this.mapByYear(data.years, data.activity_metrics, 'nb_troncs'), backgroundColor: '#FF9800' },
+        { label: 'Sorties', data: this.mapByYear(data.years, data.activity_metrics, 'nb_tronc_queteur'), backgroundColor: '#2196F3', yAxisID: 'y' },
+        { label: 'Points de quête', data: this.mapByYear(data.years, data.activity_metrics, 'nb_points_quete'), backgroundColor: '#4CAF50', yAxisID: 'y1' },
+        { label: 'Troncs', data: this.mapByYear(data.years, data.activity_metrics, 'nb_troncs'), backgroundColor: '#FF9800', yAxisID: 'y1' },
       ],
     });
   }
