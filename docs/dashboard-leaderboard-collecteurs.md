@@ -39,10 +39,10 @@ SELECT
   q.first_name,
   q.last_name,
   ROUND(SUM(tqe.total_amount), 2) AS total_euro,
-  ROUND(SUM(tqe.time_spent_in_hours), 2) AS total_hours,
+  ROUND(SUM(tqe.duration_minutes) / 60.0, 2) AS total_hours,
   COUNT(*) AS nb_sorties,
   ROUND(SUM(tqe.weight) / 1000, 2) AS total_weight_kg,
-  ROUND(SUM(tqe.total_amount) / NULLIF(SUM(tqe.time_spent_in_hours), 0), 2) AS efficiency_euro_per_hour
+  ROUND(SUM(tqe.total_amount) / NULLIF(SUM(tqe.duration_minutes) / 60.0, 0), 2) AS efficiency_euro_per_hour
 FROM v_tronc_queteur_enriched tqe
 JOIN queteur q ON tqe.queteur_id = q.id
 WHERE tqe.ul_id = :ul_id AND YEAR(tqe.depart) = :year
@@ -55,7 +55,7 @@ ORDER BY total_euro DESC
 SELECT
   tqe.id AS tronc_queteur_id,
   ROUND(tqe.total_amount, 2) AS total_euro,
-  ROUND(tqe.time_spent_in_hours, 2) AS hours,
+  ROUND(tqe.duration_minutes / 60.0, 2) AS hours,
   ROUND(tqe.weight / 1000, 2) AS weight_kg,
   pq.name AS point_quete_name
 FROM v_tronc_queteur_enriched tqe
@@ -67,7 +67,7 @@ ORDER BY tqe.depart DESC
 ```
 
 ## Calculs
-- **Heures** : champ `time_spent_in_hours` de `v_tronc_queteur_enriched`
+- **Heures** : champ `duration_minutes` de `v_tronc_queteur_enriched` (en minutes, converti en heures via `/ 60.0`)
 - **Poids** : champ `weight` de `v_tronc_queteur_enriched` (en grammes, affiché en kg)
 - **Efficacité** : total_euro / total_hours (€/h)
 
