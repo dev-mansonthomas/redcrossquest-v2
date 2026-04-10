@@ -284,11 +284,11 @@ export class LeaderboardPageComponent {
     this.error.set('');
     try {
       const resp = await firstValueFrom(
-        this.api.get<{ queteurs: QueteurRow[] }>(
+        this.api.get<{ collectors: QueteurRow[] }>(
           `/api/leaderboard?year=${this.selectedYear()}`
         )
       );
-      this.queteurs.set(resp.queteurs);
+      this.queteurs.set(resp.collectors || []);
     } catch (err) {
       this.error.set('Erreur lors du chargement du classement');
       console.error('Failed to load leaderboard', err);
