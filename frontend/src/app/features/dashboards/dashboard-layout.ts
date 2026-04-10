@@ -45,6 +45,13 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
               💰 Sacs de Banque
             </a>
           }
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/leaderboard"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🏆 Leaderboard
+            </a>
+          }
         </nav>
 
         <!-- Footer avec user info et déconnexion -->

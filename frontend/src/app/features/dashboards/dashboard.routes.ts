@@ -40,6 +40,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'leaderboard',
+        loadComponent: () =>
+          import('../leaderboard/leaderboard-page').then(
+            (m) => m.LeaderboardPageComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),
