@@ -1,5 +1,8 @@
-"""Valkey (Redis-compatible) cache service with graceful fallback."""
-import json
+"""Valkey cache service using native JSON module (valkey-bundle).
+
+Uses JSON.SET / JSON.GET instead of STRING + json.dumps/loads.
+Falls back gracefully when Valkey is unavailable.
+"""
 import logging
 from typing import Any
 
@@ -51,27 +54,41 @@ def _get_client() -> valkey.Valkey | None:
 # ---------------------------------------------------------------------------
 
 def cache_get(key: str) -> Any | None:
-    """Return the cached JSON value for *key*, or ``None`` on miss / error."""
+    """Return the cached JSON value for *key*, or ``None`` on miss / error.
+
+    Uses the native JSON module (JSON.GET).  If the key exists but is a
+    legacy STRING type, it is deleted so the next cache_set recreates it
+    as a proper JSON key.
+    """
     client = _get_client()
     if client is None:
         return None
     try:
-        raw = client.get(key)
-        if raw is None:
-            return None
-        return json.loads(raw)
+        data = client.json().get(key)
+        return data
     except Exception:
+        # Likely a legacy STRING key – delete it so it gets recreated as JSON
+        try:
+            client.delete(key)
+        except Exception:
+            pass
         logger.debug("cache_get failed for key=%s", key, exc_info=True)
         return None
 
 
-def cache_set(key: str, value: Any, ttl_seconds: int = 300) -> bool:
-    """Store *value* (JSON-serialisable) under *key* with a TTL. Returns True on success."""
+def cache_set(key: str, value: Any, ttl_seconds: int | None = None) -> bool:
+    """Store *value* under *key* using native JSON.SET.
+
+    If *ttl_seconds* is provided, an EXPIRE is set on the key.
+    Pass ``None`` for data that should never expire (e.g. frozen past years).
+    """
     client = _get_client()
     if client is None:
         return False
     try:
-        client.setex(key, ttl_seconds, json.dumps(value, default=str))
+        client.json().set(key, "$", value)
+        if ttl_seconds:
+            client.expire(key, ttl_seconds)
         return True
     except Exception:
         logger.debug("cache_set failed for key=%s", key, exc_info=True)
