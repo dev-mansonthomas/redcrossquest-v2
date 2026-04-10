@@ -43,7 +43,8 @@ SELECT
     -- dons_cb_total : total CB détaillé depuis la table credit_card
     COALESCE(cc.cc_total, 0) AS dons_cb_total,
 
-    -- total_amount : somme de toutes les pièces/billets + chèques + don_creditcard + dons_cb_total
+    -- total_amount : somme de toutes les pièces/billets + chèques + CB (don_creditcard)
+    -- Note: don_creditcard est un cache de la table credit_card, ne pas additionner les deux
     COALESCE(tq.euro500, 0) * 500 +
     COALESCE(tq.euro200, 0) * 200 +
     COALESCE(tq.euro100, 0) * 100 +
@@ -60,8 +61,7 @@ SELECT
     COALESCE(tq.cents2, 0) * 0.02 +
     COALESCE(tq.cent1, 0) * 0.01 +
     COALESCE(tq.don_cheque, 0) +
-    COALESCE(tq.don_creditcard, 0) +
-    COALESCE(cc.cc_total, 0) AS total_amount,
+    COALESCE(tq.don_creditcard, 0) AS total_amount,
 
     -- weight : poids physique des pièces/billets en grammes
     COALESCE(tq.euro500, 0) * 1.1 +

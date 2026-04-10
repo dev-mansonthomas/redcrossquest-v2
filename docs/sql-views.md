@@ -27,6 +27,8 @@ euro2, euro1, cents50, cents20, cents10, cents5, cents2, cent1, don_cheque, don_
 | `duration_minutes` | INT | minutes | TIMESTAMPDIFF(MINUTE, depart, retour) |
 
 ### Formule total_amount
+> Note: `don_creditcard` est un cache de la table `credit_card`, ne pas additionner les deux.
+
 ```sql
 COALESCE(tq.euro500, 0) * 500 +
 COALESCE(tq.euro200, 0) * 200 +
@@ -44,8 +46,7 @@ COALESCE(tq.cents5, 0) * 0.05 +
 COALESCE(tq.cents2, 0) * 0.02 +
 COALESCE(tq.cent1, 0) * 0.01 +
 COALESCE(tq.don_cheque, 0) +
-COALESCE(tq.don_creditcard, 0) +
-COALESCE(cc.cc_total, 0)
+COALESCE(tq.don_creditcard, 0)
 ```
 
 ### Formule weight (poids par pièce/billet en grammes)
