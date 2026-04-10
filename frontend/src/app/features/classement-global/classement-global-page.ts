@@ -56,6 +56,7 @@ type SortDirection = 'asc' | 'desc';
             [value]="selectedYear()"
             (change)="onYearChange($event)"
             class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500">
+            <option [value]="0" [selected]="0 === selectedYear()">Toutes années</option>
             @for (year of yearOptions(); track year) {
               <option [value]="year" [selected]="year === selectedYear()">{{ year }}</option>
             }

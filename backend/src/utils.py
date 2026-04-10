@@ -1,4 +1,5 @@
 """Shared utilities for RCQ V2 backend."""
+from datetime import datetime
 from typing import Optional
 
 
@@ -31,3 +32,17 @@ def build_secteur_filter(secteur: Optional[str]) -> tuple[str, dict]:
     placeholders = ", ".join(f":sv{i}" for i in range(len(values)))
     params = {f"sv{i}": v for i, v in enumerate(values)}
     return f"AND q.secteur IN ({placeholders})", params
+
+
+def build_year_filter(year: Optional[int]) -> tuple[str, dict]:
+    """Return (SQL clause, params dict) for year filtering.
+
+    - ``None`` → current year (default behaviour).
+    - ``0``    → no year filter (all years).
+    - Any other int → filter on that specific year.
+    """
+    if year is None:
+        year = datetime.now().year
+    if year == 0:
+        return "", {}
+    return "AND YEAR(tqe.depart) = :year", {"year": year}

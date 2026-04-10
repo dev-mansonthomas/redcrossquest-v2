@@ -1,5 +1,5 @@
 """Classement par Tronc endpoints for individual tronc rankings."""
-from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request as FastAPIRequest, status
 from sqlalchemy import text
@@ -12,7 +12,7 @@ from ..schemas.classement_tronc import (
     TroncChampion,
     TroncsChampionsResponse,
 )
-from ..utils import build_secteur_filter
+from ..utils import build_secteur_filter, build_year_filter
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/classement-tronc", tags=["classement-tronc"])
@@ -44,7 +44,7 @@ TRONC_LEADERBOARD_QUERY = """
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
     WHERE tqe.ul_id = :ul_id
-      AND YEAR(tqe.depart) = :year
+      {year_filter}
       AND tqe.deleted = 0
       AND tqe.comptage IS NOT NULL
     {secteur_filter}
@@ -65,7 +65,7 @@ CHAMPION_TRONCS_QUERY = """
     JOIN queteur q ON tqe.queteur_id = q.id
     WHERE tqe.queteur_id = :queteur_id
       AND tqe.ul_id = :ul_id
-      AND YEAR(tqe.depart) = :year
+      {year_filter}
       {secteur_filter}
     ORDER BY {order_col} DESC
     LIMIT 1
@@ -81,7 +81,7 @@ CHAMPION_METRICS = [
 @router.get("", response_model=ClassementTroncResponse)
 async def get_classement_tronc(
     request: FastAPIRequest,
-    year: int = Query(default=None, description="Année (défaut: année courante)"),
+    year: Optional[int] = Query(default=None, description="Année (défaut: année courante, 0=toutes)"),
     secteur: str = Query(default=None, description="Filtre secteur"),
     db: Session = Depends(get_rcq_db),
 ) -> ClassementTroncResponse:
@@ -89,12 +89,10 @@ async def get_classement_tronc(
     user = get_authenticated_user(request, db)
     _check_role(user)
 
-    if year is None:
-        year = datetime.now().year
-
+    year_clause, year_params = build_year_filter(year)
     secteur_clause, secteur_params = build_secteur_filter(secteur)
-    query = TRONC_LEADERBOARD_QUERY.format(secteur_filter=secteur_clause)
-    params = {"ul_id": user["ul_id"], "year": year, **secteur_params}
+    query = TRONC_LEADERBOARD_QUERY.format(year_filter=year_clause, secteur_filter=secteur_clause)
+    params = {"ul_id": user["ul_id"], **year_params, **secteur_params}
 
     rows = db.execute(text(query), params).mappings().all()
     queteurs = [QueteurBestTronc(**row) for row in rows]
@@ -105,7 +103,7 @@ async def get_classement_tronc(
 async def get_troncs_champions(
     queteur_id: int,
     request: FastAPIRequest,
-    year: int = Query(default=None, description="Année (défaut: année courante)"),
+    year: Optional[int] = Query(default=None, description="Année (défaut: année courante, 0=toutes)"),
     secteur: str = Query(default=None, description="Filtre secteur"),
     db: Session = Depends(get_rcq_db),
 ) -> TroncsChampionsResponse:
@@ -117,14 +115,12 @@ async def get_troncs_champions(
     user = get_authenticated_user(request, db)
     _check_role(user)
 
-    if year is None:
-        year = datetime.now().year
-
+    year_clause, year_params = build_year_filter(year)
     secteur_clause, secteur_params = build_secteur_filter(secteur)
     base_params = {
         "queteur_id": queteur_id,
         "ul_id": user["ul_id"],
-        "year": year,
+        **year_params,
         **secteur_params,
     }
 
@@ -134,6 +130,7 @@ async def get_troncs_champions(
         query = CHAMPION_TRONCS_QUERY.format(
             metric=metric_name,
             order_col=order_col,
+            year_filter=year_clause,
             secteur_filter=secteur_clause,
         )
         rows = db.execute(text(query), base_params).mappings().all()

@@ -259,3 +259,60 @@ def test_classement_tronc_with_secteur_benevole(client, monkeypatch, auth_token)
         assert params["sv1"] == 2
     finally:
         app.dependency_overrides.clear()
+
+
+
+# ─── Year=0 (all years) ─────────────────────────────────────────────────────
+
+
+def test_classement_tronc_year_zero_no_year_filter(client, monkeypatch, auth_token):
+    """year=0 should not include a YEAR() filter in the SQL query."""
+    _mock_admin_user(monkeypatch)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/classement-tronc?year=0",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+
+        call_args = mock_db.execute.call_args
+        query_text = str(call_args[0][0])
+        params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+        assert "YEAR(tqe.depart)" not in query_text
+        assert "year" not in params
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_champions_year_zero_no_year_filter(client, monkeypatch, auth_token):
+    """year=0 on champions drill-down should not include a YEAR() filter."""
+    _mock_admin_user(monkeypatch)
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = []
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/classement-tronc/1/troncs-champions?year=0",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+
+        # Check the last call (3 calls total, one per metric)
+        for call_args in mock_db.execute.call_args_list:
+            query_text = str(call_args[0][0])
+            params = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("params", {})
+            assert "YEAR(tqe.depart)" not in query_text
+            assert "year" not in params
+    finally:
+        app.dependency_overrides.clear()
