@@ -32,6 +32,19 @@ typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 trio = ["trio (>=0.31.0) ; python_version < \"3.10\"", "trio (>=0.32.0) ; python_version >= \"3.10\""]
 
 [[package]]
+name = "async-timeout"
+version = "5.0.1"
+description = "Timeout context manager for asyncio programs"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "python_full_version < \"3.11.3\""
+files = [
+    {file = "async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"},
+    {file = "async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"},
+]
+
+[[package]]
 name = "bcrypt"
 version = "5.0.0"
 description = "Modern password hashing for your software and your servers"
@@ -1475,6 +1488,25 @@ docs = ["Sphinx (>=4.1.2,<4.2.0)", "sphinx_rtd_theme (>=0.5.2,<0.6.0)", "sphinxc
 test = ["aiohttp (>=3.10.5)", "flake8 (>=6.1,<7.0)", "mypy (>=0.800)", "psutil", "pyOpenSSL (>=25.3.0,<25.4.0)", "pycodestyle (>=2.11.0,<2.12.0)"]
 
 [[package]]
+name = "valkey"
+version = "6.1.1"
+description = "Python client for Valkey forked from redis-py"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "valkey-6.1.1-py3-none-any.whl", hash = "sha256:e2691541c6e1503b53c714ad9a35551ac9b7c0bbac93865f063dbc859a46de92"},
+    {file = "valkey-6.1.1.tar.gz", hash = "sha256:5880792990c6c2b5eb604a5ed5f98f300880b6dd92d123819b66ed54bb259731"},
+]
+
+[package.dependencies]
+async-timeout = {version = ">=4.0.3", markers = "python_full_version < \"3.11.3\""}
+
+[package.extras]
+libvalkey = ["libvalkey (>=4.0.1)"]
+ocsp = ["cryptography (>=36.0.1)", "pyopenssl (==23.2.1)", "requests (>=2.31.0)"]
+
+[[package]]
 name = "watchfiles"
 version = "1.1.1"
 description = "Simple, modern and high performance file watching and code reload in python."
@@ -1670,4 +1702,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "5796fc7005192f478771fb52af57e0226ab2fdd8d55212d6b6dec76b75b1479d"
+content-hash = "17a3949a520c38aeb81535c935e436fdd70c2c9c5d2267a188f0c7dc79f2eedc"
