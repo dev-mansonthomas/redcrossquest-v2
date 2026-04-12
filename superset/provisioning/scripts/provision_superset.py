@@ -500,7 +500,7 @@ def main():
 
     # Get config from env
     superset_url = os.environ["SUPERSET_URL"]
-    superset_user = os.environ["SUPERSET_ADMIN_USER"]
+    superset_user = os.environ["SUPERSET_ADMIN_USERNAME"]
     superset_password = os.environ["SUPERSET_ADMIN_PASSWORD"]
     db_name = os.environ["DB_CONNECTION_NAME"]
     db_uri = os.environ["DB_SQLALCHEMY_URI"]
