@@ -24,19 +24,19 @@ Exécute les migrations SQL pour la base de données RedCrossQuest V2. Le script
 ## Arguments
 
 | Argument | Requis | Description |
-|----------|--------|-------------|
-| `<env>` | ✅ | Environnement cible : `local`, `dev`, `test`, `prod` |
-| `[utilisateur]` | ❌ (défaut: `root`) | Utilisateur MySQL (env non-local uniquement) |
-| `[mot_de_passe]` | ✅ (env non-local) | Mot de passe MySQL (env non-local uniquement) |
+| --- | --- | --- |
+| <env> | ✅ | Environnement cible : local, dev, test, prod |
+| [utilisateur] | ❌ (défaut: root) | Utilisateur MySQL (env non-local uniquement) |
+| [mot_de_passe] | ✅ (env non-local) | Mot de passe MySQL (env non-local uniquement) |
 
 ## Variables d'environnement
 
 | Variable | Défaut | Description |
-|----------|--------|-------------|
-| `MIGRATION_DB_NAME` | `rcq_fr_dev_db` | Nom de la base de données cible |
-| `MYSQL_ROOT_PASSWORD` | `rcq_root_password` | Mot de passe root MySQL (env `local`) |
-| `DB_HOST` | `127.0.0.1` | Hôte de la base de données (env non-local) |
-| `DB_PORT` | `3306` | Port de la base de données (env non-local) |
+| --- | --- | --- |
+| MIGRATION_DB_NAME | rcq_fr_dev_db | Nom de la base de données cible |
+| MYSQL_ROOT_PASSWORD | rcq_root_password | Mot de passe root MySQL (env local) |
+| DB_HOST | 127.0.0.1 | Hôte de la base de données (env non-local) |
+| DB_PORT | 3306 | Port de la base de données (env non-local) |
 
 ## Exemples d'utilisation
 
@@ -63,13 +63,14 @@ Exécute les migrations SQL pour la base de données RedCrossQuest V2. Le script
 ## Fichiers utilisés
 
 | Fichier | Description |
-|---------|-------------|
-| `superset/deploy-sql/*.sql` | Fichiers de migration SQL |
-| `superset/deploy-sql/00-schema-migrations.sql` | Script de création de la table `schema_migrations` |
+| --- | --- |
+| superset/deploy-sql/*.sql | Fichiers de migration SQL |
+| superset/deploy-sql/00-schema-migrations.sql | Script de création de la table schema_migrations |
 
 ## Table schema_migrations
 
 La table `schema_migrations` contient l'historique des migrations appliquées :
+
 - `filename` : Nom du fichier SQL
 - `checksum` : Hash MD5 du fichier au moment de l'exécution
 
