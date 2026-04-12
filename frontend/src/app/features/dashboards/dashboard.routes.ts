@@ -10,7 +10,7 @@ export const DASHBOARD_ROUTES: Routes = [
     children: [
       {
         path: '',
-        redirectTo: 'cumul',
+        redirectTo: 'welcome',
         pathMatch: 'full',
       },
       {
@@ -66,6 +66,11 @@ export const DASHBOARD_ROUTES: Routes = [
           import('../yearly-goals/yearly-goals-page').then(
             (m) => m.YearlyGoalsPageComponent,
           ),
+      },
+      {
+        path: 'welcome',
+        loadComponent: () =>
+          import('./welcome-page').then((m) => m.WelcomePageComponent),
       },
       {
         path: ':slug',
