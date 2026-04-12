@@ -19,7 +19,7 @@ interface YearlyGoalsResponse {
 }
 
 // ── Series styling config ───────────────────────────────────────────
-const PAST_YEAR_COLORS = ['#9CA3AF', '#6B7280', '#D1D5DB', '#E5E7EB', '#F3F4F6'];
+const PAST_YEAR_COLORS = ['#93C5FD', '#86EFAC', '#FDBA74', '#C4B5FD', '#F9A8D4'];
 
 @Component({
   selector: 'app-yearly-goals-page',
