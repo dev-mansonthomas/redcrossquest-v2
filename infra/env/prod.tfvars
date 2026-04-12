@@ -15,7 +15,7 @@ frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-prod/rcq-docker/rcq-fronten
 # image_tag    = "latest"  # Override with specific tag during deployment
 
 # Custom domain mappings (prod uses root domain without env prefix)
-enable_domain_mappings = false
+enable_domain_mappings = true
 frontend_domain        = "graph.redcrossquest.com"
 api_domain             = "back.graph.redcrossquest.com"
 superset_domain        = "superset.graph.redcrossquest.com"
