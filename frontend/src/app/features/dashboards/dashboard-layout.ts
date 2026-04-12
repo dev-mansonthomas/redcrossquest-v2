@@ -19,12 +19,20 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
 
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
-          <!-- Lien statique Objectifs Annuels -->
-          @if ([1, 2, 3, 4, 9].includes(authService.user()?.role ?? 0)) {
-            <a routerLink="/dashboards/kpi"
+          <!-- Lien natif Objectifs Annuels -->
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/objectifs-annuels"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
               📊 Objectifs Annuels
+            </a>
+          }
+          <!-- Lien Superset Objectifs Annuels -->
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/kpi"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Objectifs Annuels (SS)
             </a>
           }
           <!-- Lien statique accessible à tous les rôles -->

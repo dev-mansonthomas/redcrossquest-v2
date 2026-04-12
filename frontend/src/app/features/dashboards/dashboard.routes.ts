@@ -61,6 +61,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'objectifs-annuels',
+        loadComponent: () =>
+          import('../yearly-goals/yearly-goals-page').then(
+            (m) => m.YearlyGoalsPageComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),
