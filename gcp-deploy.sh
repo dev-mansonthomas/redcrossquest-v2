@@ -447,7 +447,30 @@ ensure_ar_repository() {
             --project="${GCP_PROJECT_ID}" \
             --labels="app=rcq,managed-by=terraform"
         log_success "Repository ${AR_REPOSITORY} created"
-        log_info "NOTE: Run 'terraform import google_artifact_registry_repository.docker_repo ${GCP_PROJECT_ID}/${GCP_REGION}/${AR_REPOSITORY}' to sync Terraform state"
+
+        # Import into Terraform state so 'terraform apply' won't try to recreate it
+        local tf_dir="$SCRIPT_DIR/infra"
+        local repo_location="${GCP_REGION}"
+        local repo_name="${AR_REPOSITORY}"
+        local tf_resource_id="projects/${GCP_PROJECT_ID}/locations/${repo_location}/repositories/${repo_name}"
+
+        if ! command -v terraform &>/dev/null; then
+            log_warning "Terraform not installed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+        else
+            # Ensure terraform is initialized (needed when running --build without --infra)
+            if [ ! -d "$tf_dir/.terraform" ]; then
+                log_info "Terraform not initialized — running terraform init..."
+                (cd "$tf_dir" && terraform init -reconfigure -backend-config="env/${ENV}.backend.tfvars") || \
+                    log_warning "Terraform init failed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+            fi
+
+            if [ -d "$tf_dir/.terraform" ]; then
+                log_info "Importing repository into Terraform state..."
+                (cd "$tf_dir" && terraform import -var-file="env/${ENV}.tfvars" google_artifact_registry_repository.docker "$tf_resource_id") && \
+                    log_success "Repository imported into Terraform state" || \
+                    log_info "Could not import into Terraform state — you may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+            fi
+        fi
     fi
 }
 
