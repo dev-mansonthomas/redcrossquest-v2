@@ -25,6 +25,7 @@
 #   --dump-prod      Dump production DB to SQL file (prod only)
 #   --copy-prod      Copy latest prod dump into dev/test DB
 #   --skip-confirm   Skip confirmation prompts
+#   --no-cache        Force Docker build without cache
 #   --help           Show this help message
 # ============================================================
 set -euo pipefail
@@ -84,6 +85,7 @@ Options:
   --destroy-superset Destroy Superset resources (2-step: disable protection + destroy, keeps Valkey)
   --dump-prod      Dump production database to a SQL file (ENV=prod only)
   --copy-prod      Copy latest prod dump into dev/test DB (ENV=dev|test only)
+  --no-cache        Force Docker build without cache
   --skip-confirm   Skip confirmation prompts
   --help           Show this help message
 
@@ -137,6 +139,7 @@ SKIP_BUILD=false
 BUILD_DONE=false
 DO_DUMP_PROD=false
 DO_COPY_PROD=false
+NO_CACHE=false
 ENABLE_SUPERSET=false
 DESTROY_SUPERSET=false
 SERVICES=""
@@ -162,6 +165,7 @@ while [[ $# -gt 0 ]]; do
         --plan)        PLAN_ONLY=true; DO_INFRA=true; shift ;;
         --dump-prod)   DO_DUMP_PROD=true; shift ;;
         --copy-prod)   DO_COPY_PROD=true; shift ;;
+        --no-cache)    NO_CACHE=true;     shift ;;
         --skip-confirm) SKIP_CONFIRM=true; shift ;;
         --help|-h)     show_help ;;
         *)
@@ -375,6 +379,7 @@ echo "  Config:       $ENV_FILE"
 echo "  Services:     $SERVICES"
 $ENABLE_SUPERSET && echo "  Superset:     ✅ included"
 $DESTROY_SUPERSET && echo "  Superset:     🗑️  DESTROY mode"
+$NO_CACHE && echo "    ⚠️  Docker build: no-cache (forced clean build)"
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
@@ -721,6 +726,11 @@ build_and_push() {
     # Normalize "api" → "backend" for internal matching
     services_filter="${services_filter//api/backend}"
 
+    local cache_flag=""
+    if $NO_CACHE; then
+        cache_flag="--no-cache"
+    fi
+
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
         local dockerfile="${dockerfiles[$i]}"
@@ -741,7 +751,7 @@ build_and_push() {
 
         log_info "Building ${svc}..."
         # shellcheck disable=SC2086
-        docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
+        docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $cache_flag $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
 
         log_info "Pushing ${svc}..."
         docker push "$image"
