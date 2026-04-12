@@ -39,7 +39,7 @@ const PAST_YEAR_COLORS = ['#9CA3AF', '#6B7280', '#D1D5DB', '#E5E7EB', '#F3F4F6']
       </div>
 
       <!-- Content -->
-      <div class="flex-1 overflow-hidden p-4 flex flex-col">
+      <div class="p-4">
         @if (loading()) {
           <div class="flex items-center justify-center h-64">
             <p class="text-gray-500">⏳ Chargement…</p>
@@ -49,12 +49,10 @@ const PAST_YEAR_COLORS = ['#9CA3AF', '#6B7280', '#D1D5DB', '#E5E7EB', '#F3F4F6']
             <p class="text-red-600">❌ {{ error() }}</p>
           </div>
         } @else {
-          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex-1 flex flex-col min-h-0">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3 shrink-0">📈 Objectif vs Réalisé — Montant cumulé par jour de quête</h3>
-            <div class="flex-1 relative min-h-0">
-              <div class="absolute inset-0">
-                <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
-              </div>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Objectif vs Réalisé — Montant cumulé par jour de quête</h3>
+            <div style="height: calc(100vh - 160px);">
+              <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
             </div>
           </div>
 
