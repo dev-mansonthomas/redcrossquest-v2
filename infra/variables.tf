@@ -102,6 +102,14 @@ variable "enable_domain_mappings" {
   default     = true
 }
 
+# ─── Feature flags ──────────────────────────────────────────────────
+
+variable "enable_superset" {
+  description = "Enable Superset Cloud Run service and related resources"
+  type        = bool
+  default     = false
+}
+
 # ─── Valkey (Memorystore) ────────────────────────────────────────────
 
 variable "valkey_node_type" {

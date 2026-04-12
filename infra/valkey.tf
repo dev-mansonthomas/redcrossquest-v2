@@ -66,9 +66,10 @@ resource "google_memorystore_instance" "valkey" {
 # ─── IAM — Valkey access for Cloud Run service accounts ──────────────
 # Superset (Cloud Run) needs dbConnectionUser to connect to Valkey with IAM Auth
 resource "google_project_iam_member" "superset_valkey_access" {
+  count   = var.enable_superset ? 1 : 0
   project = var.project_id
   role    = "roles/memorystore.dbConnectionUser"
-  member  = "serviceAccount:${module.superset.service_account_email}"
+  member  = "serviceAccount:${module.superset[0].service_account_email}"
 }
 
 # API (Cloud Run) needs dbConnectionUser to connect to Valkey with IAM Auth (DB 0)
