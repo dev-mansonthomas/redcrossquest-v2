@@ -50,9 +50,11 @@ const PAST_YEAR_COLORS = ['#9CA3AF', '#6B7280', '#D1D5DB', '#E5E7EB', '#F3F4F6']
           </div>
         } @else {
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex-1 flex flex-col min-h-0">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Objectif vs Réalisé — Montant cumulé par jour de quête</h3>
-            <div class="flex-1 min-h-0">
-              <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
+            <h3 class="text-sm font-semibold text-gray-700 mb-3 shrink-0">📈 Objectif vs Réalisé — Montant cumulé par jour de quête</h3>
+            <div class="flex-1 relative min-h-0">
+              <div class="absolute inset-0">
+                <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
+              </div>
             </div>
           </div>
 
