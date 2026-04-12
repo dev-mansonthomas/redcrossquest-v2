@@ -1342,6 +1342,30 @@ if $DESTROY_SUPERSET; then
         destroy_extra_vars="$destroy_extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
     fi
 
+    # Pre-cleanup: Remove IAM binding via gcloud to avoid ETag conflict loop in terraform
+    # The google_cloud_run_service_iam_member resource has a known issue where concurrent
+    # policy changes cause infinite SetIamPolicy retries.
+    log_info "Pre-cleanup: Removing Superset IAM bindings via gcloud..."
+
+    # Get the API service account email
+    local api_sa
+    api_sa=$(gcloud run services describe rcq-api --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format="value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
+
+    if [ -n "$api_sa" ]; then
+        # Remove the IAM binding directly via gcloud (idempotent, won't error if not found)
+        gcloud run services remove-iam-policy-binding rcq-superset \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --member="serviceAccount:${api_sa}" \
+            --role="roles/run.invoker" 2>/dev/null || true
+        log_info "IAM binding removed via gcloud"
+    fi
+
+    # Remove from terraform state to prevent terraform from trying to destroy it
+    terraform state rm 'module.iam.google_cloud_run_service_iam_member.api_to_superset[0]' 2>/dev/null || true
+    log_info "IAM binding removed from terraform state"
+    echo ""
+
     log_info "Step 1/2: Disabling deletion protection on Superset..."
     # shellcheck disable=SC2086
     terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=true -var=allow_resource_destruction=true $destroy_extra_vars
