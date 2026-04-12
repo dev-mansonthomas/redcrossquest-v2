@@ -20,6 +20,8 @@
 #   --plan           Terraform plan only (dry run, no build)
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
 #                    Default: all services. Only affects build step.
+#   --superset         Include Superset in build/deploy (disabled by default)
+#   --destroy-superset Destroy Superset resources (keeps Valkey intact)
 #   --dump-prod      Dump production DB to SQL file (prod only)
 #   --copy-prod      Copy latest prod dump into dev/test DB
 #   --skip-confirm   Skip confirmation prompts
@@ -78,6 +80,8 @@ Options:
   --plan           Terraform plan only (dry run, no build, no apply)
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
                    Default: all services. Only affects build step.
+  --superset         Include Superset in build/deploy (disabled by default)
+  --destroy-superset Destroy Superset resources (keeps Valkey intact)
   --dump-prod      Dump production database to a SQL file (ENV=prod only)
   --copy-prod      Copy latest prod dump into dev/test DB (ENV=dev|test only)
   --skip-confirm   Skip confirmation prompts
@@ -87,11 +91,14 @@ Examples:
   ./gcp-deploy.sh dev --plan                  # Dry run: show Terraform plan
   ./gcp-deploy.sh dev --build                 # Build and push Docker images only
   ./gcp-deploy.sh dev --infra                 # Build images + apply infrastructure
+  ./gcp-deploy.sh dev --infra --superset      # Build + infra including Superset
   ./gcp-deploy.sh dev --infra --skip-build    # Apply infrastructure without building
   ./gcp-deploy.sh dev --migrate               # Run database migrations
-  ./gcp-deploy.sh dev --all                   # Full deployment
+  ./gcp-deploy.sh dev --all                   # Full deployment (without Superset)
+  ./gcp-deploy.sh dev --all --superset        # Full deployment including Superset
+  ./gcp-deploy.sh dev --build --superset      # Build frontend + api + superset
   ./gcp-deploy.sh dev --infra --services frontend,api  # Build only frontend+api
-  ./gcp-deploy.sh dev --infra --services superset      # Build only superset
+  ./gcp-deploy.sh dev --destroy-superset      # Destroy Superset resources
   ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
   ./gcp-deploy.sh prod --dump-prod                     # Dump prod DB to SQL file
   ./gcp-deploy.sh dev --copy-prod                      # Import latest prod dump into dev
@@ -130,6 +137,8 @@ SKIP_BUILD=false
 BUILD_DONE=false
 DO_DUMP_PROD=false
 DO_COPY_PROD=false
+ENABLE_SUPERSET=false
+DESTROY_SUPERSET=false
 SERVICES=""
 
 while [[ $# -gt 0 ]]; do
@@ -147,6 +156,8 @@ while [[ $# -gt 0 ]]; do
             DO_PROVISION=true
             shift
             ;;
+        --superset)    ENABLE_SUPERSET=true; shift ;;
+        --destroy-superset) DESTROY_SUPERSET=true; shift ;;
         --services)    SERVICES="$2";   shift 2 ;;
         --plan)        PLAN_ONLY=true; DO_INFRA=true; shift ;;
         --dump-prod)   DO_DUMP_PROD=true; shift ;;
@@ -161,11 +172,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Default: build all services
-SERVICES="${SERVICES:-frontend,api,superset}"
+# Default: build frontend + api (superset excluded unless --superset)
+if [ -z "$SERVICES" ]; then
+    if $ENABLE_SUPERSET; then
+        SERVICES="frontend,api,superset"
+    else
+        SERVICES="frontend,api"
+    fi
+fi
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, or --plan."
+# Validate --superset / --destroy-superset incompatibility
+if $ENABLE_SUPERSET && $DESTROY_SUPERSET; then
+    log_error "Flags --superset and --destroy-superset are mutually exclusive."
+    exit 1
+fi
+
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
     echo "Run './gcp-deploy.sh --help' for usage."
     exit 1
 fi
@@ -333,7 +356,7 @@ enable_apis() {
     log_success "Required APIs enabled."
 }
 
-if $DO_BUILD || $DO_INFRA; then
+if $DO_BUILD || $DO_INFRA || $DESTROY_SUPERSET; then
     enable_apis
 fi
 
@@ -349,9 +372,9 @@ echo "  Region:       $GCP_REGION"
 echo "  Image tag:    $IMAGE_TAG"
 echo "  Registry:     $REGISTRY"
 echo "  Config:       $ENV_FILE"
-  if [ "$SERVICES" != "frontend,api,superset" ]; then
-      echo "  Services:     $SERVICES"
-  fi
+echo "  Services:     $SERVICES"
+$ENABLE_SUPERSET && echo "  Superset:     ✅ included"
+$DESTROY_SUPERSET && echo "  Superset:     🗑️  DESTROY mode"
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
@@ -359,6 +382,7 @@ $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
 $DO_PROVISION && echo "    ✦ Provision Superset dashboards"
+$DESTROY_SUPERSET && echo "    ✦ 🗑️  Destroy Superset resources"
 if $DO_DUMP_PROD; then
     _dump_proxy_port="${CLOUD_SQL_PROXY_PORT:-3305}"
     _dump_dest_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
@@ -402,7 +426,7 @@ if [ -f "$TFVARS_FILE" ]; then
 fi
 
 # Skip confirmation for --check (read-only mode), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
-if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD); then
+if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET); then
     if [ "$ENV" = "prod" ]; then
         echo -e "${RED}⚠️  WARNING: You are deploying to PRODUCTION!${NC}"
         echo ""
@@ -1175,6 +1199,13 @@ run_infra() {
         extra_vars="$extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
     fi
 
+    # Pass enable_superset to Terraform
+    if $ENABLE_SUPERSET; then
+        extra_vars="$extra_vars -var=enable_superset=true"
+    else
+        extra_vars="$extra_vars -var=enable_superset=false"
+    fi
+
     # Plan-only mode: just show the plan and exit
     if $PLAN_ONLY; then
         log_info "Running terraform plan..."
@@ -1209,7 +1240,11 @@ run_infra() {
     # Phase 2b: Create MySQL users (before Cloud Run needs them)
     cd "$SCRIPT_DIR"
     create_readonly_user
-    create_superset_db
+    if $ENABLE_SUPERSET; then
+        create_superset_db
+    else
+        log_info "Skipping Superset DB creation (--superset not specified)"
+    fi
     cd "$SCRIPT_DIR/infra"
 
     # Phase 3: Full terraform apply (Cloud Run can now access secret values)
@@ -1234,6 +1269,61 @@ if $DO_INFRA; then
         MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     fi
     run_infra
+fi
+
+# ══════════════════════════════════════════════════════════════
+# Step 2b: Destroy Superset resources
+# ══════════════════════════════════════════════════════════════
+if $DESTROY_SUPERSET; then
+    echo "═══════════════════════════════════════════════"
+    log_warn "⚠️  This will destroy Superset Cloud Run service and related secrets. Valkey will NOT be affected."
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    if ! $SKIP_CONFIRM; then
+        read -r -p "Are you sure you want to destroy Superset resources? [y/N] " response
+        case "$response" in
+            [yY][eE][sS]|[yY]) ;;
+            *)
+                echo "Aborted."
+                exit 0
+                ;;
+        esac
+        echo ""
+    fi
+
+    cd "$SCRIPT_DIR/infra"
+
+    ensure_tf_bucket
+
+    log_info "Initializing Terraform..."
+    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+
+    # Find the latest image tag for terraform (needed for other resources)
+    latest_tag=$(gcloud artifacts docker tags list \
+        "${REGISTRY}/rcq-frontend" \
+        --project="${GCP_PROJECT_ID}" \
+        --sort-by=~UPDATE_TIME \
+        --limit=5 \
+        --format="value(tag)" 2>/dev/null \
+        | grep "^${ENV}-" \
+        | head -1 || echo "")
+
+    destroy_extra_vars="-var=enable_superset=false"
+    if [ -n "$latest_tag" ]; then
+        destroy_extra_vars="$destroy_extra_vars -var=image_tag=${latest_tag}"
+    fi
+    if [ -n "${CLOUD_SQL_CONNECTION_NAME:-}" ]; then
+        destroy_extra_vars="$destroy_extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
+    fi
+
+    log_info "Applying terraform with enable_superset=false..."
+    # shellcheck disable=SC2086
+    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" $destroy_extra_vars
+
+    log_success "Superset resources destroyed."
+    cd "$SCRIPT_DIR"
+    echo ""
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1345,7 +1435,11 @@ run_provision() {
 }
 
 if $DO_PROVISION; then
-    run_provision
+    if $ENABLE_SUPERSET; then
+        run_provision
+    else
+        log_info "Skipping Superset provisioning (--superset not specified)"
+    fi
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1376,9 +1470,7 @@ echo ""
 echo "  Environment:  $ENV"
 echo "  Project:      $GCP_PROJECT_ID"
 echo "  Image tag:    $IMAGE_TAG"
-if [ "$SERVICES" != "frontend,api,superset" ]; then
-    echo "  Services:     $SERVICES"
-fi
+echo "  Services:     $SERVICES"
 echo ""
 
 # Show Terraform outputs if infra or provision was run
@@ -1430,6 +1522,7 @@ $BUILD_DONE  && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
 $DO_PROVISION && log_success "Provisioning: done"
+$DESTROY_SUPERSET && log_success "Destroy Superset: done"
 $DO_DUMP_PROD && log_success "Dump production DB: done"
 $DO_COPY_PROD && log_success "Copy production data: done"
 
