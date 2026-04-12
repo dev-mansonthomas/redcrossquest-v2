@@ -1140,6 +1140,28 @@ run_infra() {
         build_and_push
     fi
 
+    # When --skip-build, find the latest pushed tag from the registry
+    if $SKIP_BUILD && ! $PLAN_ONLY; then
+        log_info "Skip-build: looking up latest image tag from registry..."
+        # Query the latest tag for any service (e.g. rcq-frontend)
+        local latest_tag
+        latest_tag=$(gcloud artifacts docker tags list \
+            "${REGISTRY}/rcq-frontend" \
+            --project="${GCP_PROJECT_ID}" \
+            --sort-by=~UPDATE_TIME \
+            --limit=5 \
+            --format="value(tag)" 2>/dev/null \
+            | grep "^${ENV}-" \
+            | head -1)
+        if [ -n "$latest_tag" ]; then
+            IMAGE_TAG="$latest_tag"
+            log_info "Using existing image tag: ${IMAGE_TAG}"
+        else
+            log_error "No image found in registry for env ${ENV}. Run without --skip-build first."
+            exit 1
+        fi
+    fi
+
     # Pass image tag as extra var when applying (not plan-only)
     # Note: base image names (without tag) are already set in the .tfvars files.
     # Terraform appends :${var.image_tag} in main.tf, so we only pass the tag here.
