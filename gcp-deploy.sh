@@ -434,6 +434,23 @@ ensure_tf_bucket() {
     fi
 }
 
+# ── Ensure Artifact Registry repository exists ────────────────
+ensure_ar_repository() {
+    if gcloud artifacts repositories describe "${AR_REPOSITORY}" \
+        --location="${GCP_REGION}" --project="${GCP_PROJECT_ID}" &>/dev/null; then
+        log_success "Artifact Registry repository ${AR_REPOSITORY} already exists"
+    else
+        log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
+        gcloud artifacts repositories create "${AR_REPOSITORY}" \
+            --repository-format=docker \
+            --location="${GCP_REGION}" \
+            --project="${GCP_PROJECT_ID}" \
+            --labels="app=rcq,managed-by=terraform"
+        log_success "Repository ${AR_REPOSITORY} created"
+        log_info "NOTE: Run 'terraform import google_artifact_registry_repository.docker_repo ${GCP_PROJECT_ID}/${GCP_REGION}/${AR_REPOSITORY}' to sync Terraform state"
+    fi
+}
+
 # ══════════════════════════════════════════════════════════════
 # Step 0: Check environment readiness
 # ══════════════════════════════════════════════════════════════
@@ -629,6 +646,9 @@ build_and_push() {
     log_info "Step: Build & Push Docker images"
     echo "═══════════════════════════════════════════════"
     echo ""
+
+    # Ensure Artifact Registry repository exists (first deploy in a new GCP project)
+    ensure_ar_repository
 
     # Configure Docker for Artifact Registry
     log_info "Configuring Docker for Artifact Registry..."
