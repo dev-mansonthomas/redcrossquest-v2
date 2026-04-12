@@ -3,6 +3,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-dashboard-layout',
@@ -28,7 +29,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
             </a>
           }
           <!-- Lien Superset Objectifs Annuels -->
-          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+          @if (enableSuperset && [4, 9].includes(authService.user()?.role ?? 0)) {
             <a routerLink="/dashboards/kpi"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -121,6 +122,7 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly dashboardService = inject(DashboardService);
   protected readonly ulOverrideService = inject(UlOverrideService);
+  protected readonly enableSuperset = environment.enableSuperset;
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
@@ -131,7 +133,9 @@ export class DashboardLayoutComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    this.dashboardService.loadDashboards();
+    if (this.enableSuperset) {
+      this.dashboardService.loadDashboards();
+    }
   }
 
   getRoleEmoji(roleName: string | undefined): string {

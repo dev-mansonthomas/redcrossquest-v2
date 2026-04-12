@@ -151,6 +151,8 @@ export const environment = {
   supersetUrl: 'http://localhost:8088',
   rcqV1Url: 'https://dev.redcrossquest.croix-rouge.fr',
   environment: 'local',
+  // Set to true to enable Superset embedded dashboards (requires Superset Cloud Run service)
+  enableSuperset: false,
 };
 EOF
   echo "✅ Generated: $FRONTEND_ENV"
