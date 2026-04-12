@@ -460,7 +460,7 @@ ensure_ar_repository() {
             # Ensure terraform is initialized (needed when running --build without --infra)
             if [ ! -d "$tf_dir/.terraform" ]; then
                 log_info "Terraform not initialized — running terraform init..."
-                (cd "$tf_dir" && terraform init -reconfigure -backend-config="env/${ENV}.backend.tfvars") || \
+                (cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure) || \
                     log_warning "Terraform init failed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
             fi
 
