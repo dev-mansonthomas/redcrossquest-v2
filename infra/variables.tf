@@ -110,6 +110,12 @@ variable "enable_superset" {
   default     = false
 }
 
+variable "allow_resource_destruction" {
+  description = "Set to true to disable deletion protection on Cloud Run services (required before destroying)"
+  type        = bool
+  default     = false
+}
+
 # ─── Valkey (Memorystore) ────────────────────────────────────────────
 
 variable "valkey_node_type" {

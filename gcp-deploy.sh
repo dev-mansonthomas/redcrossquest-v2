@@ -21,7 +21,7 @@
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
 #                    Default: all services. Only affects build step.
 #   --superset         Include Superset in build/deploy (disabled by default)
-#   --destroy-superset Destroy Superset resources (keeps Valkey intact)
+#   --destroy-superset Destroy Superset resources (2-step: disable protection + destroy, keeps Valkey)
 #   --dump-prod      Dump production DB to SQL file (prod only)
 #   --copy-prod      Copy latest prod dump into dev/test DB
 #   --skip-confirm   Skip confirmation prompts
@@ -81,7 +81,7 @@ Options:
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
                    Default: all services. Only affects build step.
   --superset         Include Superset in build/deploy (disabled by default)
-  --destroy-superset Destroy Superset resources (keeps Valkey intact)
+  --destroy-superset Destroy Superset resources (2-step: disable protection + destroy, keeps Valkey)
   --dump-prod      Dump production database to a SQL file (ENV=prod only)
   --copy-prod      Copy latest prod dump into dev/test DB (ENV=dev|test only)
   --skip-confirm   Skip confirmation prompts
@@ -1309,7 +1309,7 @@ if $DESTROY_SUPERSET; then
         | grep "^${ENV}-" \
         | head -1 || echo "")
 
-    destroy_extra_vars="-var=enable_superset=false"
+    destroy_extra_vars=""
     if [ -n "$latest_tag" ]; then
         destroy_extra_vars="$destroy_extra_vars -var=image_tag=${latest_tag}"
     fi
@@ -1317,9 +1317,13 @@ if $DESTROY_SUPERSET; then
         destroy_extra_vars="$destroy_extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
     fi
 
-    log_info "Applying terraform with enable_superset=false..."
+    log_info "Step 1/2: Disabling deletion protection on Superset..."
     # shellcheck disable=SC2086
-    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" $destroy_extra_vars
+    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=true -var=allow_resource_destruction=true $destroy_extra_vars
+
+    log_info "Step 2/2: Destroying Superset resources..."
+    # shellcheck disable=SC2086
+    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=false -var=allow_resource_destruction=true $destroy_extra_vars
 
     log_success "Superset resources destroyed."
     cd "$SCRIPT_DIR"

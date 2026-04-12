@@ -48,7 +48,8 @@ module "superset" {
   region         = var.region
   image          = "${var.superset_image}:${var.image_tag}"
   container_port = 8088
-  ingress        = "INGRESS_TRAFFIC_ALL"
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = var.allow_resource_destruction ? false : true
 
   env_vars = {
     SUPERSET_DB_TYPE           = "mysql"

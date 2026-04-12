@@ -8,7 +8,8 @@ resource "google_cloud_run_v2_service" "service" {
   name     = var.service_name
   location = var.region
   project  = var.project_id
-  ingress  = var.ingress
+  ingress             = var.ingress
+  deletion_protection = var.deletion_protection
 
   template {
     service_account = google_service_account.service.email
