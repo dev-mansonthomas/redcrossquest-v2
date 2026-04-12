@@ -513,7 +513,7 @@ check_environment() {
         ensure_tf_bucket
         local tf_dir="$SCRIPT_DIR/infra"
         local tf_init_output
-        tf_init_output=$(cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -no-color 2>&1) && \
+        tf_init_output=$(cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure -no-color 2>&1) && \
             check_ok "  terraform init — success" || \
             check_fail "  terraform init — failed: $(echo "$tf_init_output" | tail -1)"
 
@@ -1082,7 +1082,7 @@ run_infra() {
 
     # Initialize Terraform
     log_info "Initializing Terraform..."
-    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false
+    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
 
     # Untaint any tainted Cloud Run services (from previous failed deploys)
     for svc in module.api.google_cloud_run_v2_service.service module.superset.google_cloud_run_v2_service.service module.frontend.google_cloud_run_v2_service.service; do
