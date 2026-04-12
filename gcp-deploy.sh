@@ -1184,6 +1184,12 @@ run_infra() {
     seed_secrets
     cd "$SCRIPT_DIR/infra"
 
+    # Phase 2b: Create MySQL users (before Cloud Run needs them)
+    cd "$SCRIPT_DIR"
+    create_readonly_user
+    create_superset_db
+    cd "$SCRIPT_DIR/infra"
+
     # Phase 3: Full terraform apply (Cloud Run can now access secret values)
     log_info "Phase 3: Deploying all infrastructure..."
     # shellcheck disable=SC2086
@@ -1197,11 +1203,6 @@ run_infra() {
     cd "$SCRIPT_DIR"
     echo ""
 
-    # ── Create MySQL read-only user if it doesn't exist ─────
-    create_readonly_user
-
-    # ── Create Superset metadata DB + read-write user ─────
-    create_superset_db
 }
 
 if $DO_INFRA; then
