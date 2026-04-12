@@ -842,7 +842,7 @@ create_superset_db() {
     local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
     local db_port="${MIGRATION_DB_PORT:-3306}"
     local db_user="${MIGRATION_DB_USER:-root}"
-    local superset_db="superset_dev_db"
+    local superset_db="superset_${ENV}_db"
 
     local mysql_cnf
     mysql_cnf=$(mktemp)

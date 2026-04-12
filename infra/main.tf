@@ -58,7 +58,7 @@ module "superset" {
     VALKEY_PORT                = "6379"
     VALKEY_ENABLED             = "false"
     SUPERSET_METADATA_DB_TYPE  = "mysql"
-    SUPERSET_METADATA_DB_NAME  = "superset_dev_db"
+    SUPERSET_METADATA_DB_NAME  = "superset_${var.environment}_db"
     SUPERSET_METADATA_DB_PORT  = "3306"
     SUPERSET_METADATA_DB_HOST  = "/cloudsql/${var.cloud_sql_connection_name}"
     SUPERSET_ADMIN_USERNAME    = var.superset_admin_username
