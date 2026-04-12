@@ -1113,12 +1113,17 @@ seed_secrets() {
         "rcq_db_readonly_password:RCQ_DB_PASSWORD"
         "rcq_google_oauth_client_id:GOOGLE_OAUTH_CLIENT_ID"
         "rcq_google_oauth_client_secret:GOOGLE_OAUTH_CLIENT_SECRET"
-        "rcq_superset_secret_key:SUPERSET_SECRET_KEY"
-        "rcq_superset_db_rw_username:SUPERSET_DB_RW_USER"
-        "rcq_superset_db_rw_password:SUPERSET_DB_RW_PASSWORD"
         "rcq_superset_admin_password:SUPERSET_ADMIN_PASSWORD"
         "rcq_jwt_secret_key:JWT_SECRET_KEY"
     )
+
+    if $ENABLE_SUPERSET; then
+        secrets_to_seed+=(
+            "rcq_superset_secret_key:SUPERSET_SECRET_KEY"
+            "rcq_superset_db_rw_username:SUPERSET_DB_RW_USER"
+            "rcq_superset_db_rw_password:SUPERSET_DB_RW_PASSWORD"
+        )
+    fi
 
     for entry in "${secrets_to_seed[@]}"; do
         local secret_name="${entry%%:*}"
@@ -1229,17 +1234,27 @@ run_infra() {
 
     # Phase 1: Create secret shells first (so seed_secrets can populate them)
     log_info "Phase 1: Creating secrets..."
+
+    local secret_targets=(
+        "-target=google_secret_manager_secret.db_readonly_username"
+        "-target=google_secret_manager_secret.db_readonly_password"
+        "-target=google_secret_manager_secret.google_oauth_client_id"
+        "-target=google_secret_manager_secret.google_oauth_client_secret"
+        "-target=google_secret_manager_secret.superset_admin_password"
+        "-target=google_secret_manager_secret.jwt_secret_key"
+    )
+
+    if $ENABLE_SUPERSET; then
+        secret_targets+=(
+            "-target=google_secret_manager_secret.superset_secret_key"
+            "-target=google_secret_manager_secret.superset_db_rw_username"
+            "-target=google_secret_manager_secret.superset_db_rw_password"
+        )
+    fi
+
     # shellcheck disable=SC2086
     terraform apply -auto-approve -var-file="env/${ENV}.tfvars" $extra_vars \
-        -target=google_secret_manager_secret.db_readonly_username \
-        -target=google_secret_manager_secret.db_readonly_password \
-        -target=google_secret_manager_secret.google_oauth_client_id \
-        -target=google_secret_manager_secret.google_oauth_client_secret \
-        -target=google_secret_manager_secret.superset_secret_key \
-        -target=google_secret_manager_secret.superset_db_rw_username \
-        -target=google_secret_manager_secret.superset_db_rw_password \
-        -target=google_secret_manager_secret.superset_admin_password \
-        -target=google_secret_manager_secret.jwt_secret_key \
+        "${secret_targets[@]}" \
         || true
 
     # Phase 2: Seed secret values from .env (before Cloud Run needs them)
