@@ -15,7 +15,7 @@ frontend_image = "europe-west1-docker.pkg.dev/rcq-fr-test/rcq-docker/rcq-fronten
 # image_tag    = "latest"  # Override with specific tag during deployment
 
 # Custom domain mappings
-enable_domain_mappings = false
+enable_domain_mappings = true
 frontend_domain        = "test.graph.redcrossquest.com"
 api_domain             = "test.back.graph.redcrossquest.com"
 superset_domain        = "test.superset.graph.redcrossquest.com"
