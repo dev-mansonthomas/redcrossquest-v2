@@ -53,7 +53,7 @@ WITH realise_daily AS (
 SELECT ul_id,
        year,
        jour_num,
-       CONCAT('Réalisé ', year) AS serie,
+       'Réalisé' AS serie,
        ROUND(SUM(SUM(montant_jour)) OVER (
            PARTITION BY ul_id, year ORDER BY jour_num
        ), 2) AS montant_cumule
@@ -101,7 +101,7 @@ def _build_objectif_series(row: dict) -> list[dict]:
     amount = float(row["amount"])
     year = int(row["year"])
     ul_id = int(row["ul_id"])
-    serie = f"Objectif {year}"
+    serie = "Objectif"
 
     cumul = 0.0
     points: list[dict] = []
