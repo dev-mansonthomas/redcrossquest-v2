@@ -41,6 +41,7 @@ services:
   # Valkey (rcq_valkey) is accessed via the rcq_default network
   # -------------------------------------------------------
   superset:
+    profiles: ["superset"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -75,6 +76,7 @@ services:
   # Phase 2: Celery Worker — async queries & alerts
   # -------------------------------------------------------
   superset-worker:
+    profiles: ["superset"]
     build:
       context: .
       dockerfile: Dockerfile
