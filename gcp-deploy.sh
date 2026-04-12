@@ -359,8 +359,35 @@ $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
 $DO_PROVISION && echo "    ✦ Provision Superset dashboards"
-$DO_DUMP_PROD && echo "    ✦ Dump production database"
-$DO_COPY_PROD && echo "    ✦ Copy production data to ${ENV}"
+if $DO_DUMP_PROD; then
+    _dump_proxy_port="${CLOUD_SQL_PROXY_PORT:-3305}"
+    _dump_dest_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    echo "    ✦ Dump production database"
+    echo "      🗄️  Base source : ${MIGRATION_DB_NAME:-<MIGRATION_DB_NAME not set>}"
+    echo "      📂 Destination : ${_dump_dest_dir}"
+    echo "      🔌 Cloud SQL   : ${CLOUD_SQL_CONNECTION_NAME:-<not set>} (port ${_dump_proxy_port})"
+fi
+if $DO_COPY_PROD; then
+    _copy_proxy_port="${CLOUD_SQL_PROXY_PORT:-3305}"
+    _copy_dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    _copy_dump_file=""
+    _copy_dump_size=""
+    if [ -d "$_copy_dump_dir" ]; then
+        _copy_dump_file=$(ls -t "$_copy_dump_dir"/*-RCQ-FR-PROD-data.sql 2>/dev/null | head -1)
+    fi
+    if [ -n "$_copy_dump_file" ]; then
+        _copy_dump_size=$(du -h "$_copy_dump_file" | cut -f1)
+    fi
+    echo "    ✦ Copy production data to ${ENV}"
+    if [ -n "$_copy_dump_file" ]; then
+        echo "      📄 Dump        : $(basename "$_copy_dump_file") (${_copy_dump_size})"
+    else
+        echo "      📄 Dump        : <aucun fichier trouvé dans prod-data/>"
+    fi
+    echo "      🗄️  Base cible  : ${MIGRATION_DB_NAME:-<MIGRATION_DB_NAME not set>}"
+    echo "      🔌 Cloud SQL   : ${CLOUD_SQL_CONNECTION_NAME:-<not set>} (port ${_copy_proxy_port})"
+    echo "      📋 Étapes      : DROP DB → Import dump (sed rename) → Anonymisation → Migrations"
+fi
 echo ""
 if [ -f "$TFVARS_FILE" ]; then
     echo "  🌐 DNS CNAME records required (add to redcrossquest.com zone):"
