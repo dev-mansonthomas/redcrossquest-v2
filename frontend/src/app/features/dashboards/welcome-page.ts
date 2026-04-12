@@ -15,7 +15,7 @@ import { Component } from '@angular/core';
       <!-- Content -->
       <div class="flex-1 flex items-center justify-center p-8">
         <div class="text-center max-w-lg">
-          <div class="text-6xl mb-6">✚</div>
+          <div class="text-6xl mb-6 text-red-600">✚</div>
           <h1 class="text-2xl font-bold text-gray-800 mb-3">
             Bienvenue sur RedCrossQuest
           </h1>
