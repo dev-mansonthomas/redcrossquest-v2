@@ -7,36 +7,38 @@ import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 
 // ── Interfaces ───────────────────────────────────────────────────────
-interface ControleDonneesDay {
-  jour_num: number;
-  label: string;
-  montant: number;
-  euros_par_heure: number | null;
+interface QueteurControleSummary {
+  queteur_id: number;
+  first_name: string | null;
+  last_name: string | null;
   nb_troncs: number;
+  total_amount: number;
+  total_hours: number;
+  total_weight_kg: number;
 }
 
-interface ControleDonneesTronc {
+interface TroncControleDetail {
   tronc_queteur_id: number;
   tronc_id: number;
-  first_name: string;
-  last_name: string;
-  point_quete_name: string;
-  montant: number;
+  total_amount: number;
   hours: number;
-  euros_par_heure: number | null;
+  weight_kg: number;
+  point_quete_name: string | null;
+  quete_day_num: number | null;
 }
 
 interface ControleDonneesResponse {
-  days: ControleDonneesDay[];
+  queteurs: QueteurControleSummary[];
 }
 
-interface DrilldownResponse {
-  troncs: ControleDonneesTronc[];
+interface TroncsControleResponse {
+  troncs: TroncControleDetail[];
 }
 
 interface RcqUrls {
   base_url: string;
   tronc_queteur_uri: string;
+  tronc_uri: string;
 }
 
 // ── Day labels ───────────────────────────────────────────────────────
@@ -106,7 +108,7 @@ const DAY_LABELS = [
         } @else {
           <!-- Chart -->
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">📊 Montant collecté & Taux horaire par jour de quête</h3>
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">📊 Montant collecté & Taux horaire par quêteur</h3>
             <div style="height: 400px;">
               <canvas baseChart
                 [data]="chartData()"
@@ -117,11 +119,11 @@ const DAY_LABELS = [
           </div>
 
           <!-- Drill-down table -->
-          @if (selectedDayNum() !== null) {
+          @if (selectedQueteur() !== null) {
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-semibold text-gray-700">
-                  📋 Détail — {{ getDayLabel(selectedDayNum()!) }}
+                  📋 Détails pour {{ selectedQueteur()!.first_name }} {{ selectedQueteur()!.last_name }}
                 </h3>
                 <button (click)="closeDrilldown()"
                   class="text-gray-400 hover:text-gray-600 text-lg" title="Fermer">✕</button>
@@ -133,9 +135,8 @@ const DAY_LABELS = [
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="bg-gray-50 border-b border-gray-200">
-                        <th class="px-3 py-2 text-left font-semibold text-gray-600">TQ ID</th>
-                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Tronc</th>
-                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Quêteur</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">ID TQ</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Tronc ID</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600">Point de quête</th>
                         <th class="px-3 py-2 text-right font-semibold text-gray-600">Montant (€)</th>
                         <th class="px-3 py-2 text-right font-semibold text-gray-600">Durée (h)</th>
@@ -153,12 +154,11 @@ const DAY_LABELS = [
                             <a (click)="openTronc(t.tronc_id); $event.preventDefault()"
                                href="#" class="text-blue-600 hover:underline font-mono">{{ t.tronc_id }}</a>
                           </td>
-                          <td class="px-3 py-1.5 text-gray-800">{{ t.first_name }} {{ t.last_name }}</td>
                           <td class="px-3 py-1.5 text-gray-700">{{ t.point_quete_name }}</td>
-                          <td class="px-3 py-1.5 text-right text-gray-800">{{ t.montant | number:'1.2-2' }}</td>
+                          <td class="px-3 py-1.5 text-right text-gray-800">{{ t.total_amount | number:'1.2-2' }}</td>
                           <td class="px-3 py-1.5 text-right text-gray-700">{{ t.hours | number:'1.1-1' }}</td>
                           <td class="px-3 py-1.5 text-right text-gray-700">
-                            @if (t.euros_par_heure !== null) { {{ t.euros_par_heure | number:'1.2-2' }} }
+                            @if (t.hours > 0) { {{ t.total_amount / t.hours | number:'1.2-2' }} }
                             @else { — }
                           </td>
                         </tr>
@@ -184,14 +184,14 @@ export class ControleDonneesPageComponent {
   readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly days = signal<ControleDonneesDay[]>([]);
-  readonly selectedDayNum = signal<number | null>(null);
-  readonly drilldownData = signal<ControleDonneesTronc[]>([]);
+  readonly queteurs = signal<QueteurControleSummary[]>([]);
+  readonly selectedQueteur = signal<QueteurControleSummary | null>(null);
+  readonly drilldownData = signal<TroncControleDetail[]>([]);
   readonly drilldownLoading = signal(false);
 
   private rcqBaseUrl = '';
   private rcqTroncQueteurUri = '';
-  private readonly rcqTroncUri = '#!/troncs/edit/';
+  private rcqTroncUri = '';
   private overrideInitialized = false;
 
   // ── Chart data & options ──────────────────────────────────────────
@@ -215,7 +215,7 @@ export class ControleDonneesPageComponent {
       },
     },
     scales: {
-      x: { title: { display: true, text: 'Jour de quête' } },
+      x: { title: { display: true, text: 'Quêteur' } },
       y: {
         type: 'linear',
         position: 'left',
@@ -239,9 +239,9 @@ export class ControleDonneesPageComponent {
     onClick: (_event: ChartEvent, elements: ActiveElement[]) => {
       if (elements.length > 0) {
         const idx = elements[0].index;
-        const filteredDays = this.getFilteredDays();
-        if (idx < filteredDays.length) {
-          this.onBarClick(filteredDays[idx].jour_num);
+        const data = this.queteurs();
+        if (idx < data.length) {
+          this.onQueteurClick(data[idx]);
         }
       }
     },
@@ -253,7 +253,7 @@ export class ControleDonneesPageComponent {
       this.overrideInitialized = true;
       return;
     }
-    this.selectedDayNum.set(null);
+    this.selectedQueteur.set(null);
     this.drilldownData.set([]);
     this.loadData();
   });
@@ -266,7 +266,7 @@ export class ControleDonneesPageComponent {
   onYearChange(event: Event): void {
     const year = parseInt((event.target as HTMLSelectElement).value, 10);
     this.selectedYear.set(year);
-    this.selectedDayNum.set(null);
+    this.selectedQueteur.set(null);
     this.drilldownData.set([]);
     this.loadData();
   }
@@ -275,23 +275,19 @@ export class ControleDonneesPageComponent {
     const current = [...this.selectedDays()];
     current[index] = !current[index];
     this.selectedDays.set(current);
-    this.selectedDayNum.set(null);
-    this.drilldownData.set([]);
-    this.updateChart();
-  }
-
-  refresh(): void {
-    this.selectedDayNum.set(null);
+    this.selectedQueteur.set(null);
     this.drilldownData.set([]);
     this.loadData();
   }
 
-  getDayLabel(jourNum: number): string {
-    return DAY_LABELS[jourNum - 1] || `Jour ${jourNum}`;
+  refresh(): void {
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
   }
 
   closeDrilldown(): void {
-    this.selectedDayNum.set(null);
+    this.selectedQueteur.set(null);
     this.drilldownData.set([]);
   }
 
@@ -302,24 +298,27 @@ export class ControleDonneesPageComponent {
   }
 
   openTronc(troncId: number): void {
-    if (this.rcqBaseUrl) {
+    if (this.rcqBaseUrl && this.rcqTroncUri) {
       window.open(`${this.rcqBaseUrl}/${this.rcqTroncUri}${troncId}`, '_blank');
     }
   }
 
-  private onBarClick(jourNum: number): void {
-    this.selectedDayNum.set(jourNum);
-    this.loadDrilldown(jourNum);
+  private onQueteurClick(queteur: QueteurControleSummary): void {
+    this.selectedQueteur.set(queteur);
+    this.loadDrilldown(queteur.queteur_id);
   }
 
-  private getFilteredDays(): ControleDonneesDay[] {
+  private getSelectedDaysParam(): string {
     const checked = this.selectedDays();
-    return this.days().filter(d => d.jour_num >= 1 && d.jour_num <= 9 && checked[d.jour_num - 1]);
+    const days: number[] = [];
+    checked.forEach((v, i) => { if (v) days.push(i + 1); });
+    return days.join(',');
   }
 
   private updateChart(): void {
-    const filtered = this.getFilteredDays();
-    const labels = filtered.map(d => this.getDayLabel(d.jour_num));
+    const data = this.queteurs();
+    const labels = data.map(q => `${q.first_name ?? ''} ${q.last_name ?? ''} (${q.queteur_id})`);
+    const efficiencies = data.map(q => q.total_hours > 0 ? Math.round((q.total_amount / q.total_hours) * 100) / 100 : null);
 
     this.chartData.set({
       labels,
@@ -327,9 +326,9 @@ export class ControleDonneesPageComponent {
         {
           type: 'bar',
           label: 'Montant (€)',
-          data: filtered.map(d => d.montant),
-          backgroundColor: 'rgba(220, 38, 38, 0.7)',
-          borderColor: '#DC2626',
+          data: data.map(q => q.total_amount),
+          backgroundColor: 'rgba(37, 99, 235, 0.7)',
+          borderColor: '#2563EB',
           borderWidth: 1,
           yAxisID: 'y',
           order: 2,
@@ -337,9 +336,9 @@ export class ControleDonneesPageComponent {
         {
           type: 'line',
           label: 'Euros / heure',
-          data: filtered.map(d => d.euros_par_heure),
-          borderColor: '#2563EB',
-          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          data: efficiencies,
+          borderColor: '#DC2626',
+          backgroundColor: 'rgba(220, 38, 38, 0.1)',
           borderWidth: 2,
           pointRadius: 4,
           tension: 0.3,
@@ -355,12 +354,15 @@ export class ControleDonneesPageComponent {
     this.loading.set(true);
     this.error.set('');
     try {
+      const daysParam = this.getSelectedDaysParam();
+      let url = `/api/controle-donnees?year=${this.selectedYear()}`;
+      if (daysParam) {
+        url += `&days=${daysParam}`;
+      }
       const resp = await firstValueFrom(
-        this.api.get<ControleDonneesResponse>(
-          `/api/controle-donnees?year=${this.selectedYear()}`
-        )
+        this.api.get<ControleDonneesResponse>(url)
       );
-      this.days.set(resp.days || []);
+      this.queteurs.set(resp.queteurs || []);
       this.updateChart();
     } catch {
       this.error.set('Erreur lors du chargement des données de contrôle.');
@@ -369,14 +371,17 @@ export class ControleDonneesPageComponent {
     }
   }
 
-  private async loadDrilldown(jourNum: number): Promise<void> {
+  private async loadDrilldown(queteurId: number): Promise<void> {
     this.drilldownLoading.set(true);
     this.drilldownData.set([]);
     try {
+      const daysParam = this.getSelectedDaysParam();
+      let url = `/api/controle-donnees/${queteurId}/troncs?year=${this.selectedYear()}`;
+      if (daysParam) {
+        url += `&days=${daysParam}`;
+      }
       const resp = await firstValueFrom(
-        this.api.get<DrilldownResponse>(
-          `/api/controle-donnees/day/${jourNum}?year=${this.selectedYear()}`
-        )
+        this.api.get<TroncsControleResponse>(url)
       );
       this.drilldownData.set(resp.troncs || []);
     } catch {
@@ -393,6 +398,7 @@ export class ControleDonneesPageComponent {
       );
       this.rcqBaseUrl = urls.base_url;
       this.rcqTroncQueteurUri = urls.tronc_queteur_uri;
+      this.rcqTroncUri = urls.tronc_uri;
     } catch {
       console.error('Failed to load RCQ URLs');
     }
