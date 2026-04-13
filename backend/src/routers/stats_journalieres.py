@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["stats-journalieres"])
 
-# Roles allowed: 4 (admin UL) and 9 (super admin)
-ALLOWED_ROLES = {"4", "9"}
+# Roles allowed: 3 (compteur/trésorier), 4 (admin UL) and 9 (super admin)
+ALLOWED_ROLES = {"3", "4", "9"}
 
 # Cache TTLs
 TTL_PAST_YEAR = 31_536_000  # 1 year in seconds
