@@ -188,7 +188,7 @@ export class EtatsTroncsPageComponent {
   readonly troncs = signal<TroncEtatDetail[]>([]);
   readonly searchQuery = signal('');
   readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
-  readonly sortColumn = signal<string>('');
+  readonly sortColumn = signal<string>('tronc_queteur_id');
   readonly sortDirection = signal<'asc' | 'desc'>('asc');
 
   private static readonly DATE_COLUMNS = new Set(['depart_theorique', 'depart', 'retour']);
