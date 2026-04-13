@@ -17,7 +17,7 @@ from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/controle-donnees", tags=["controle-donnees"])
 
-ALLOWED_ROLES = {"4", "9"}
+ALLOWED_ROLES = {"3", "4", "9"}
 
 
 def _check_role(user: dict) -> None:
