@@ -19,13 +19,15 @@ interface TroncEtatDetail {
   quete_day_num?: number | null;
   total_amount?: number;
   total_hours?: number;
+  coins_money_bag_id?: string | null;
+  bills_money_bag_id?: string | null;
 }
 
 interface EtatsTroncsResponse {
   troncs: TroncEtatDetail[];
 }
 
-type TroncStatusFilter = 'prepared' | 'collecting' | 'uncounted' | 'counted';
+type TroncStatusFilter = 'prepared' | 'collecting' | 'uncounted' | 'counted' | 'missing_bags';
 
 // ── RCQ V1 URL constants ─────────────────────────────────────────────
 const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
@@ -133,10 +135,14 @@ const DAY_LABELS = [
                   <th (click)="onSort('retour')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Retour {{ sortIndicator('retour') }}</th>
                   <th (click)="onSort('point_quete_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Point de quête {{ sortIndicator('point_quete_name') }}</th>
                   <th (click)="onSort('quete_day_num')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Jour {{ sortIndicator('quete_day_num') }}</th>
-                  @if (selectedFilter() === 'counted') {
+                  @if (selectedFilter() === 'counted' || selectedFilter() === 'missing_bags') {
                     <th (click)="onSort('total_amount')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Montant (€) {{ sortIndicator('total_amount') }}</th>
                     <th (click)="onSort('total_hours')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Heures {{ sortIndicator('total_hours') }}</th>
                     <th (click)="onSort('euro_per_hour')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">€/h {{ sortIndicator('euro_per_hour') }}</th>
+                  }
+                  @if (selectedFilter() === 'missing_bags') {
+                    <th (click)="onSort('coins_money_bag_id')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Sac pièces {{ sortIndicator('coins_money_bag_id') }}</th>
+                    <th (click)="onSort('bills_money_bag_id')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Sac billets {{ sortIndicator('bills_money_bag_id') }}</th>
                   }
                 </tr>
               </thead>
@@ -153,10 +159,14 @@ const DAY_LABELS = [
                     <td class="px-3 py-2">{{ t.retour | date:'dd/MM/yyyy HH:mm' }}</td>
                     <td class="px-3 py-2">{{ t.point_quete_name }}</td>
                     <td class="px-3 py-2">{{ t.quete_day_num ? 'J' + t.quete_day_num : '' }}</td>
-                    @if (selectedFilter() === 'counted') {
+                    @if (selectedFilter() === 'counted' || selectedFilter() === 'missing_bags') {
                       <td class="px-3 py-2 text-right">{{ t.total_amount | number:'1.2-2' }}</td>
                       <td class="px-3 py-2 text-right">{{ t.total_hours | number:'1.1-1' }}h</td>
                       <td class="px-3 py-2 text-right">{{ t.total_hours && t.total_hours > 0 ? (t.total_amount! / t.total_hours | number:'1.2-2') : '–' }}</td>
+                    }
+                    @if (selectedFilter() === 'missing_bags') {
+                      <td class="px-3 py-2">{{ t.coins_money_bag_id ?? '❌' }}</td>
+                      <td class="px-3 py-2">{{ t.bills_money_bag_id ?? '❌' }}</td>
                     }
                   </tr>
                 }
@@ -177,6 +187,7 @@ export class EtatsTroncsPageComponent {
     { value: 'collecting', label: '🚶 En quête' },
     { value: 'uncounted', label: '📥 Non compté' },
     { value: 'counted', label: '✅ Compté' },
+    { value: 'missing_bags', label: '🏷️ Sans sacs' },
   ];
 
   readonly dayLabels = DAY_LABELS;

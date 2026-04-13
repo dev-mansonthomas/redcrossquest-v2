@@ -20,6 +20,8 @@ class TroncEtatDetail(BaseModel):
     quete_day_num: Optional[int] = None
     total_amount: Optional[float] = None
     total_hours: Optional[float] = None
+    coins_money_bag_id: Optional[str] = None
+    bills_money_bag_id: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
