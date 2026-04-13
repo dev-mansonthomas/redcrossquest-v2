@@ -1,4 +1,4 @@
-import { Component, inject, signal, effect } from '@angular/core';
+import { Component, inject, signal, effect, computed } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -51,6 +51,12 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
               {{ f.label }}
             </button>
           }
+          <!-- Search -->
+          <input type="text"
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+            placeholder="🔍 Rechercher (nom, prénom, ID…)"
+            class="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 w-48">
           <!-- Year dropdown -->
           <select
             [value]="selectedYear()"
@@ -77,7 +83,7 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
           <div class="flex items-center justify-center h-64">
             <p class="text-red-600">❌ {{ error() }}</p>
           </div>
-        } @else if (troncs().length === 0) {
+        } @else if (filteredTroncs().length === 0) {
           <div class="flex items-center justify-center h-64">
             <p class="text-gray-500">Aucun tronc trouvé pour ce filtre.</p>
           </div>
@@ -103,7 +109,7 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                @for (t of troncs(); track t.tronc_queteur_id) {
+                @for (t of filteredTroncs(); track t.tronc_queteur_id) {
                   <tr class="hover:bg-gray-50">
                     <td class="px-3 py-2"><a [href]="rcqBaseUrl + rcqTroncQueteurUri + t.tronc_queteur_id" target="_blank" class="text-red-600 hover:underline">{{ t.tronc_queteur_id }}</a></td>
                     <td class="px-3 py-2"><a [href]="rcqBaseUrl + rcqQueteurUri + t.queteur_id" target="_blank" class="text-red-600 hover:underline">{{ t.queteur_id }}</a></td>
@@ -146,6 +152,21 @@ export class EtatsTroncsPageComponent {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly troncs = signal<TroncEtatDetail[]>([]);
+  readonly searchQuery = signal('');
+  readonly filteredTroncs = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    if (!query) return this.troncs();
+    return this.troncs().filter(t => {
+      const fields = [
+        t.first_name ?? '',
+        t.last_name ?? '',
+        String(t.tronc_id),
+        String(t.tronc_queteur_id),
+        String(t.queteur_id),
+      ];
+      return fields.some(f => f.toLowerCase().includes(query));
+    });
+  });
 
   readonly rcqBaseUrl = environment.rcqV1Url;
   readonly rcqTroncQueteurUri = RCQ_TRONC_QUETEUR_URI;
