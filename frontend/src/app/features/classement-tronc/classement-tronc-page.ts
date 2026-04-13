@@ -3,6 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { environment } from '../../../environments/environment';
 
 interface QueteurTroncRow {
   queteur_id: number;
@@ -24,10 +25,8 @@ interface BestTroncRow {
   champion_types: string[];
 }
 
-interface RcqUrls {
-  base_url: string;
-  tronc_queteur_uri: string;
-}
+// ── RCQ V1 URL constants ─────────────────────────────────────────────
+const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
 
 type SortColumn = 'best_montant' | 'best_poids_kg' | 'best_duree_h' | 'best_taux_horaire';
 type SortDirection = 'asc' | 'desc';
@@ -211,8 +210,8 @@ export class ClassementTroncPageComponent {
   readonly bestTroncs = signal<BestTroncRow[]>([]);
   readonly troncsLoading = signal(false);
 
-  private rcqBaseUrl = '';
-  private rcqTroncQueteurUri = '';
+  private readonly rcqBaseUrl = environment.rcqV1Url;
+  private readonly rcqTroncQueteurUri = RCQ_TRONC_QUETEUR_URI;
   private overrideInitialized = false;
 
   readonly sortedQueteurs = computed(() => {
@@ -239,7 +238,6 @@ export class ClassementTroncPageComponent {
   });
 
   constructor() {
-    this.loadRcqUrls();
     this.loadQueteurs();
   }
 
@@ -314,18 +312,6 @@ export class ClassementTroncPageComponent {
 
   championColor(key: string): string {
     return CHAMPION_COLORS[key] || 'bg-gray-100 text-gray-800';
-  }
-
-  private async loadRcqUrls(): Promise<void> {
-    try {
-      const urls = await firstValueFrom(
-        this.api.get<RcqUrls>('/api/config/rcq-urls')
-      );
-      this.rcqBaseUrl = urls.base_url;
-      this.rcqTroncQueteurUri = urls.tronc_queteur_uri;
-    } catch (err) {
-      console.error('Failed to load RCQ URLs', err);
-    }
   }
 
   private async loadQueteurs(): Promise<void> {

@@ -3,7 +3,7 @@ export const environment = {
   production: false,
   apiUrl: 'http://localhost:8010',
   supersetUrl: 'http://localhost:8088',
-  rcqV1Url: 'https://dev.redcrossquest.croix-rouge.fr',
+  rcqV1Url: 'https://devredcrossquest.croix-rouge.fr',
   environment: 'local',
   // Set to true to enable Superset embedded dashboards (requires Superset Cloud Run service)
   enableSuperset: false,

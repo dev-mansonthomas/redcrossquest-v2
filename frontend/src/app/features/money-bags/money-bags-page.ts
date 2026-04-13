@@ -3,6 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { environment } from '../../../environments/environment';
 
 interface MoneyBagSummary {
   bag_id: string;
@@ -35,10 +36,8 @@ interface TroncQueteurItem {
   tronc_id: number;
 }
 
-interface RcqUrls {
-  base_url: string;
-  tronc_queteur_uri: string;
-}
+// ── RCQ V1 URL constants ─────────────────────────────────────────────
+const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
 
 @Component({
   selector: 'app-money-bags-page',
@@ -223,8 +222,8 @@ export class MoneyBagsPageComponent {
   readonly troncs = signal<TroncQueteurItem[]>([]);
   readonly troncsLoading = signal(false);
 
-  private rcqBaseUrl = '';
-  private rcqTroncQueteurUri = '';
+  private readonly rcqBaseUrl = environment.rcqV1Url;
+  private readonly rcqTroncQueteurUri = RCQ_TRONC_QUETEUR_URI;
   private overrideInitialized = false;
 
   private readonly overrideEffect = effect(() => {
@@ -238,7 +237,6 @@ export class MoneyBagsPageComponent {
   });
 
   constructor() {
-    this.loadRcqUrls();
     this.loadBags();
   }
 
@@ -309,18 +307,6 @@ export class MoneyBagsPageComponent {
     this.selectedBag.set(null);
     this.bagDetail.set(null);
     this.troncs.set([]);
-  }
-
-  private async loadRcqUrls(): Promise<void> {
-    try {
-      const urls = await firstValueFrom(
-        this.api.get<RcqUrls>('/api/config/rcq-urls')
-      );
-      this.rcqBaseUrl = urls.base_url;
-      this.rcqTroncQueteurUri = urls.tronc_queteur_uri;
-    } catch (err) {
-      console.error('Failed to load RCQ URLs', err);
-    }
   }
 
   private async loadBags(): Promise<void> {

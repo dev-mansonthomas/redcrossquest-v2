@@ -5,6 +5,7 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions, ActiveElement, ChartEvent } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { environment } from '../../../environments/environment';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface QueteurControleSummary {
@@ -35,11 +36,9 @@ interface TroncsControleResponse {
   troncs: TroncControleDetail[];
 }
 
-interface RcqUrls {
-  base_url: string;
-  tronc_queteur_uri: string;
-  tronc_uri: string;
-}
+// ── RCQ V1 URL constants ─────────────────────────────────────────────
+const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
+const RCQ_TRONC_URI = '#!/troncs/edit/';
 
 // ── Day labels ───────────────────────────────────────────────────────
 const DAY_LABELS = [
@@ -109,7 +108,7 @@ const DAY_LABELS = [
           <!-- Chart -->
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
             <h3 class="text-sm font-semibold text-gray-700 mb-3">📊 Montant collecté & Taux horaire par quêteur</h3>
-            <div style="height: 400px;">
+            <div style="height: calc(75vh - 120px);">
               <canvas baseChart
                 [data]="chartData()"
                 [options]="chartOptions()"
@@ -135,6 +134,7 @@ const DAY_LABELS = [
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Jour</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600">ID TQ</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600">Tronc ID</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600">Point de quête</th>
@@ -146,6 +146,7 @@ const DAY_LABELS = [
                     <tbody>
                       @for (t of drilldownData(); track t.tronc_queteur_id) {
                         <tr class="border-b border-gray-100 hover:bg-gray-50">
+                          <td class="px-3 py-1.5 text-gray-700">{{ getDayLabel(t.quete_day_num) }}</td>
                           <td class="px-3 py-1.5">
                             <a (click)="openTroncQueteur(t.tronc_queteur_id); $event.preventDefault()"
                                href="#" class="text-blue-600 hover:underline font-mono">{{ t.tronc_queteur_id }}</a>
@@ -189,9 +190,9 @@ export class ControleDonneesPageComponent {
   readonly drilldownData = signal<TroncControleDetail[]>([]);
   readonly drilldownLoading = signal(false);
 
-  private rcqBaseUrl = '';
-  private rcqTroncQueteurUri = '';
-  private rcqTroncUri = '';
+  private readonly rcqBaseUrl = environment.rcqV1Url;
+  private readonly rcqTroncQueteurUri = RCQ_TRONC_QUETEUR_URI;
+  private readonly rcqTroncUri = RCQ_TRONC_URI;
   private overrideInitialized = false;
 
   // ── Chart data & options ──────────────────────────────────────────
@@ -259,7 +260,6 @@ export class ControleDonneesPageComponent {
   });
 
   constructor() {
-    this.loadRcqUrls();
     this.loadData();
   }
 
@@ -289,6 +289,13 @@ export class ControleDonneesPageComponent {
   closeDrilldown(): void {
     this.selectedQueteur.set(null);
     this.drilldownData.set([]);
+  }
+
+  getDayLabel(dayNum: number | null): string {
+    if (dayNum == null) return '—';
+    const label = this.dayLabels[dayNum - 1];
+    const dayName = label ? label.split(': ')[1] : '';
+    return `${dayNum} - ${dayName || '?'}`;
   }
 
   openTroncQueteur(troncQueteurId: number): void {
@@ -388,19 +395,6 @@ export class ControleDonneesPageComponent {
       console.error('Failed to load drill-down data');
     } finally {
       this.drilldownLoading.set(false);
-    }
-  }
-
-  private async loadRcqUrls(): Promise<void> {
-    try {
-      const urls = await firstValueFrom(
-        this.api.get<RcqUrls>('/api/config/rcq-urls')
-      );
-      this.rcqBaseUrl = urls.base_url;
-      this.rcqTroncQueteurUri = urls.tronc_queteur_uri;
-      this.rcqTroncUri = urls.tronc_uri;
-    } catch {
-      console.error('Failed to load RCQ URLs');
     }
   }
 
