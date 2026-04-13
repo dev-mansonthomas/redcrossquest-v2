@@ -84,6 +84,9 @@ $(write_var SUPERSET_DASHBOARD_YEARLY_GOAL)
 $(write_var CORS_ORIGINS)
 FRONTEND_URL=${BACKEND_FRONTEND_URL}
 $(write_var DEBUG)
+$(write_var VALKEY_HOST)
+$(write_var VALKEY_PORT)
+$(write_var VALKEY_DB)
 EOF
 echo "✅ Generated: $BACKEND_ENV"
 
@@ -116,8 +119,13 @@ PROV_ENV="$REPO_ROOT/superset/provisioning/.env.$ENV"
 
 if [[ "$ENV" == "local" ]]; then
   PROV_SUPERSET_URL="http://localhost:8088"
+  # Superset runs inside Docker — use Docker-internal hostname for MySQL
+  PROV_DB_SQLALCHEMY_URI="mysql+mysqldb://${MYSQL_USER:-rcq_readonly}:${MYSQL_PASSWORD:-rcq_password}@rcq_mysql:3306/${MYSQL_DATABASE:-rcq_fr_dev_db}"
+  PROV_EMBEDDING_ALLOWED_DOMAINS="http://localhost:4210"
 else
   PROV_SUPERSET_URL="${SUPERSET_URL:-}"
+  PROV_DB_SQLALCHEMY_URI="${DB_SQLALCHEMY_URI:-}"
+  PROV_EMBEDDING_ALLOWED_DOMAINS="${EMBEDDING_ALLOWED_DOMAINS:-}"
 fi
 
 cat > "$PROV_ENV" <<EOF
@@ -125,6 +133,9 @@ $HEADER
 SUPERSET_URL=${PROV_SUPERSET_URL}
 SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USERNAME:-admin}
 SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD:-}
+DB_CONNECTION_NAME=${DB_CONNECTION_NAME:-RCQ MySQL}
+DB_SQLALCHEMY_URI=${PROV_DB_SQLALCHEMY_URI}
+EMBEDDING_ALLOWED_DOMAINS=${PROV_EMBEDDING_ALLOWED_DOMAINS}
 BACKEND_ENV_PATH=../../backend/.env
 EOF
 echo "✅ Generated: $PROV_ENV"
@@ -138,7 +149,10 @@ export const environment = {
   production: false,
   apiUrl: 'http://localhost:8010',
   supersetUrl: 'http://localhost:8088',
+  rcqV1Url: 'https://dev.redcrossquest.croix-rouge.fr',
   environment: 'local',
+  // Set to true to enable Superset embedded dashboards (requires Superset Cloud Run service)
+  enableSuperset: false,
 };
 EOF
   echo "✅ Generated: $FRONTEND_ENV"

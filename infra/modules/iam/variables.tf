@@ -17,6 +17,7 @@ variable "environment" {
 variable "superset_service_account" {
   description = "Superset service account email"
   type        = string
+  default     = ""
 }
 
 variable "api_service_account" {

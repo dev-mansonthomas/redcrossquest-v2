@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Frontend
     frontend_url: str = "http://localhost:4210"
 
+    # Valkey (Redis-compatible cache)
+    valkey_host: str = "localhost"
+    valkey_port: int = 6379
+    valkey_db: int = 0
+
     # Superset (Wave 2)
     superset_url: str = "http://localhost:8088"
     superset_admin_username: str = "admin"
@@ -54,6 +59,11 @@ class Settings(BaseSettings):
 
     # Superset Dashboard UUIDs
     superset_dashboard_yearly_goal: str = ""
+
+    # RCQ URLs (for linking to legacy app)
+    rcq_base_url: str = "https://redcrossquest.croix-rouge.fr"
+    rcq_tronc_queteur_uri: str = "#!/tronc_queteur/edit/"
+    rcq_tronc_uri: str = "#!/troncs/edit/"
 
     @property
     def rcq_database_url(self) -> str:

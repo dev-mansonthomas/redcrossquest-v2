@@ -3,12 +3,15 @@ import {
   OnDestroy,
   inject,
   signal,
+  computed,
   ElementRef,
   ViewChild,
   AfterViewInit,
+  effect,
 } from '@angular/core';
 import * as L from 'leaflet';
 import { ApiService } from '../../core/services/api.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 import { firstValueFrom } from 'rxjs';
 
 interface ActiveQueteur {
@@ -22,6 +25,7 @@ interface ActiveQueteur {
   depart: string;
   point_quete_id: number;
   point_code: string | null;
+  mobile: string | null;
 }
 
 interface ActiveQueteursResponse {
@@ -40,6 +44,25 @@ interface PointQuete {
 
 interface PointsQueteResponse {
   points_quete: PointQuete[];
+}
+
+interface PointQueteStats {
+  id: number;
+  name: string | null;
+  code: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  type: number;
+  address: string | null;
+  total_amount: number;
+  hourly_rate: number;
+  tronc_count: number;
+  total_hours: number;
+  active_queteurs: number;
+}
+
+interface PointQueteStatsResponse {
+  points_quete: PointQueteStats[];
 }
 
 // Default center: Paris
@@ -72,6 +95,29 @@ function getPointQueteIcon(type: number): L.DivIcon {
     iconSize: [28, 28],
     iconAnchor: [14, 14],
   });
+}
+
+function formatPhone(mobile: string | null): string {
+  if (!mobile) return '';
+  // Remove all spaces, dashes, dots
+  let cleaned = mobile.replace(/[\s\-.]/g, '');
+  // If starts with +, keep it; if starts with 33 (no +), prefix with +
+  if (cleaned.startsWith('+')) {
+    // already has +
+  } else if (cleaned.startsWith('33')) {
+    cleaned = '+' + cleaned;
+  } else if (cleaned.startsWith('0')) {
+    cleaned = '+33' + cleaned.substring(1);
+  } else {
+    return mobile; // unrecognized format, return as-is
+  }
+  // Now cleaned should be like +33XXXXXXXXX
+  // Format: +33 X XX XX XX XX
+  const match = cleaned.match(/^\+33([0-9])([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$/);
+  if (match) {
+    return `+33 ${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]}`;
+  }
+  return mobile; // fallback
 }
 
 function getDurationColor(departIso: string): string {
@@ -123,11 +169,90 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
   selector: 'app-active-queteurs-map',
   standalone: true,
   template: `
-    <div class="h-full w-full flex flex-col bg-white">
-      <div class="px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
+    <div class="h-full w-full bg-white overflow-y-auto">
+      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
         <h2 class="text-lg font-semibold text-gray-800">🗺️ Carte des quêteurs actifs</h2>
+        <div class="flex items-center gap-3">
+          <button
+            (click)="onRefreshClick()"
+            [disabled]="refreshing()"
+            class="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 shadow-sm transition-colors disabled:opacity-50"
+            [class.animate-spin-slow]="refreshing()">
+            🔄
+          </button>
+        </div>
       </div>
-      <div #mapContainer class="flex-1" style="min-height: 0;"></div>
+      <div #mapContainer class="h-[75vh]"></div>
+
+      <!-- Tables below the map -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+
+        <!-- Column 1: Quêteurs actifs -->
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h3 class="px-4 py-3 text-base font-semibold text-gray-800 border-b border-gray-200">
+            🚶 Quêteurs actifs ({{ activeQueteurs().length }})
+          </h3>
+          <div class="max-h-[50vh] overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                  <th (click)="onSortQueteurs('first_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Prénom {{ sortIndicatorQueteurs('first_name') }}</th>
+                  <th (click)="onSortQueteurs('last_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Nom {{ sortIndicatorQueteurs('last_name') }}</th>
+                  <th (click)="onSortQueteurs('mobile')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Téléphone {{ sortIndicatorQueteurs('mobile') }}</th>
+                  <th (click)="onSortQueteurs('point_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Point de quête {{ sortIndicatorQueteurs('point_name') }}</th>
+                  <th (click)="onSortQueteurs('depart')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Durée {{ sortIndicatorQueteurs('depart') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @for (q of sortedQueteurs(); track q.point_quete_id + '_' + q.first_name + '_' + q.last_name) {
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2">{{ q.first_name }}</td>
+                    <td class="px-3 py-2">{{ q.last_name }}</td>
+                    <td class="px-3 py-2">
+                      @if (q.mobile) {
+                        <a [href]="'tel:' + formatPhoneRaw(q.mobile)" class="text-blue-600 hover:underline">{{ formatPhoneDisplay(q.mobile) }}</a>
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td class="px-3 py-2">{{ q.point_name || '' }}</td>
+                    <td class="px-3 py-2 text-right font-mono text-white rounded-r-lg"
+                        [style.backgroundColor]="getDurationBgColor(q.depart)">{{ formatDurationDisplay(q.depart) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Column 2: Points de quête -->
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h3 class="px-4 py-3 text-base font-semibold text-gray-800 border-b border-gray-200">
+            📍 Points de quête ({{ pointsQueteStats().length }})
+          </h3>
+          <div class="max-h-[50vh] overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                  <th (click)="onSortPoints('name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Nom {{ sortIndicatorPoints('name') }}</th>
+                  <th (click)="onSortPoints('hourly_rate')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Taux horaire {{ sortIndicatorPoints('hourly_rate') }}</th>
+                  <th (click)="onSortPoints('total_amount')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Total collecté {{ sortIndicatorPoints('total_amount') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @for (p of sortedPoints(); track p.id) {
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2">{{ p.name || '' }}</td>
+                    <td class="px-3 py-2 text-right font-mono">{{ formatHourlyRate(p.hourly_rate) }}</td>
+                    <td class="px-3 py-2 text-right font-mono">{{ formatCurrency(p.total_amount) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
     </div>
   `,
   styles: [`
@@ -138,49 +263,93 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
       box-shadow: none !important;
       overflow: visible !important;
     }
-    :host ::ng-deep .refresh-control a {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
-      font-size: 18px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    :host ::ng-deep .refresh-control a:hover {
-      background: #f4f4f4;
-    }
-    :host ::ng-deep .refresh-control.refreshing a {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-    :host ::ng-deep .refresh-control.refreshing a span {
-      animation: refresh-spin 0.8s linear infinite;
-    }
-    @keyframes refresh-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
+    .animate-spin-slow { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   `],
 })
 export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
 
   private readonly api = inject(ApiService);
+  private readonly ulOverrideService = inject(UlOverrideService);
   private map: L.Map | null = null;
   private pointsQueteLayer = L.layerGroup();
   private queteursLayer = L.layerGroup();
   private pollingTimer: ReturnType<typeof setInterval> | null = null;
   private pointsQueteBounds: L.LatLngExpression[] = [];
+  private overrideInitialized = false;
+
+  private readonly currencyFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  private readonly numberFormatter = new Intl.NumberFormat('fr-FR');
 
   readonly noQueteurs = signal(false);
+  readonly refreshing = signal(false);
+  readonly activeQueteurs = signal<ActiveQueteur[]>([]);
+  readonly pointsQueteStats = signal<PointQueteStats[]>([]);
+
+  // Sort state for quêteurs table
+  readonly queteursSortColumn = signal<string>('first_name');
+  readonly queteursSortDirection = signal<'asc' | 'desc'>('asc');
+
+  // Sort state for points table
+  readonly pointsSortColumn = signal<string>('name');
+  readonly pointsSortDirection = signal<'asc' | 'desc'>('asc');
+
+  readonly sortedQueteurs = computed(() => {
+    const list = [...this.activeQueteurs()];
+    const col = this.queteursSortColumn();
+    const dir = this.queteursSortDirection();
+    list.sort((a, b) => {
+      let va: any;
+      let vb: any;
+      if (col === 'depart') {
+        va = new Date(a.depart).getTime();
+        vb = new Date(b.depart).getTime();
+      } else {
+        va = (a as any)[col] ?? '';
+        vb = (b as any)[col] ?? '';
+      }
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return dir === 'asc' ? -1 : 1;
+      if (va > vb) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  });
+
+  readonly sortedPoints = computed(() => {
+    const list = [...this.pointsQueteStats()];
+    const col = this.pointsSortColumn();
+    const dir = this.pointsSortDirection();
+    list.sort((a, b) => {
+      let va: any = (a as any)[col] ?? '';
+      let vb: any = (b as any)[col] ?? '';
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return dir === 'asc' ? -1 : 1;
+      if (va > vb) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  });
+
+  private readonly overrideEffect = effect(() => {
+    this.ulOverrideService.override();
+    if (!this.overrideInitialized) {
+      this.overrideInitialized = true;
+      return;
+    }
+    this.loadPointsQuete();
+    this.loadQueteurs();
+    this.loadPointsQueteStats();
+  });
 
   async ngAfterViewInit(): Promise<void> {
     this.initMap();
     await this.loadPointsQuete();
     await this.loadQueteurs();
+    await this.loadPointsQueteStats();
     this.pollingTimer = setInterval(() => this.loadQueteurs(), 5 * 60 * 1000);
   }
 
@@ -192,8 +361,6 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private refreshControlEl: HTMLElement | null = null;
-
   private initMap(): void {
     if (!this.mapContainer?.nativeElement) return;
     this.map = L.map(this.mapContainer.nativeElement).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
@@ -203,36 +370,14 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     }).addTo(this.map);
     this.pointsQueteLayer.addTo(this.map);
     this.queteursLayer.addTo(this.map);
-
-    // Refresh button control
-    const self = this;
-    const RefreshControl = L.Control.extend({
-      options: { position: 'topright' as L.ControlPosition },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control refresh-control');
-        container.innerHTML = '<a href="#" title="Rafraîchir les quêteurs"><span style="display:inline-block">🔄</span></a>';
-        L.DomEvent.disableClickPropagation(container);
-        container.querySelector('a')!.addEventListener('click', (e: Event) => {
-          e.preventDefault();
-          self.onRefreshClick();
-        });
-        self.refreshControlEl = container;
-        return container;
-      },
-    });
-    new RefreshControl().addTo(this.map);
   }
 
-  private async onRefreshClick(): Promise<void> {
-    if (this.refreshControlEl) {
-      this.refreshControlEl.classList.add('refreshing');
-    }
+  async onRefreshClick(): Promise<void> {
+    this.refreshing.set(true);
     try {
       await this.loadQueteurs();
     } finally {
-      if (this.refreshControlEl) {
-        this.refreshControlEl.classList.remove('refreshing');
-      }
+      this.refreshing.set(false);
     }
   }
 
@@ -242,7 +387,7 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
         this.api.get<PointsQueteResponse>('/api/map/points-quete'),
       );
       const points = response.points_quete.filter(
-        (p) => p.latitude != null && p.longitude != null,
+        (p) => p.latitude != null && p.longitude != null && p.type !== 3 && p.type !== 5,
       );
 
       this.pointsQueteLayer.clearLayers();
@@ -274,7 +419,10 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
       const response = await firstValueFrom(
         this.api.get<ActiveQueteursResponse>('/api/map/active-queteurs'),
       );
-      const queteurs = response.queteurs.filter(
+      const allQueteurs = response.queteurs;
+      this.activeQueteurs.set(allQueteurs);
+
+      const queteurs = allQueteurs.filter(
         (q) => q.latitude != null && q.longitude != null,
       );
 
@@ -315,5 +463,74 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
     } catch (err) {
       console.error('Failed to load active quêteurs', err);
     }
+  }
+
+  private async loadPointsQueteStats(): Promise<void> {
+    try {
+      const response = await firstValueFrom(
+        this.api.get<PointQueteStatsResponse>('/api/map/points-quete-stats?all_years=true'),
+      );
+      this.pointsQueteStats.set(response.points_quete.filter(
+        (p) => p.type !== 3 && p.type !== 5,
+      ));
+    } catch (err) {
+      console.error('Failed to load points quête stats', err);
+    }
+  }
+
+  onSortQueteurs(column: string): void {
+    if (this.queteursSortColumn() === column) {
+      this.queteursSortDirection.set(this.queteursSortDirection() === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.queteursSortColumn.set(column);
+      this.queteursSortDirection.set('asc');
+    }
+  }
+
+  sortIndicatorQueteurs(column: string): string {
+    if (this.queteursSortColumn() !== column) return '';
+    return this.queteursSortDirection() === 'asc' ? '▲' : '▼';
+  }
+
+  onSortPoints(column: string): void {
+    if (this.pointsSortColumn() === column) {
+      this.pointsSortDirection.set(this.pointsSortDirection() === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.pointsSortColumn.set(column);
+      this.pointsSortDirection.set('asc');
+    }
+  }
+
+  sortIndicatorPoints(column: string): string {
+    if (this.pointsSortColumn() !== column) return '';
+    return this.pointsSortDirection() === 'asc' ? '▲' : '▼';
+  }
+
+  getDurationBgColor(departIso: string): string {
+    return getDurationColor(departIso);
+  }
+
+  formatDurationDisplay(departIso: string): string {
+    return formatDuration(departIso);
+  }
+
+  formatCurrency(amount: number): string {
+    return this.currencyFormatter.format(amount);
+  }
+
+  formatHourlyRate(rate: number): string {
+    return this.numberFormatter.format(rate) + ' €/h';
+  }
+
+  formatPhoneDisplay(mobile: string | null): string {
+    return formatPhone(mobile);
+  }
+
+  formatPhoneRaw(mobile: string): string {
+    let cleaned = mobile.replace(/[\s\-.]/g, '');
+    if (cleaned.startsWith('+')) return cleaned;
+    if (cleaned.startsWith('33')) return '+' + cleaned;
+    if (cleaned.startsWith('0')) return '+33' + cleaned.substring(1);
+    return cleaned;
   }
 }

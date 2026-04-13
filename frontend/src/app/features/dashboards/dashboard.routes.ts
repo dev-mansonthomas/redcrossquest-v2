@@ -10,7 +10,7 @@ export const DASHBOARD_ROUTES: Routes = [
     children: [
       {
         path: '',
-        redirectTo: 'cumul',
+        redirectTo: 'welcome',
         pathMatch: 'full',
       },
       {
@@ -31,6 +31,81 @@ export const DASHBOARD_ROUTES: Routes = [
         path: 'admin',
         loadComponent: () =>
           import('../admin/admin-page').then((m) => m.AdminPageComponent),
+      },
+      {
+        path: 'sacs-banque',
+        loadComponent: () =>
+          import('../money-bags/money-bags-page').then(
+            (m) => m.MoneyBagsPageComponent,
+          ),
+      },
+      {
+        path: 'classement-global',
+        loadComponent: () =>
+          import('../classement-global/classement-global-page').then(
+            (m) => m.ClassementGlobalPageComponent,
+          ),
+      },
+      {
+        path: 'classement-tronc',
+        loadComponent: () =>
+          import('../classement-tronc/classement-tronc-page').then(
+            (m) => m.ClassementTroncPageComponent,
+          ),
+      },
+      {
+        path: 'vue-globale',
+        loadComponent: () =>
+          import('../ul-overview/ul-overview-page').then(
+            (m) => m.UlOverviewPageComponent,
+          ),
+      },
+      {
+        path: 'objectifs-annuels',
+        loadComponent: () =>
+          import('../yearly-goals/yearly-goals-page').then(
+            (m) => m.YearlyGoalsPageComponent,
+          ),
+      },
+      {
+        path: 'controle-donnees',
+        loadComponent: () =>
+          import('../controle-donnees/controle-donnees-page').then(
+            (m) => m.ControleDonneesPageComponent,
+          ),
+      },
+      {
+        path: 'etats-troncs',
+        loadComponent: () =>
+          import('../etats-troncs/etats-troncs-page').then(
+            (m) => m.EtatsTroncsPageComponent,
+          ),
+      },
+      {
+        path: 'repartition-jours',
+        loadComponent: () =>
+          import('../repartition-jours/repartition-jours-page').then(
+            (m) => m.RepartitionJoursPageComponent,
+          ),
+      },
+      {
+        path: 'stats-journalieres',
+        loadComponent: () =>
+          import('../stats-journalieres/stats-journalieres-page').then(
+            (m) => m.StatsJournalieresPageComponent,
+          ),
+      },
+      {
+        path: 'comptage-pieces-billets',
+        loadComponent: () =>
+          import('../comptage-pieces-billets/comptage-pieces-billets-page').then(
+            (m) => m.ComptagePiecesBilletsPageComponent,
+          ),
+      },
+      {
+        path: 'welcome',
+        loadComponent: () =>
+          import('./welcome-page').then((m) => m.WelcomePageComponent),
       },
       {
         path: ':slug',

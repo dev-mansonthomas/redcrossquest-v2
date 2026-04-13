@@ -26,3 +26,6 @@ frontend_domain        = "dev.graph.redcrossquest.com"
 api_domain             = "dev.back.graph.redcrossquest.com"
 superset_domain        = "dev.superset.graph.redcrossquest.com"
 
+# Feature flags
+enable_superset = false
+

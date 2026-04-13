@@ -26,10 +26,8 @@ describe('DashboardLayoutComponent', () => {
     const fixture = TestBed.createComponent(DashboardLayoutComponent);
     fixture.detectChanges();
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.textContent).toContain('Cumul Journalier');
-    expect(el.textContent).toContain('KPI Annuels');
-    expect(el.textContent).toContain('Comptage Trésorier');
-    expect(el.textContent).toContain('Leaderboard');
+    expect(el.textContent).toContain('Carte des quêteurs');
+    expect(el.textContent).toContain('Carte points de quête');
   });
 
   it('should display logout button', () => {

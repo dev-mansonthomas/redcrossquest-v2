@@ -15,12 +15,14 @@ MySQL is available at `localhost:3316` (user: `rcq_readonly` / password from `.e
 ### Load production data
 
 Place SQL dump files in `dev-sql-import/` **before** first `docker compose up`:
+
 ```bash
 cp /path/to/dump.sql superset/dev-sql-import/
 docker compose up -d mysql   # Files in dev-sql-import/ are auto-loaded on first start
 ```
 
 To load data into an **existing** container:
+
 ```bash
 docker exec -i rcq_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" rcq_fr_dev_db < dump.sql
 ```
@@ -31,27 +33,27 @@ docker exec -i rcq_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" rcq_fr_dev_db < 
 docker compose up -d --build
 ```
 
-| Service          | URL                        |
-|------------------|----------------------------|
-| MySQL            | `localhost:3316`           |
-| Superset         | http://localhost:8088      |
-| Valkey (Redis)   | `localhost:6389`           |
+| Service | URL |
+| --- | --- |
+| MySQL | localhost:3316 |
+| Superset | http://localhost:8088 |
+| Valkey (Redis) | localhost:6389 |
 
 Default Superset login: `admin` / `admin`
 
 ## Valkey database allocation
 
 | Base | Projet | Usage |
-|------|--------|-------|
-| 0    | CLEF   | ⚠️ Réservé (autre projet) |
-| 1    | RCQ    | Superset (cache, Celery broker) |
+| --- | --- | --- |
+| 0 | CLEF | ⚠️ Réservé (autre projet) |
+| 1 | RCQ | Superset (cache, Celery broker) |
 
-> **Note** : La base 0 est utilisée par le projet CLEF sur ce poste de développement.
-> Les projets seront séparés à terme (instances Valkey distinctes par projet).
+> Note : La base 0 est utilisée par le projet CLEF sur ce poste de développement.Les projets seront séparés à terme (instances Valkey distinctes par projet).
 
 ### Configuration
 
 Le numéro de base est configurable via `VALKEY_DB` dans `.env` :
+
 ```env
 VALKEY_DB=1  # Base par défaut pour Superset
 ```
@@ -65,11 +67,8 @@ VALKEY_DB=1  # Base par défaut pour Superset
 
 ## Connecting Superset to MySQL
 
-1. Open http://localhost:8088 → Settings → Database Connections
-2. Add database with SQLAlchemy URI:
-   ```
-   mysql://rcq_readonly:<YOUR_PASSWORD>@mysql:3306/rcq_fr_dev_db
-   ```
+1. Open [http://localhost:8088](http://localhost:8088) → Settings → Database Connections
+2. Add database with SQLAlchemy URI:`mysql://rcq_readonly:<YOUR_PASSWORD>@mysql:3306/rcq_fr_dev_db`
 
 ## MySQL User Setup
 

@@ -3,18 +3,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
-
-interface DashboardDisplayConfig {
-  emoji: string;
-  label: string;
-  route: string;
-}
-
-const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
-  kpi_yearly: { emoji: '📊', label: 'Objectifs Annuels', route: '/dashboards/kpi' },
-  counting_treasurer: { emoji: '🧮', label: 'Comptage Trésorier', route: '/dashboards/comptage' },
-  leaderboard_current_year: { emoji: '🏆', label: 'Leaderboard', route: '/dashboards/leaderboard' },
-};
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-dashboard-layout',
@@ -25,23 +14,27 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
       <!-- Sidebar - Thème clair -->
       <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <!-- Header avec logo -->
-        <div class="p-4 border-b border-gray-200">
+        <div class="h-14 px-4 border-b border-gray-200 flex items-center">
           <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
         </div>
 
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
-          @for (dashboard of dashboardService.dashboards(); track dashboard.key) {
-            @if (getDashboardConfig(dashboard.key); as config) {
-              <a [routerLink]="config.route"
-                 routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-                 [routerLinkActiveOptions]="{exact: false}"
-                 class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-                {{ config.emoji }} {{ config.label }}
-              </a>
-            }
-          } @empty {
-            <p class="px-3 py-2 text-sm text-gray-500">Aucun dashboard disponible</p>
+          <!-- Lien natif Objectifs Annuels -->
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/objectifs-annuels"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Objectifs Annuels
+            </a>
+          }
+          <!-- Lien Superset Objectifs Annuels -->
+          @if (enableSuperset && [4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/kpi"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Objectifs Annuels (SS)
+            </a>
           }
           <!-- Lien statique accessible à tous les rôles -->
           <a routerLink="/dashboards/carte-queteurs"
@@ -54,6 +47,69 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
              class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
             📊 Carte points de quête
           </a>
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/sacs-banque"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              💰 Sacs de Banque
+            </a>
+          }
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/classement-global"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🏆 Classement Global
+            </a>
+          }
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/classement-tronc"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🏆 Classement Tronc
+            </a>
+          }
+          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/vue-globale"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Vue globale
+            </a>
+          }
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/controle-donnees"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🔍 Contrôle de données
+            </a>
+          }
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/etats-troncs"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📦 États des troncs
+            </a>
+          }
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/repartition-jours"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Répartition journalière
+            </a>
+          }
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/stats-journalieres"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📋 Stats journalières
+            </a>
+          }
+          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+            <a routerLink="/dashboards/comptage-pieces-billets"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🪙 Pièces & billets
+            </a>
+          }
         </nav>
 
         <!-- Footer avec user info et déconnexion -->
@@ -91,7 +147,7 @@ const DASHBOARD_CONFIG: Record<string, DashboardDisplayConfig> = {
       </aside>
 
       <!-- Main content -->
-      <main class="flex-1 overflow-hidden bg-gray-50">
+      <main class="flex-1 overflow-hidden bg-gray-50 flex flex-col">
         <router-outlet />
       </main>
     </div>
@@ -101,6 +157,7 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly dashboardService = inject(DashboardService);
   protected readonly ulOverrideService = inject(UlOverrideService);
+  protected readonly enableSuperset = environment.enableSuperset;
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
@@ -111,15 +168,13 @@ export class DashboardLayoutComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    this.dashboardService.loadDashboards();
+    if (this.enableSuperset) {
+      this.dashboardService.loadDashboards();
+    }
   }
 
   getRoleEmoji(roleName: string | undefined): string {
     return this.ROLE_EMOJIS[roleName || ''] || '🎭';
-  }
-
-  getDashboardConfig(key: string): DashboardDisplayConfig | undefined {
-    return DASHBOARD_CONFIG[key];
   }
 
   clearOverride(): void {

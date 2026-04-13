@@ -208,6 +208,8 @@ class SupersetProvisioner:
                 self._api_request(
                     "PUT", f"/chart/{existing_id}",
                     json={
+                        "datasource_id": dataset_id,
+                        "datasource_type": "table",
                         "params": json.dumps(config.get("params", {})),
                         "viz_type": config.get("viz_type", "echarts_timeseries_line"),
                     },
@@ -380,7 +382,11 @@ def provision_dashboard(
     for cid in chart_ids:
         provisioner._api_request(
             "PUT", f"/chart/{cid}",
-            json={"dashboards": [dashboard_id]}
+            json={
+                "dashboards": [dashboard_id],
+                "datasource_id": dataset_id,
+                "datasource_type": "table",
+            }
         )
     print(f"   🔗 Associated {len(chart_ids)} chart(s) with dashboard")
 
@@ -494,7 +500,7 @@ def main():
 
     # Get config from env
     superset_url = os.environ["SUPERSET_URL"]
-    superset_user = os.environ["SUPERSET_ADMIN_USER"]
+    superset_user = os.environ["SUPERSET_ADMIN_USERNAME"]
     superset_password = os.environ["SUPERSET_ADMIN_PASSWORD"]
     db_name = os.environ["DB_CONNECTION_NAME"]
     db_uri = os.environ["DB_SQLALCHEMY_URI"]

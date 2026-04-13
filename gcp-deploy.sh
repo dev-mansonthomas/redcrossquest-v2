@@ -20,7 +20,12 @@
 #   --plan           Terraform plan only (dry run, no build)
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
 #                    Default: all services. Only affects build step.
+#   --superset         Include Superset in build/deploy (disabled by default)
+#   --destroy-superset Destroy Superset resources (2-step: disable protection + destroy, keeps Valkey)
+#   --dump-prod      Dump production DB to SQL file (prod only)
+#   --copy-prod      Copy latest prod dump into dev/test DB
 #   --skip-confirm   Skip confirmation prompts
+#   --no-cache        Force Docker build without cache
 #   --help           Show this help message
 # ============================================================
 set -euo pipefail
@@ -76,6 +81,11 @@ Options:
   --plan           Terraform plan only (dry run, no build, no apply)
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
                    Default: all services. Only affects build step.
+  --superset         Include Superset in build/deploy (disabled by default)
+  --destroy-superset Destroy Superset resources (2-step: disable protection + destroy, keeps Valkey)
+  --dump-prod      Dump production database to a SQL file (ENV=prod only)
+  --copy-prod      Copy latest prod dump into dev/test DB (ENV=dev|test only)
+  --no-cache        Force Docker build without cache
   --skip-confirm   Skip confirmation prompts
   --help           Show this help message
 
@@ -83,12 +93,17 @@ Examples:
   ./gcp-deploy.sh dev --plan                  # Dry run: show Terraform plan
   ./gcp-deploy.sh dev --build                 # Build and push Docker images only
   ./gcp-deploy.sh dev --infra                 # Build images + apply infrastructure
+  ./gcp-deploy.sh dev --infra --superset      # Build + infra including Superset
   ./gcp-deploy.sh dev --infra --skip-build    # Apply infrastructure without building
   ./gcp-deploy.sh dev --migrate               # Run database migrations
-  ./gcp-deploy.sh dev --all                   # Full deployment
+  ./gcp-deploy.sh dev --all                   # Full deployment (without Superset)
+  ./gcp-deploy.sh dev --all --superset        # Full deployment including Superset
+  ./gcp-deploy.sh dev --build --superset      # Build frontend + api + superset
   ./gcp-deploy.sh dev --infra --services frontend,api  # Build only frontend+api
-  ./gcp-deploy.sh dev --infra --services superset      # Build only superset
+  ./gcp-deploy.sh dev --destroy-superset      # Destroy Superset resources
   ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
+  ./gcp-deploy.sh prod --dump-prod                     # Dump prod DB to SQL file
+  ./gcp-deploy.sh dev --copy-prod                      # Import latest prod dump into dev
 EOF
     exit 0
 }
@@ -122,6 +137,11 @@ PLAN_ONLY=false
 SKIP_CONFIRM=false
 SKIP_BUILD=false
 BUILD_DONE=false
+DO_DUMP_PROD=false
+DO_COPY_PROD=false
+NO_CACHE=false
+ENABLE_SUPERSET=false
+DESTROY_SUPERSET=false
 SERVICES=""
 
 while [[ $# -gt 0 ]]; do
@@ -139,8 +159,13 @@ while [[ $# -gt 0 ]]; do
             DO_PROVISION=true
             shift
             ;;
+        --superset)    ENABLE_SUPERSET=true; shift ;;
+        --destroy-superset) DESTROY_SUPERSET=true; shift ;;
         --services)    SERVICES="$2";   shift 2 ;;
         --plan)        PLAN_ONLY=true; DO_INFRA=true; shift ;;
+        --dump-prod)   DO_DUMP_PROD=true; shift ;;
+        --copy-prod)   DO_COPY_PROD=true; shift ;;
+        --no-cache)    NO_CACHE=true;     shift ;;
         --skip-confirm) SKIP_CONFIRM=true; shift ;;
         --help|-h)     show_help ;;
         *)
@@ -151,12 +176,34 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Default: build all services
-SERVICES="${SERVICES:-frontend,api,superset}"
+# Default: build frontend + api (superset excluded unless --superset)
+if [ -z "$SERVICES" ]; then
+    if $ENABLE_SUPERSET; then
+        SERVICES="frontend,api,superset"
+    else
+        SERVICES="frontend,api"
+    fi
+fi
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --all, or --plan."
+# Validate --superset / --destroy-superset incompatibility
+if $ENABLE_SUPERSET && $DESTROY_SUPERSET; then
+    log_error "Flags --superset and --destroy-superset are mutually exclusive."
+    exit 1
+fi
+
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
     echo "Run './gcp-deploy.sh --help' for usage."
+    exit 1
+fi
+
+# Validate --dump-prod / --copy-prod environment constraints
+if $DO_DUMP_PROD && [ "$ENV" != "prod" ]; then
+    log_error "--dump-prod can only be used with ENV=prod"
+    exit 1
+fi
+if $DO_COPY_PROD && [ "$ENV" = "prod" ]; then
+    log_error "--copy-prod cannot be used with ENV=prod (use dev or test)"
     exit 1
 fi
 
@@ -313,7 +360,7 @@ enable_apis() {
     log_success "Required APIs enabled."
 }
 
-if $DO_BUILD || $DO_INFRA; then
+if $DO_BUILD || $DO_INFRA || $DESTROY_SUPERSET; then
     enable_apis
 fi
 
@@ -329,9 +376,10 @@ echo "  Region:       $GCP_REGION"
 echo "  Image tag:    $IMAGE_TAG"
 echo "  Registry:     $REGISTRY"
 echo "  Config:       $ENV_FILE"
-  if [ "$SERVICES" != "frontend,api,superset" ]; then
-      echo "  Services:     $SERVICES"
-  fi
+echo "  Services:     $SERVICES"
+$ENABLE_SUPERSET && echo "  Superset:     ✅ included"
+$DESTROY_SUPERSET && echo "  Superset:     🗑️  DESTROY mode"
+$NO_CACHE && echo "    ⚠️  Docker build: no-cache (forced clean build)"
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
@@ -339,19 +387,51 @@ $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
 $DO_PROVISION && echo "    ✦ Provision Superset dashboards"
+$DESTROY_SUPERSET && echo "    ✦ 🗑️  Destroy Superset resources"
+if $DO_DUMP_PROD; then
+    _dump_proxy_port="${CLOUD_SQL_PROXY_PORT:-3305}"
+    _dump_dest_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    echo "    ✦ Dump production database"
+    echo "      🗄️  Base source : ${MIGRATION_DB_NAME:-<MIGRATION_DB_NAME not set>}"
+    echo "      📂 Destination : ${_dump_dest_dir}"
+    echo "      🔌 Cloud SQL   : ${CLOUD_SQL_CONNECTION_NAME:-<not set>} (port ${_dump_proxy_port})"
+fi
+if $DO_COPY_PROD; then
+    _copy_proxy_port="${CLOUD_SQL_PROXY_PORT:-3305}"
+    _copy_dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    _copy_dump_file=""
+    _copy_dump_size=""
+    if [ -d "$_copy_dump_dir" ]; then
+        _copy_dump_file=$(ls -t "$_copy_dump_dir"/*-RCQ-FR-PROD-data.sql 2>/dev/null | head -1)
+    fi
+    if [ -n "$_copy_dump_file" ]; then
+        _copy_dump_size=$(du -h "$_copy_dump_file" | cut -f1)
+    fi
+    echo "    ✦ Copy production data to ${ENV}"
+    if [ -n "$_copy_dump_file" ]; then
+        echo "      📄 Dump        : $(basename "$_copy_dump_file") (${_copy_dump_size})"
+    else
+        echo "      📄 Dump        : <aucun fichier trouvé dans prod-data/>"
+    fi
+    echo "      🗄️  Base cible  : ${MIGRATION_DB_NAME:-<MIGRATION_DB_NAME not set>}"
+    echo "      🔌 Cloud SQL   : ${CLOUD_SQL_CONNECTION_NAME:-<not set>} (port ${_copy_proxy_port})"
+    echo "      📋 Étapes      : DROP DB → Import dump (sed rename) → Anonymisation → Migrations"
+fi
 echo ""
-echo "  🌐 DNS CNAME records required (add to redcrossquest.com zone):"
-echo ""
-FRONTEND_DOMAIN="$(grep -E '^frontend_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-API_DOMAIN="$(grep -E '^api_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-SUPERSET_DOMAIN="$(grep -E '^superset_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${FRONTEND_DOMAIN%.redcrossquest.com}"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${API_DOMAIN%.redcrossquest.com}"
-printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${SUPERSET_DOMAIN%.redcrossquest.com}"
-echo ""
+if [ -f "$TFVARS_FILE" ]; then
+    echo "  🌐 DNS CNAME records required (add to redcrossquest.com zone):"
+    echo ""
+    FRONTEND_DOMAIN="$(grep -E '^frontend_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    API_DOMAIN="$(grep -E '^api_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    SUPERSET_DOMAIN="$(grep -E '^superset_domain' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"\(.*\)"/\1/')"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${FRONTEND_DOMAIN%.redcrossquest.com}"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${API_DOMAIN%.redcrossquest.com}"
+    printf "    %-25s  3600  IN  CNAME  ghs.googlehosted.com.\n" "${SUPERSET_DOMAIN%.redcrossquest.com}"
+    echo ""
+fi
 
-# Skip confirmation for --check (read-only mode) or --skip-confirm
-if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION); then
+# Skip confirmation for --check (read-only mode), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
+if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET); then
     if [ "$ENV" = "prod" ]; then
         echo -e "${RED}⚠️  WARNING: You are deploying to PRODUCTION!${NC}"
         echo ""
@@ -380,6 +460,46 @@ ensure_tf_bucket() {
         log_success "Bucket gs://${BUCKET_NAME} created"
     else
         log_success "Bucket gs://${BUCKET_NAME} already exists"
+    fi
+}
+
+# ── Ensure Artifact Registry repository exists ────────────────
+ensure_ar_repository() {
+    if gcloud artifacts repositories describe "${AR_REPOSITORY}" \
+        --location="${GCP_REGION}" --project="${GCP_PROJECT_ID}" &>/dev/null; then
+        log_success "Artifact Registry repository ${AR_REPOSITORY} already exists"
+    else
+        log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
+        gcloud artifacts repositories create "${AR_REPOSITORY}" \
+            --repository-format=docker \
+            --location="${GCP_REGION}" \
+            --project="${GCP_PROJECT_ID}" \
+            --labels="app=rcq,managed-by=terraform"
+        log_success "Repository ${AR_REPOSITORY} created"
+
+        # Import into Terraform state so 'terraform apply' won't try to recreate it
+        local tf_dir="$SCRIPT_DIR/infra"
+        local repo_location="${GCP_REGION}"
+        local repo_name="${AR_REPOSITORY}"
+        local tf_resource_id="projects/${GCP_PROJECT_ID}/locations/${repo_location}/repositories/${repo_name}"
+
+        if ! command -v terraform &>/dev/null; then
+            log_warning "Terraform not installed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+        else
+            # Ensure terraform is initialized (needed when running --build without --infra)
+            if [ ! -d "$tf_dir/.terraform" ]; then
+                log_info "Terraform not initialized — running terraform init..."
+                (cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure) || \
+                    log_warning "Terraform init failed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+            fi
+
+            if [ -d "$tf_dir/.terraform" ]; then
+                log_info "Importing repository into Terraform state..."
+                (cd "$tf_dir" && terraform import -var-file="env/${ENV}.tfvars" google_artifact_registry_repository.docker "$tf_resource_id") && \
+                    log_success "Repository imported into Terraform state" || \
+                    log_info "Could not import into Terraform state — you may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+            fi
+        fi
     fi
 }
 
@@ -462,7 +582,7 @@ check_environment() {
         ensure_tf_bucket
         local tf_dir="$SCRIPT_DIR/infra"
         local tf_init_output
-        tf_init_output=$(cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -no-color 2>&1) && \
+        tf_init_output=$(cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure -no-color 2>&1) && \
             check_ok "  terraform init — success" || \
             check_fail "  terraform init — failed: $(echo "$tf_init_output" | tail -1)"
 
@@ -579,6 +699,9 @@ build_and_push() {
     echo "═══════════════════════════════════════════════"
     echo ""
 
+    # Ensure Artifact Registry repository exists (first deploy in a new GCP project)
+    ensure_ar_repository
+
     # Configure Docker for Artifact Registry
     log_info "Configuring Docker for Artifact Registry..."
     gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
@@ -603,6 +726,11 @@ build_and_push() {
     # Normalize "api" → "backend" for internal matching
     services_filter="${services_filter//api/backend}"
 
+    local cache_flag=""
+    if $NO_CACHE; then
+        cache_flag="--no-cache"
+    fi
+
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
         local dockerfile="${dockerfiles[$i]}"
@@ -623,7 +751,7 @@ build_and_push() {
 
         log_info "Building ${svc}..."
         # shellcheck disable=SC2086
-        docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
+        docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $cache_flag $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
 
         log_info "Pushing ${svc}..."
         docker push "$image"
@@ -641,6 +769,33 @@ if $DO_BUILD; then
     build_and_push
 fi
 
+
+# ── Helper: Find mysql/mysqldump binaries ─────────────────────
+# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
+# Handles keg-only installs on macOS / Homebrew.
+find_mysql_cmds() {
+    if command -v mysql >/dev/null 2>&1; then
+        MYSQL_CMD="mysql"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
+    else
+        log_error "MySQL client not found. Install with: brew install mysql-client"
+        return 1
+    fi
+
+    if command -v mysqldump >/dev/null 2>&1; then
+        MYSQLDUMP_CMD="mysqldump"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
+    else
+        log_error "mysqldump not found. Install with: brew install mysql-client"
+        return 1
+    fi
+}
 
 # ── Helper: Create MySQL read-only user ──────────────────────
 create_readonly_user() {
@@ -721,7 +876,7 @@ create_superset_db() {
     local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
     local db_port="${MIGRATION_DB_PORT:-3306}"
     local db_user="${MIGRATION_DB_USER:-root}"
-    local superset_db="superset_dev_db"
+    local superset_db="superset_${ENV}_db"
 
     local mysql_cnf
     mysql_cnf=$(mktemp)
@@ -768,6 +923,187 @@ SQL_EOF
 }
 
 
+# ── Helper: Dump production database ──────────────────────────
+dump_prod_database() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Dump production database"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    find_mysql_cmds
+
+    require_var MIGRATION_DB_PASSWORD "dump-prod"
+    require_var MIGRATION_DB_NAME "dump-prod"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    local mysql_cnf
+    mysql_cnf=$(mktemp)
+    chmod 600 "$mysql_cnf"
+    printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
+    trap "rm -f $mysql_cnf" RETURN
+
+    local dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    mkdir -p "$dump_dir"
+
+    local dump_date
+    dump_date=$(date +%Y-%m-%d)
+    local dump_file="${dump_dir}/${dump_date}-RCQ-FR-PROD-data.sql"
+
+    if [ -f "$dump_file" ]; then
+        log_warn "Dump file already exists: $dump_file"
+        if ! $SKIP_CONFIRM; then
+            read -r -p "Overwrite? [y/N] " response
+            case "$response" in
+                [yY][eE][sS]|[yY]) ;;
+                *)
+                    log_info "Aborted."
+                    return
+                    ;;
+            esac
+        fi
+    fi
+
+    log_info "Dumping database '${MIGRATION_DB_NAME}' to ${dump_file}..."
+
+    $MYSQLDUMP_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        --databases "$MIGRATION_DB_NAME" \
+        --triggers \
+        --routines \
+        --single-transaction \
+        --set-gtid-purged=OFF \
+        --column-statistics=0 \
+        > "$dump_file"
+
+    local file_size
+    file_size=$(du -h "$dump_file" | cut -f1)
+    log_success "Dump complete: ${dump_file} (${file_size})"
+    echo ""
+}
+
+
+# ── Helper: Copy production data to dev/test ──────────────────
+copy_prod_to_env() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Copy production data to ${ENV}"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    local start_time
+    start_time=$(date +%s)
+
+    find_mysql_cmds
+
+    require_var MIGRATION_DB_PASSWORD "copy-prod"
+    require_var MIGRATION_DB_NAME "copy-prod"
+
+    local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
+    local db_port="${MIGRATION_DB_PORT:-3306}"
+    local db_user="${MIGRATION_DB_USER:-root}"
+
+    # Find the latest dump file
+    local dump_dir="$SCRIPT_DIR/superset/dev-sql-import/prod-data"
+    if [ ! -d "$dump_dir" ]; then
+        log_error "Dump directory not found: $dump_dir"
+        log_info "Run './gcp-deploy.sh prod --dump-prod' first to create a dump."
+        exit 1
+    fi
+
+    local dump_file
+    dump_file=$(ls -t "$dump_dir"/*-RCQ-FR-PROD-data.sql 2>/dev/null | head -1)
+    if [ -z "$dump_file" ]; then
+        log_error "No production dump file found in $dump_dir"
+        log_info "Run './gcp-deploy.sh prod --dump-prod' first to create a dump."
+        exit 1
+    fi
+
+    local file_size
+    file_size=$(du -h "$dump_file" | cut -f1)
+    log_info "Using dump: $(basename "$dump_file") (${file_size})"
+    log_info "Target database: ${MIGRATION_DB_NAME}"
+
+    if ! $SKIP_CONFIRM; then
+        echo ""
+        echo -e "${RED}⚠️  WARNING: This will DROP and recreate database '${MIGRATION_DB_NAME}'!${NC}"
+        read -r -p "Continue? [y/N] " response
+        case "$response" in
+            [yY][eE][sS]|[yY]) ;;
+            *)
+                log_info "Aborted."
+                return
+                ;;
+        esac
+    fi
+
+    local mysql_cnf
+    mysql_cnf=$(mktemp)
+    chmod 600 "$mysql_cnf"
+    printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
+    trap "rm -f $mysql_cnf" RETURN
+
+    # Step 1: Drop and recreate database
+    log_info "Dropping database '${MIGRATION_DB_NAME}'..."
+    $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        -e "DROP DATABASE IF EXISTS \`${MIGRATION_DB_NAME}\`;"
+
+    log_info "Creating database '${MIGRATION_DB_NAME}'..."
+    $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+        -h "$db_host" -P "$db_port" -u "$db_user" \
+        -e "CREATE DATABASE \`${MIGRATION_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+    # Step 2: Import dump with schema name replacement
+    log_info "Importing dump (renaming schema to '${MIGRATION_DB_NAME}')..."
+    sed -E "s/rcq_fr_(prod|dev|test)_db/${MIGRATION_DB_NAME}/g" "$dump_file" \
+        | $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+            -h "$db_host" -P "$db_port" -u "$db_user"
+
+    log_success "Import complete."
+
+    # Step 3: Run anonymisation script
+    local anonymise_script="$SCRIPT_DIR/superset/dev-sql-import/03-anonymise.sql"
+    if [ -f "$anonymise_script" ]; then
+        log_info "Running anonymisation script..."
+        $MYSQL_CMD --defaults-extra-file="$mysql_cnf" --get-server-public-key \
+            -h "$db_host" -P "$db_port" -u "$db_user" \
+            "$MIGRATION_DB_NAME" < "$anonymise_script"
+        log_success "Anonymisation complete."
+    else
+        log_warn "Anonymisation script not found: $anonymise_script — skipping."
+    fi
+
+    # Step 4: Run migrations
+    local migration_script="$SCRIPT_DIR/scripts/run-migrations.sh"
+    if [ -x "$migration_script" ]; then
+        log_info "Running migrations..."
+        export DB_HOST="$db_host"
+        export DB_PORT="$db_port"
+        export MIGRATION_DB_NAME="${MIGRATION_DB_NAME}"
+        "$migration_script" "$ENV" "$db_user" "$MIGRATION_DB_PASSWORD"
+        log_success "Migrations complete."
+    else
+        log_warn "Migration script not found or not executable: $migration_script — skipping."
+    fi
+
+    local end_time
+    end_time=$(date +%s)
+    local duration=$(( end_time - start_time ))
+
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    log_success "Copy-prod summary"
+    echo "  Dump file:    $(basename "$dump_file")"
+    echo "  Target DB:    ${MIGRATION_DB_NAME}"
+    echo "  Environment:  ${ENV}"
+    echo "  Duration:     ${duration}s"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+}
+
+
 # ── Seed Secret Manager values from .env ─────────────────────
 seed_secrets() {
     log_info "Seeding Secret Manager values from .env..."
@@ -777,12 +1113,17 @@ seed_secrets() {
         "rcq_db_readonly_password:RCQ_DB_PASSWORD"
         "rcq_google_oauth_client_id:GOOGLE_OAUTH_CLIENT_ID"
         "rcq_google_oauth_client_secret:GOOGLE_OAUTH_CLIENT_SECRET"
-        "rcq_superset_secret_key:SUPERSET_SECRET_KEY"
-        "rcq_superset_db_rw_username:SUPERSET_DB_RW_USER"
-        "rcq_superset_db_rw_password:SUPERSET_DB_RW_PASSWORD"
         "rcq_superset_admin_password:SUPERSET_ADMIN_PASSWORD"
         "rcq_jwt_secret_key:JWT_SECRET_KEY"
     )
+
+    if $ENABLE_SUPERSET; then
+        secrets_to_seed+=(
+            "rcq_superset_secret_key:SUPERSET_SECRET_KEY"
+            "rcq_superset_db_rw_username:SUPERSET_DB_RW_USER"
+            "rcq_superset_db_rw_password:SUPERSET_DB_RW_PASSWORD"
+        )
+    fi
 
     for entry in "${secrets_to_seed[@]}"; do
         local secret_name="${entry%%:*}"
@@ -823,7 +1164,7 @@ run_infra() {
 
     # Initialize Terraform
     log_info "Initializing Terraform..."
-    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false
+    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
 
     # Untaint any tainted Cloud Run services (from previous failed deploys)
     for svc in module.api.google_cloud_run_v2_service.service module.superset.google_cloud_run_v2_service.service module.frontend.google_cloud_run_v2_service.service; do
@@ -836,6 +1177,28 @@ run_infra() {
     # Build images before terraform apply (Cloud Run needs them)
     if ! $PLAN_ONLY && ! $SKIP_BUILD; then
         build_and_push
+    fi
+
+    # When --skip-build, find the latest pushed tag from the registry
+    if $SKIP_BUILD && ! $PLAN_ONLY; then
+        log_info "Skip-build: looking up latest image tag from registry..."
+        # Query the latest tag for any service (e.g. rcq-frontend)
+        local latest_tag
+        latest_tag=$(gcloud artifacts docker tags list \
+            "${REGISTRY}/rcq-frontend" \
+            --project="${GCP_PROJECT_ID}" \
+            --sort-by=~UPDATE_TIME \
+            --limit=5 \
+            --format="value(tag)" 2>/dev/null \
+            | grep "^${ENV}-" \
+            | head -1)
+        if [ -n "$latest_tag" ]; then
+            IMAGE_TAG="$latest_tag"
+            log_info "Using existing image tag: ${IMAGE_TAG}"
+        else
+            log_error "No image found in registry for env ${ENV}. Run without --skip-build first."
+            exit 1
+        fi
     fi
 
     # Pass image tag as extra var when applying (not plan-only)
@@ -851,6 +1214,13 @@ run_infra() {
         extra_vars="$extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
     fi
 
+    # Pass enable_superset to Terraform
+    if $ENABLE_SUPERSET; then
+        extra_vars="$extra_vars -var=enable_superset=true"
+    else
+        extra_vars="$extra_vars -var=enable_superset=false"
+    fi
+
     # Plan-only mode: just show the plan and exit
     if $PLAN_ONLY; then
         log_info "Running terraform plan..."
@@ -864,22 +1234,42 @@ run_infra() {
 
     # Phase 1: Create secret shells first (so seed_secrets can populate them)
     log_info "Phase 1: Creating secrets..."
+
+    local secret_targets=(
+        "-target=google_secret_manager_secret.db_readonly_username"
+        "-target=google_secret_manager_secret.db_readonly_password"
+        "-target=google_secret_manager_secret.google_oauth_client_id"
+        "-target=google_secret_manager_secret.google_oauth_client_secret"
+        "-target=google_secret_manager_secret.superset_admin_password"
+        "-target=google_secret_manager_secret.jwt_secret_key"
+    )
+
+    if $ENABLE_SUPERSET; then
+        secret_targets+=(
+            "-target=google_secret_manager_secret.superset_secret_key"
+            "-target=google_secret_manager_secret.superset_db_rw_username"
+            "-target=google_secret_manager_secret.superset_db_rw_password"
+        )
+    fi
+
     # shellcheck disable=SC2086
     terraform apply -auto-approve -var-file="env/${ENV}.tfvars" $extra_vars \
-        -target=google_secret_manager_secret.db_readonly_username \
-        -target=google_secret_manager_secret.db_readonly_password \
-        -target=google_secret_manager_secret.google_oauth_client_id \
-        -target=google_secret_manager_secret.google_oauth_client_secret \
-        -target=google_secret_manager_secret.superset_secret_key \
-        -target=google_secret_manager_secret.superset_db_rw_username \
-        -target=google_secret_manager_secret.superset_db_rw_password \
-        -target=google_secret_manager_secret.superset_admin_password \
-        -target=google_secret_manager_secret.jwt_secret_key \
+        "${secret_targets[@]}" \
         || true
 
     # Phase 2: Seed secret values from .env (before Cloud Run needs them)
     cd "$SCRIPT_DIR"
     seed_secrets
+    cd "$SCRIPT_DIR/infra"
+
+    # Phase 2b: Create MySQL users (before Cloud Run needs them)
+    cd "$SCRIPT_DIR"
+    create_readonly_user
+    if $ENABLE_SUPERSET; then
+        create_superset_db
+    else
+        log_info "Skipping Superset DB creation (--superset not specified)"
+    fi
     cd "$SCRIPT_DIR/infra"
 
     # Phase 3: Full terraform apply (Cloud Run can now access secret values)
@@ -895,11 +1285,6 @@ run_infra() {
     cd "$SCRIPT_DIR"
     echo ""
 
-    # ── Create MySQL read-only user if it doesn't exist ─────
-    create_readonly_user
-
-    # ── Create Superset metadata DB + read-write user ─────
-    create_superset_db
 }
 
 if $DO_INFRA; then
@@ -909,6 +1294,89 @@ if $DO_INFRA; then
         MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     fi
     run_infra
+fi
+
+# ══════════════════════════════════════════════════════════════
+# Step 2b: Destroy Superset resources
+# ══════════════════════════════════════════════════════════════
+if $DESTROY_SUPERSET; then
+    echo "═══════════════════════════════════════════════"
+    log_warn "⚠️  This will destroy Superset Cloud Run service and related secrets. Valkey will NOT be affected."
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    if ! $SKIP_CONFIRM; then
+        read -r -p "Are you sure you want to destroy Superset resources? [y/N] " response
+        case "$response" in
+            [yY][eE][sS]|[yY]) ;;
+            *)
+                echo "Aborted."
+                exit 0
+                ;;
+        esac
+        echo ""
+    fi
+
+    cd "$SCRIPT_DIR/infra"
+
+    ensure_tf_bucket
+
+    log_info "Initializing Terraform..."
+    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+
+    # Find the latest image tag for terraform (needed for other resources)
+    latest_tag=$(gcloud artifacts docker tags list \
+        "${REGISTRY}/rcq-frontend" \
+        --project="${GCP_PROJECT_ID}" \
+        --sort-by=~UPDATE_TIME \
+        --limit=5 \
+        --format="value(tag)" 2>/dev/null \
+        | grep "^${ENV}-" \
+        | head -1 || echo "")
+
+    destroy_extra_vars=""
+    if [ -n "$latest_tag" ]; then
+        destroy_extra_vars="$destroy_extra_vars -var=image_tag=${latest_tag}"
+    fi
+    if [ -n "${CLOUD_SQL_CONNECTION_NAME:-}" ]; then
+        destroy_extra_vars="$destroy_extra_vars -var=cloud_sql_connection_name=${CLOUD_SQL_CONNECTION_NAME}"
+    fi
+
+    # Pre-cleanup: Remove IAM binding via gcloud to avoid ETag conflict loop in terraform
+    # The google_cloud_run_service_iam_member resource has a known issue where concurrent
+    # policy changes cause infinite SetIamPolicy retries.
+    log_info "Pre-cleanup: Removing Superset IAM bindings via gcloud..."
+
+    # Get the API service account email
+    local api_sa
+    api_sa=$(gcloud run services describe rcq-api --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format="value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
+
+    if [ -n "$api_sa" ]; then
+        # Remove the IAM binding directly via gcloud (idempotent, won't error if not found)
+        gcloud run services remove-iam-policy-binding rcq-superset \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --member="serviceAccount:${api_sa}" \
+            --role="roles/run.invoker" 2>/dev/null || true
+        log_info "IAM binding removed via gcloud"
+    fi
+
+    # Remove from terraform state to prevent terraform from trying to destroy it
+    terraform state rm 'module.iam.google_cloud_run_service_iam_member.api_to_superset[0]' 2>/dev/null || true
+    log_info "IAM binding removed from terraform state"
+    echo ""
+
+    log_info "Step 1/2: Disabling deletion protection on Superset..."
+    # shellcheck disable=SC2086
+    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=true -var=allow_resource_destruction=true $destroy_extra_vars
+
+    log_info "Step 2/2: Destroying Superset resources..."
+    # shellcheck disable=SC2086
+    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=false -var=allow_resource_destruction=true $destroy_extra_vars
+
+    log_success "Superset resources destroyed."
+    cd "$SCRIPT_DIR"
+    echo ""
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1020,7 +1488,28 @@ run_provision() {
 }
 
 if $DO_PROVISION; then
-    run_provision
+    if $ENABLE_SUPERSET; then
+        run_provision
+    else
+        log_info "Skipping Superset provisioning (--superset not specified)"
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════
+# Step 5: Dump / Copy production database
+# ══════════════════════════════════════════════════════════════
+if $DO_DUMP_PROD; then
+    ensure_cloud_sql_proxy
+    MIGRATION_DB_HOST="127.0.0.1"
+    MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
+    dump_prod_database
+fi
+
+if $DO_COPY_PROD; then
+    ensure_cloud_sql_proxy
+    MIGRATION_DB_HOST="127.0.0.1"
+    MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
+    copy_prod_to_env
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1034,9 +1523,7 @@ echo ""
 echo "  Environment:  $ENV"
 echo "  Project:      $GCP_PROJECT_ID"
 echo "  Image tag:    $IMAGE_TAG"
-if [ "$SERVICES" != "frontend,api,superset" ]; then
-    echo "  Services:     $SERVICES"
-fi
+echo "  Services:     $SERVICES"
 echo ""
 
 # Show Terraform outputs if infra or provision was run
@@ -1088,6 +1575,9 @@ $BUILD_DONE  && log_success "Build & push: done"
 $DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
 $DO_MIGRATE  && log_success "Migrations: done"
 $DO_PROVISION && log_success "Provisioning: done"
+$DESTROY_SUPERSET && log_success "Destroy Superset: done"
+$DO_DUMP_PROD && log_success "Dump production DB: done"
+$DO_COPY_PROD && log_success "Copy production data: done"
 
 # ── Restore local environment ────────────────────────────────
 if [ -f "$SCRIPT_DIR/.env" ]; then

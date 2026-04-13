@@ -103,9 +103,28 @@ echo "SELECT 1 FROM schema_migrations LIMIT 1;" | run_mysql --silent > /dev/null
 # ── Get already-executed migrations ─────────────────────────
 APPLIED=$(echo "SELECT filename FROM schema_migrations;" | run_mysql --silent --skip-column-names 2>/dev/null || true)
 
+# ── Helper: compute checksum ────────────────────────────────
+compute_checksum() {
+  local file="$1"
+  if command -v md5sum &>/dev/null; then
+    md5sum "$file" | awk '{print $1}'
+  elif command -v md5 &>/dev/null; then
+    md5 -q "$file"
+  else
+    echo "unknown"
+  fi
+}
+
+# ── Helper: get stored checksum from DB ─────────────────────
+get_stored_checksum() {
+  local fname="$1"
+  echo "SELECT COALESCE(checksum,'') FROM schema_migrations WHERE filename = '$fname';" | run_mysql --silent --skip-column-names 2>/dev/null || true
+}
+
 # ── Run pending migrations ──────────────────────────────────
 APPLIED_COUNT=0
 EXECUTED_COUNT=0
+RERUN_COUNT=0
 
 echo ""
 echo "📋 Migration status:"
@@ -113,25 +132,37 @@ echo "────────────────────────�
 
 for filepath in "${MIGRATION_FILES[@]}"; do
   filename="$(basename "$filepath")"
+  CHECKSUM=$(compute_checksum "$filepath")
 
   if echo "$APPLIED" | grep -qxF "$filename"; then
-    echo "  ✔ $filename (already applied)"
-    APPLIED_COUNT=$((APPLIED_COUNT + 1))
-    continue
-  fi
+    # Already applied — check if checksum changed
+    STORED_CHECKSUM=$(get_stored_checksum "$filename")
 
-  # Compute checksum (macOS uses md5, Linux uses md5sum)
-  if command -v md5sum &>/dev/null; then
-    CHECKSUM=$(md5sum "$filepath" | awk '{print $1}')
-  elif command -v md5 &>/dev/null; then
-    CHECKSUM=$(md5 -q "$filepath")
-  else
-    CHECKSUM="unknown"
+    if [ "$CHECKSUM" != "$STORED_CHECKSUM" ]; then
+      # Checksum changed — re-execute
+      echo -n "  ♻ $filename (checksum changed — re-executing) ... "
+
+      if run_mysql < "$filepath" 2>/dev/null; then
+        echo "UPDATE schema_migrations SET checksum = '$CHECKSUM', executed_at = NOW() WHERE filename = '$filename';" | run_mysql --silent
+        echo "✅ done (checksum: ${CHECKSUM:0:12}…)"
+        RERUN_COUNT=$((RERUN_COUNT + 1))
+      else
+        echo "❌ FAILED"
+        echo ""
+        echo "⛔ Migration $filename re-execution failed. Stopping."
+        echo "   Fix the issue and re-run this script."
+        exit 1
+      fi
+    else
+      echo "  ✔ $filename (already applied)"
+      APPLIED_COUNT=$((APPLIED_COUNT + 1))
+    fi
+    continue
   fi
 
   echo -n "  ▶ $filename ... "
 
-  # Execute migration
+  # Execute new migration
   if run_mysql < "$filepath" 2>/dev/null; then
     # Record in schema_migrations
     echo "INSERT INTO schema_migrations (filename, checksum) VALUES ('$filename', '$CHECKSUM');" | run_mysql --silent
@@ -148,8 +179,8 @@ done
 
 # ── Summary ─────────────────────────────────────────────────
 echo "───────────────────────────────────────────────"
-echo "📊 Summary: $EXECUTED_COUNT migration(s) executed, $APPLIED_COUNT already applied."
+echo "📊 Summary: $EXECUTED_COUNT new, $RERUN_COUNT re-executed, $APPLIED_COUNT already applied."
 
-if [ "$EXECUTED_COUNT" -eq 0 ]; then
+if [ "$EXECUTED_COUNT" -eq 0 ] && [ "$RERUN_COUNT" -eq 0 ]; then
   echo "✅ Database is up to date — 0 migrations à appliquer."
 fi

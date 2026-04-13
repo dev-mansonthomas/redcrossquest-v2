@@ -2,7 +2,7 @@
 
 output "superset_url" {
   description = "Superset Cloud Run service URL"
-  value       = module.superset.service_url
+  value       = var.enable_superset ? module.superset[0].service_url : ""
 }
 
 output "api_url" {
@@ -19,7 +19,7 @@ output "frontend_url" {
 
 output "superset_service_account" {
   description = "Superset service account email"
-  value       = module.superset.service_account_email
+  value       = var.enable_superset ? module.superset[0].service_account_email : ""
 }
 
 output "api_service_account" {
@@ -43,11 +43,13 @@ output "docker_registry_url" {
 
 output "custom_domains" {
   description = "Custom domain mappings (when enabled)"
-  value = var.enable_domain_mappings ? {
-    frontend = var.frontend_domain
-    api      = var.api_domain
-    superset = var.superset_domain
-  } : null
+  value = var.enable_domain_mappings ? merge(
+    {
+      frontend = var.frontend_domain
+      api      = var.api_domain
+    },
+    var.enable_superset ? { superset = var.superset_domain } : {}
+  ) : null
 }
 
 output "dns_instructions" {
@@ -57,11 +59,15 @@ output "dns_instructions" {
       "🌐 DNS records to add to redcrossquest.com zone:",
       "",
     ],
-    [
-      "  ${replace(var.frontend_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.frontend_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
-      "  ${replace(var.api_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.api_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
-      "  ${replace(var.superset_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.superset_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
-    ],
+    concat(
+      [
+        "  ${replace(var.frontend_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.frontend_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+        "  ${replace(var.api_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.api_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+      ],
+      var.enable_superset ? [
+        "  ${replace(var.superset_domain, ".redcrossquest.com", "")}${join("", [for i in range(max(0, 25 - length(replace(var.superset_domain, ".redcrossquest.com", "")))) : " "])}3600  IN  CNAME  ghs.googlehosted.com.",
+      ] : []
+    ),
     var.enable_domain_mappings ? [
       "",
       "Note: It may take up to 24 hours for SSL certificates to be provisioned.",
@@ -82,6 +88,6 @@ output "valkey_endpoints" {
 
 output "superset_admin_proxy_command" {
   description = "Command to access Superset admin via gcloud proxy (for admin operations)"
-  value       = "gcloud run services proxy rcq-superset --region=${var.region} --project=${var.project_id} --port=8088"
+  value       = var.enable_superset ? "gcloud run services proxy rcq-superset --region=${var.region} --project=${var.project_id} --port=8088" : ""
 }
 

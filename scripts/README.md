@@ -4,4 +4,4 @@ This directory contains utility scripts for managing the RedCrossQuest V2 infras
 
 ## Superset Setup
 
-For Apache Superset setup and configuration, see [`superset/README.md`](../superset/README.md).
+For Apache Superset setup and configuration, see `superset/README.md`.

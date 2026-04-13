@@ -11,6 +11,7 @@ class ActiveQueteur(BaseModel):
     first_name: str
     last_name: str
     man: bool
+    mobile: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     point_name: Optional[str] = None

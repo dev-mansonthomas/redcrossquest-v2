@@ -88,3 +88,9 @@ variable "tags" {
   default     = {}
 }
 
+variable "deletion_protection" {
+  description = "Whether deletion protection is enabled for the Cloud Run service"
+  type        = bool
+  default     = true
+}
+

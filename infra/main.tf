@@ -41,13 +41,15 @@ locals {
 # ─── Cloud Run services ──────────────────────────────────────────────
 module "superset" {
   source = "./modules/cloud_run"
+  count  = var.enable_superset ? 1 : 0
 
   service_name   = "rcq-superset"
   project_id     = var.project_id
   region         = var.region
   image          = "${var.superset_image}:${var.image_tag}"
   container_port = 8088
-  ingress        = "INGRESS_TRAFFIC_ALL"
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = var.allow_resource_destruction ? false : true
 
   env_vars = {
     SUPERSET_DB_TYPE           = "mysql"
@@ -58,7 +60,7 @@ module "superset" {
     VALKEY_PORT                = "6379"
     VALKEY_ENABLED             = "false"
     SUPERSET_METADATA_DB_TYPE  = "mysql"
-    SUPERSET_METADATA_DB_NAME  = "superset_dev_db"
+    SUPERSET_METADATA_DB_NAME  = "superset_${var.environment}_db"
     SUPERSET_METADATA_DB_PORT  = "3306"
     SUPERSET_METADATA_DB_HOST  = "/cloudsql/${var.cloud_sql_connection_name}"
     SUPERSET_ADMIN_USERNAME    = var.superset_admin_username
@@ -72,9 +74,9 @@ module "superset" {
   secrets = {
     SUPERSET_DB_USER          = google_secret_manager_secret.db_readonly_username.secret_id
     SUPERSET_DB_PASS          = google_secret_manager_secret.db_readonly_password.secret_id
-    SUPERSET_SECRET_KEY       = google_secret_manager_secret.superset_secret_key.secret_id
-    SUPERSET_METADATA_DB_USER = google_secret_manager_secret.superset_db_rw_username.secret_id
-    SUPERSET_METADATA_DB_PASS = google_secret_manager_secret.superset_db_rw_password.secret_id
+    SUPERSET_SECRET_KEY       = google_secret_manager_secret.superset_secret_key[0].secret_id
+    SUPERSET_METADATA_DB_USER = google_secret_manager_secret.superset_db_rw_username[0].secret_id
+    SUPERSET_METADATA_DB_PASS = google_secret_manager_secret.superset_db_rw_password[0].secret_id
     SUPERSET_ADMIN_PASSWORD   = google_secret_manager_secret.superset_admin_password.secret_id
   }
 
@@ -106,9 +108,12 @@ module "api" {
     GOOGLE_REDIRECT_URI          = "https://${var.api_domain}/api/auth/callback"
     FRONTEND_URL                 = "https://${var.frontend_domain}"
     CORS_ORIGINS                 = "https://${var.frontend_domain}"
-    SUPERSET_URL                 = module.superset.service_url
+    SUPERSET_URL                 = var.enable_superset ? module.superset[0].service_url : ""
     SUPERSET_ADMIN_USERNAME      = var.superset_admin_username
     SUPERSET_DASHBOARD_YEARLY_GOAL = "1b332c41-13bf-47d4-b18a-2e2547930367"
+    VALKEY_HOST                  = local.valkey_host
+    VALKEY_PORT                  = "6379"
+    VALKEY_DB                    = "0"
   }
 
   secrets = {
@@ -157,6 +162,7 @@ module "frontend" {
 
 
 resource "google_secret_manager_secret" "superset_secret_key" {
+  count     = var.enable_superset ? 1 : 0
   secret_id = "rcq_superset_secret_key"
 
   replication {
@@ -247,6 +253,7 @@ resource "google_secret_manager_secret" "google_oauth_client_secret" {
 }
 
 resource "google_secret_manager_secret" "superset_db_rw_username" {
+  count     = var.enable_superset ? 1 : 0
   secret_id = "rcq_superset_db_rw_username"
 
   replication {
@@ -301,6 +308,7 @@ resource "google_secret_manager_secret" "jwt_secret_key" {
 }
 
 resource "google_secret_manager_secret" "superset_db_rw_password" {
+  count     = var.enable_superset ? 1 : 0
   secret_id = "rcq_superset_db_rw_password"
 
   replication {
@@ -325,13 +333,12 @@ module "iam" {
   project_id  = var.project_id
   environment = var.environment
 
-  superset_service_account = module.superset.service_account_email
+  superset_service_account = var.enable_superset ? module.superset[0].service_account_email : ""
   api_service_account      = module.api.service_account_email
   frontend_service_account = module.frontend.service_account_email
 
   depends_on = [
     module.api,
-    module.superset,
     module.frontend
   ]
 }
@@ -379,7 +386,7 @@ resource "google_cloud_run_domain_mapping" "api" {
 }
 
 resource "google_cloud_run_domain_mapping" "superset" {
-  count    = var.enable_domain_mappings ? 1 : 0
+  count    = var.enable_domain_mappings && var.enable_superset ? 1 : 0
   location = var.region
   name     = var.superset_domain
 
@@ -393,7 +400,7 @@ resource "google_cloud_run_domain_mapping" "superset" {
   }
 
   spec {
-    route_name = module.superset.service_name
+    route_name = module.superset[0].service_name
   }
 }
 

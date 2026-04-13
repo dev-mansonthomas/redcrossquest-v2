@@ -175,10 +175,11 @@ api_put "/api/v1/dashboard/${DASH_ID}" "$(cat /tmp/rcq_dash_payload.json)" > /de
 rm -f /tmp/rcq_dash_payload.json
 echo "   ✅ Dashboard layout and filters configured"
 
-# Get UUID from dashboard detail
-DASH_UUID=$(curl -sf "${SUPERSET_URL}/api/v1/dashboard/${DASH_ID}" -H "$AUTH" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['uuid'])")
-echo "   📎 Dashboard UUID: ${DASH_UUID}"
+# Enable embedding and get embedded UUID
+echo "🔗 Enabling embedding..."
+EMBED_RESULT=$(api_post "/api/v1/dashboard/${DASH_ID}/embedded" '{"allowed_domains": []}')
+DASH_UUID=$(echo "$EMBED_RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['uuid'])")
+echo "   📎 Embedded UUID: ${DASH_UUID}"
 
 echo ""
 echo "════════════════════════════════════════════"

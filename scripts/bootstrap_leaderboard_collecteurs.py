@@ -145,12 +145,12 @@ def create_bar_chart(token, csrf, dataset_id):
     print("📊 Creating bar chart 'Top 10 Collecteurs'...")
     data = {
         "slice_name": "Top 10 Collecteurs",
-        "viz_type": "echarts_bar",
+        "viz_type": "echarts_timeseries_bar",
         "datasource_id": dataset_id,
         "datasource_type": "table",
         "params": json.dumps({
             "datasource": f"{dataset_id}__table",
-            "viz_type": "echarts_bar",
+            "viz_type": "echarts_timeseries_bar",
             "x_axis": "nom_queteur",
             "metrics": [{"label": "total_collecte", "expressionType": "SIMPLE",
                          "column": {"column_name": "total_collecte"}, "aggregate": "MAX"}],

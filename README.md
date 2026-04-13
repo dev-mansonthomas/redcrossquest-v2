@@ -27,8 +27,8 @@ A new project created with Intent by Augment.
 ### Flags
 
 | Flag | Description |
-|------|-------------|
-| `--init-db` | Initialize/reset the database with SQL dumps from `superset/dev-sql-import/` and migrations from `superset/deploy-sql/` |
+| --- | --- |
+| --init-db | Initialize/reset the database with SQL dumps from superset/dev-sql-import/ and migrations from superset/deploy-sql/ |
 
 ### ⚠️ Database Reset
 
@@ -47,13 +47,13 @@ docker volume rm rcq_mysql_data
 
 This will launch:
 
-| Service    | URL                          | Notes                        |
-|------------|------------------------------|------------------------------|
-| Superset   | http://localhost:8088         | Analytics dashboards         |
-| MySQL      | localhost:3316               | Database                     |
-| Backend    | http://localhost:8010         | FastAPI REST API             |
-| API Docs   | http://localhost:8010/docs    | Swagger UI                   |
-| Frontend   | http://localhost:4210         | Angular (when available)     |
+| Service | URL | Notes |
+| --- | --- | --- |
+| Superset | http://localhost:8088 | Analytics dashboards |
+| MySQL | localhost:3316 | Database |
+| Backend | http://localhost:8010 | FastAPI REST API |
+| API Docs | http://localhost:8010/docs | Swagger UI |
+| Frontend | http://localhost:4210 | Angular (when available) |
 
 Press **Ctrl+C** to stop all services.
 
@@ -73,9 +73,9 @@ cd backend && poetry run uvicorn src.main:app --reload --host 0.0.0.0 --port 801
 ### Environment files
 
 Each service has its own `.env` file (auto-copied from `.env.example` on first run):
+
 - `superset/.env` — MySQL, Superset & Valkey credentials
 - `backend/.env` — Backend configuration
-
 
 ## Deployment
 
@@ -84,11 +84,13 @@ Each service has its own `.env` file (auto-copied from `.env.example` on first r
 The Google account used for deployment (e.g. `xxx@croix-rouge.fr`) must be a **verified owner** of the `redcrossquest.com` domain in [Google Search Console](https://search.google.com/search-console).
 
 This is required for Cloud Run domain mappings to work. Without it, `terraform apply` will fail with:
+
 ```
 Caller is not authorized to administer the domain
 ```
 
 **To add a new deployer:**
+
 1. Go to [Google Search Console](https://search.google.com/search-console) → Settings → Users and permissions
 2. Sign in with an account that is already a verified owner of `redcrossquest.com`
 3. Click "Add a user"
@@ -104,21 +106,22 @@ Each environment requires its own OAuth redirect URIs. In [Google Cloud Console 
 2. Add the following URIs:
 
 **Authorized JavaScript origins:**
+
 | Environment | Origins |
-|-------------|---------|
-| Local dev | `http://localhost:4200`, `http://localhost:8010` |
-| Dev (GCP) | `https://dev.graph.redcrossquest.com`, `https://dev.back.graph.redcrossquest.com` |
-| Prod (GCP) | `https://graph.redcrossquest.com`, `https://back.graph.redcrossquest.com` |
+| --- | --- |
+| Local dev | http://localhost:4200, http://localhost:8010 |
+| Dev (GCP) | https://dev.graph.redcrossquest.com, https://dev.back.graph.redcrossquest.com |
+| Prod (GCP) | https://graph.redcrossquest.com, https://back.graph.redcrossquest.com |
 
 **Authorized redirect URIs:**
+
 | Environment | Redirect URI |
-|-------------|-------------|
-| Local dev | `http://localhost:8010/api/auth/callback` |
-| Dev (GCP) | `https://dev.back.graph.redcrossquest.com/api/auth/callback` |
-| Prod (GCP) | `https://back.graph.redcrossquest.com/api/auth/callback` |
+| --- | --- |
+| Local dev | http://localhost:8010/api/auth/callback |
+| Dev (GCP) | https://dev.back.graph.redcrossquest.com/api/auth/callback |
+| Prod (GCP) | https://back.graph.redcrossquest.com/api/auth/callback |
 
-> **Important:** Without these URIs, Google will return a `redirect_uri_mismatch` error (400) when users try to log in.
-
+> Important: Without these URIs, Google will return a redirect_uri_mismatch error (400) when users try to log in.
 
 ## License
 

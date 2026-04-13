@@ -24,6 +24,7 @@ show_help() {
     echo "  --provision            Provisionne les dashboards Superset (create)"
     echo "  --provision --force-update  Met à jour les dashboards existants"
     echo "  --show-config          Affiche la configuration actuelle"
+    echo "  --superset             Démarre aussi Superset (désactivé par défaut)"
     echo "  --help                 Affiche cette aide"
     echo ""
     echo "Exemples:"
@@ -117,7 +118,7 @@ restart_service() {
             ;;
         superset)
             echo "🔄 Redémarrage de Superset (build + force-recreate)..."
-            docker compose -p rcq -f superset/docker-compose.yml up -d --build --force-recreate superset
+            docker compose -p rcq -f superset/docker-compose.yml --profile superset up -d --build --force-recreate superset
             echo -n "  Superset: "
             for i in {1..90}; do
                 if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
@@ -133,18 +134,21 @@ restart_service() {
             ;;
         all)
             echo "🔄 Redémarrage de tous les services (force-recreate)..."
-            docker compose -p rcq -f superset/docker-compose.yml up -d --force-recreate
+            docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate valkey
+            docker compose -p rcq -f superset/docker-compose.yml --profile superset up -d --force-recreate
             docker compose -p rcq -f docker-compose.dev.yml up -d --force-recreate
             echo "⏳ Attente des services..."
-            echo -n "  Superset: "
-            for i in {1..90}; do
-                if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
-                    echo "✅ Ready"
-                    break
-                fi
-                if [ $i -eq 90 ]; then echo "❌ Timeout"; fi
-                sleep 1
-            done
+            if [ "$ENABLE_SUPERSET" = true ]; then
+                echo -n "  Superset: "
+                for i in {1..90}; do
+                    if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
+                        echo "✅ Ready"
+                        break
+                    fi
+                    if [ $i -eq 90 ]; then echo "❌ Timeout"; fi
+                    sleep 1
+                done
+            fi
             echo -n "  Backend: "
             for i in {1..60}; do
                 if curl -sf http://localhost:8010/health > /dev/null 2>&1; then
@@ -179,6 +183,7 @@ restart_service() {
 INIT_DB=false
 PROVISION=false
 FORCE_UPDATE=false
+ENABLE_SUPERSET=false
 ACTION="start"  # default action
 RESTART_SERVICE=""
 
@@ -204,6 +209,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --force-update)
             FORCE_UPDATE=true
+            shift
+            ;;
+        --superset)
+            ENABLE_SUPERSET=true
             shift
             ;;
         --show-config)
@@ -257,15 +266,44 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$' | xargs)
 fi
 
+# Create shared Docker network (must exist before any compose up)
+# Both docker-compose.dev.yml and superset/docker-compose.yml use this as external
+docker network create rcq_default 2>/dev/null || true
+
 # Stop any existing containers
 echo "🛑 Stopping any existing containers..."
 docker compose -p rcq -f docker-compose.dev.yml down 2>/dev/null || true
-docker compose -p rcq -f superset/docker-compose.yml down 2>/dev/null || true
+docker compose -p rcq -f superset/docker-compose.yml --profile superset down 2>/dev/null || true
 
-# Start infrastructure (MySQL, Superset, Valkey)
+# Start Valkey first (needed by Superset)
 echo ""
-echo "🐳 Starting infrastructure (MySQL, Superset, Valkey)..."
-docker compose -p rcq -f superset/docker-compose.yml up -d --build
+echo "🔑 Starting Valkey (valkey-bundle)..."
+docker compose -p rcq -f docker-compose.dev.yml up -d valkey
+
+# Wait for Valkey
+echo -n "  Valkey: "
+for i in {1..30}; do
+    if docker exec rcq_valkey valkey-cli ping > /dev/null 2>&1; then
+        echo "✅ Ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ Timeout"
+        exit 1
+    fi
+    sleep 1
+done
+
+# Start infrastructure (MySQL, Superset)
+echo ""
+if [ "$ENABLE_SUPERSET" = true ]; then
+  echo "🐳 Starting infrastructure (MySQL, Superset)..."
+  docker compose -p rcq -f superset/docker-compose.yml --profile superset up -d --build
+else
+  echo "🐳 Starting infrastructure (MySQL)..."
+  # Start only MySQL (no Superset)
+  docker compose -p rcq -f superset/docker-compose.yml up -d --build mysql
+fi
 
 # Wait for MySQL
 echo ""
@@ -303,11 +341,17 @@ init_database() {
             echo "   ✅ Main SQL dump imported"
         fi
 
-        # Run trigger and anonymization (dev setup)
-        if [ -f "superset/dev-sql-import/02-add-trigger_and_anonymise.sql" ]; then
-            echo "   📥 Running 02-add-trigger_and_anonymise.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/02-add-trigger_and_anonymise.sql
-            echo "   ✅ Trigger and anonymization applied"
+        # Run trigger (dev setup)
+        if [ -f "superset/dev-sql-import/02-add-trigger.sql" ]; then
+            echo "   📥 Running 02-add-trigger.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/02-add-trigger.sql
+            echo "   ✅ Trigger applied"
+        fi
+        # Anonymise sensitive data (dev setup)
+        if [ -f "superset/dev-sql-import/03-anonymise.sql" ]; then
+            echo "   📥 Running 03-anonymise.sql..."
+            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/03-anonymise.sql
+            echo "   ✅ Data anonymised"
         fi
 
         # Create quete_dates reference table and seed data (deploy migration)
@@ -340,7 +384,7 @@ provision_dashboards() {
 
     # Run provisioning script locally (requires python3)
     if command -v python3 &> /dev/null; then
-        cd superset/provisioning && python3 scripts/provision_superset.py --env dev $force_flag --auto-restart --no-restart
+        cd superset/provisioning && python3 scripts/provision_superset.py --env local $force_flag --auto-restart --no-restart
         cd - > /dev/null
     else
         echo "❌ python3 not found. Install Python 3 to run provisioning."
@@ -349,32 +393,20 @@ provision_dashboards() {
 }
 
 # Wait for Superset
-echo -n "  Superset: "
-for i in {1..90}; do
-    if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
-        echo "✅ Ready"
-        break
-    fi
-    if [ $i -eq 90 ]; then
-        echo "❌ Timeout"
-        exit 1
-    fi
-    sleep 1
-done
-
-# Wait for Valkey
-echo -n "  Valkey: "
-for i in {1..30}; do
-    if docker exec rcq_valkey valkey-cli ping > /dev/null 2>&1; then
-        echo "✅ Ready"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo "❌ Timeout"
-        exit 1
-    fi
-    sleep 1
-done
+if [ "$ENABLE_SUPERSET" = true ]; then
+  echo -n "  Superset: "
+  for i in {1..90}; do
+      if curl -sf http://localhost:8088/health > /dev/null 2>&1; then
+          echo "✅ Ready"
+          break
+      fi
+      if [ $i -eq 90 ]; then
+          echo "❌ Timeout"
+          exit 1
+      fi
+      sleep 1
+  done
+fi
 
 # Start application (Backend, Frontend)
 echo ""
@@ -432,7 +464,9 @@ echo "📍 Services:"
 echo "  - Frontend:  http://localhost:4210"
 echo "  - Backend:   http://localhost:8010"
 echo "  - API Docs:  http://localhost:8010/docs"
+if [ "$ENABLE_SUPERSET" = true ]; then
 echo "  - Superset:  http://localhost:8088"
+fi
 echo "  - MySQL:     localhost:3316"
 echo "  - Valkey:    localhost:6389"
 echo ""
@@ -442,11 +476,18 @@ echo "  - View infra logs:    docker compose -p rcq -f superset/docker-compose.y
 echo "  - Stop all:           docker compose -p rcq -f docker-compose.dev.yml down && docker compose -p rcq -f superset/docker-compose.yml down"
 echo "  - Restart backend:    ./run_local.sh --restart backend"
 echo "  - Restart frontend:   ./run_local.sh --restart frontend"
+if [ "$ENABLE_SUPERSET" = true ]; then
 echo "  - Restart superset:   ./run_local.sh --restart superset"
+fi
 echo "  - Restart all:        ./run_local.sh --restart all"
+if [ "$ENABLE_SUPERSET" = true ]; then
 echo "  - Provision dashboards:  ./run_local.sh --provision"
 echo "  - Update dashboards:     ./run_local.sh --provision --force-update"
+fi
 echo "  - Show config:        ./run_local.sh --show-config"
 echo ""
 echo "🔄 Hot-reload is enabled for both frontend and backend"
+if [ "$ENABLE_SUPERSET" != true ]; then
+echo "  💡 Astuce: ./run_local.sh --superset pour activer Superset"
+fi
 echo ""
