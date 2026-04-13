@@ -68,93 +68,99 @@ type SortDir = 'asc' | 'desc';
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
 
           <!-- Tableau 1 — Pièces -->
-          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">🪙 Pièces</div>
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th (click)="onSortPieces('label')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Type {{ sortIndicator('pieces', 'label') }}</th>
-                  <th (click)="onSortPieces('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('pieces', 'count') }}</th>
-                  <th (click)="onSortPieces('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('pieces', 'total') }}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                @for (row of sortedPieces(); track row.label) {
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-left">{{ row.label }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">🪙 Pièces</div>
+            <div class="overflow-y-auto flex-1 min-h-0">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th (click)="onSortPieces('label')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Type {{ sortIndicator('pieces', 'label') }}</th>
+                    <th (click)="onSortPieces('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('pieces', 'count') }}</th>
+                    <th (click)="onSortPieces('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('pieces', 'total') }}</th>
                   </tr>
-                }
-                @if (totalsPieces(); as t) {
-                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
-                    <td class="px-4 py-2 text-left">TOTAL</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  @for (row of sortedPieces(); track row.label) {
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-2 text-left">{{ row.label }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+                    </tr>
+                  }
+                  @if (totalsPieces(); as t) {
+                    <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
+                      <td class="px-4 py-2 text-left">TOTAL</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Tableau 2 — Billets -->
-          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">💶 Billets</div>
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th (click)="onSortBillets('label')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Type {{ sortIndicator('billets', 'label') }}</th>
-                  <th (click)="onSortBillets('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('billets', 'count') }}</th>
-                  <th (click)="onSortBillets('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('billets', 'total') }}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                @for (row of sortedBillets(); track row.label) {
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-left">{{ row.label }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">💶 Billets</div>
+            <div class="overflow-y-auto flex-1 min-h-0">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th (click)="onSortBillets('label')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Type {{ sortIndicator('billets', 'label') }}</th>
+                    <th (click)="onSortBillets('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('billets', 'count') }}</th>
+                    <th (click)="onSortBillets('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('billets', 'total') }}</th>
                   </tr>
-                }
-                @if (totalsBillets(); as t) {
-                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
-                    <td class="px-4 py-2 text-left">TOTAL</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  @for (row of sortedBillets(); track row.label) {
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-2 text-left">{{ row.label }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+                    </tr>
+                  }
+                  @if (totalsBillets(); as t) {
+                    <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
+                      <td class="px-4 py-2 text-left">TOTAL</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Tableau 3 — Tickets CB -->
-          <div class="bg-white rounded-lg shadow overflow-hidden overflow-y-auto">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">💳 Tickets CB</div>
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th (click)="onSortCb('amount')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Montant {{ sortIndicator('cb', 'amount') }}</th>
-                  <th (click)="onSortCb('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('cb', 'count') }}</th>
-                  <th (click)="onSortCb('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('cb', 'total') }}</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                @for (row of sortedCb(); track row.amount) {
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-left">{{ formatEur(row.amount) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">💳 Tickets CB</div>
+            <div class="overflow-y-auto flex-1 min-h-0">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th (click)="onSortCb('amount')" class="px-4 py-2 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Montant {{ sortIndicator('cb', 'amount') }}</th>
+                    <th (click)="onSortCb('count')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Nombre {{ sortIndicator('cb', 'count') }}</th>
+                    <th (click)="onSortCb('total')" class="px-4 py-2 text-right font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">Total € {{ sortIndicator('cb', 'total') }}</th>
                   </tr>
-                }
-                @if (totalsCb(); as t) {
-                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
-                    <td class="px-4 py-2 text-left">TOTAL</td>
-                    <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
-                    <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  @for (row of sortedCb(); track row.amount) {
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-2 text-left">{{ formatEur(row.amount) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(row.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(row.total) }}</td>
+                    </tr>
+                  }
+                  @if (totalsCb(); as t) {
+                    <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
+                      <td class="px-4 py-2 text-left">TOTAL</td>
+                      <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
+                      <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>
