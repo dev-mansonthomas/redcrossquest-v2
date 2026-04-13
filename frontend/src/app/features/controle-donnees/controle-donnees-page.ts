@@ -49,8 +49,8 @@ const DAY_LABELS = [
   'J5: Mercredi',
   'J6: Jeudi',
   'J7: Vendredi',
-  'J8: Samedi 2',
-  'J9: Dimanche 2',
+  'J8: Samedi',
+  'J9: Dimanche',
 ];
 
 @Component({
