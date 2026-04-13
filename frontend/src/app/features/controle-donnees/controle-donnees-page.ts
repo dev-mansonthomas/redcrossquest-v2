@@ -96,7 +96,7 @@ const DAY_LABELS = [
       </div>
 
       <!-- Point type filter bar -->
-      <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3 shrink-0">
+      <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-center gap-3 shrink-0">
         <span class="text-sm font-medium text-gray-700 whitespace-nowrap">Type PQ :</span>
         @for (pt of POINT_TYPES; track pt.type; let i = $index) {
           <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
