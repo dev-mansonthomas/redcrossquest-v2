@@ -121,6 +121,8 @@ async def get_stats_journalieres(
         .all()
     )
     available_years = [int(r["year"]) for r in year_rows]
+    if current_year not in available_years:
+        available_years.insert(0, current_year)
 
     result = StatsJournalieresResponse(
         data=data,
