@@ -208,7 +208,13 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
                   <tr class="hover:bg-gray-50">
                     <td class="px-3 py-2">{{ q.first_name }}</td>
                     <td class="px-3 py-2">{{ q.last_name }}</td>
-                    <td class="px-3 py-2">{{ formatPhoneDisplay(q.mobile) }}</td>
+                    <td class="px-3 py-2">
+                      @if (q.mobile) {
+                        <a [href]="'tel:' + formatPhoneRaw(q.mobile)" class="text-blue-600 hover:underline">{{ formatPhoneDisplay(q.mobile) }}</a>
+                      } @else {
+                        —
+                      }
+                    </td>
                     <td class="px-3 py-2">{{ q.point_name || '' }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ formatDurationDisplay(q.depart) }}</td>
                   </tr>
@@ -513,5 +519,13 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
 
   formatPhoneDisplay(mobile: string | null): string {
     return formatPhone(mobile);
+  }
+
+  formatPhoneRaw(mobile: string): string {
+    let cleaned = mobile.replace(/[\s\-.]/g, '');
+    if (cleaned.startsWith('+')) return cleaned;
+    if (cleaned.startsWith('33')) return '+' + cleaned;
+    if (cleaned.startsWith('0')) return '+33' + cleaned.substring(1);
+    return cleaned;
   }
 }
