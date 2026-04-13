@@ -121,7 +121,7 @@ async def get_repartition_jours(
         current_year=current_year,
     )
 
-    # Cache: use short TTL since the result includes current year data
-    cache_set(cache_key, result.model_dump(), ttl_seconds=TTL_CURRENT_YEAR)
+    # Cache: historical data doesn't change, use long TTL (refresh button allows force-refresh)
+    cache_set(cache_key, result.model_dump(), ttl_seconds=TTL_PAST_YEAR)
 
     return result
