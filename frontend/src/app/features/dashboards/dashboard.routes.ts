@@ -68,6 +68,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'controle-donnees',
+        loadComponent: () =>
+          import('../controle-donnees/controle-donnees-page').then(
+            (m) => m.ControleDonneesPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
