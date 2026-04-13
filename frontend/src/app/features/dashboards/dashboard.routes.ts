@@ -75,6 +75,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'etats-troncs',
+        loadComponent: () =>
+          import('../etats-troncs/etats-troncs-page').then(
+            (m) => m.EtatsTroncsPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
