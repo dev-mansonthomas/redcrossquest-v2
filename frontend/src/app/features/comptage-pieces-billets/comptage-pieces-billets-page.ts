@@ -36,7 +36,7 @@ type SortDir = 'asc' | 'desc';
   standalone: true,
   imports: [],
   template: `
-    <div class="flex-1 overflow-auto p-6">
+    <div class="flex-1 flex flex-col overflow-hidden p-6">
       <!-- Header -->
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-gray-800">🪙 Comptage pièces, billets et CB</h2>
@@ -65,7 +65,7 @@ type SortDir = 'asc' | 'desc';
 
       <!-- 3 tables side by side -->
       @if (!loading() && !error()) {
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
 
           <!-- Tableau 1 — Pièces -->
           <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
@@ -128,7 +128,7 @@ type SortDir = 'asc' | 'desc';
           </div>
 
           <!-- Tableau 3 — Tickets CB -->
-          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
+          <div class="bg-white rounded-lg shadow overflow-hidden overflow-y-auto">
             <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">💳 Tickets CB</div>
             <table class="min-w-full divide-y divide-gray-200 text-sm">
               <thead class="bg-gray-50">
