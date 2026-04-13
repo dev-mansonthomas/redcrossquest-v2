@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import health, auth, config, controle_donnees, embed, classement, classement_tronc, etats_troncs, map, money_bags, superset, ul, yearly_goals
+from .routers import health, auth, config, controle_donnees, embed, classement, classement_tronc, etats_troncs, map, money_bags, repartition_jours, superset, ul, yearly_goals
 
 # Create FastAPI application
 app = FastAPI(
@@ -34,6 +34,7 @@ app.include_router(classement_tronc.router)
 app.include_router(map.router)
 app.include_router(money_bags.router)
 app.include_router(superset.router)
+app.include_router(repartition_jours.router)
 app.include_router(ul.router)
 app.include_router(yearly_goals.router)
 
