@@ -14,8 +14,11 @@ import { environment } from '../../../environments/environment';
       <!-- Sidebar - Thème clair -->
       <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <!-- Header avec logo -->
-        <div class="h-14 px-4 border-b border-gray-200 flex items-center">
+        <div class="h-14 px-4 border-b border-gray-200 flex items-center justify-between">
           <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
+          @if (envLabel) {
+            <span [class]="'px-2 py-0.5 text-xs font-bold rounded-md ' + envBadgeClass">{{ envLabel }}</span>
+          }
         </div>
 
         <!-- Navigation -->
@@ -158,6 +161,12 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly dashboardService = inject(DashboardService);
   protected readonly ulOverrideService = inject(UlOverrideService);
   protected readonly enableSuperset = environment.enableSuperset;
+  protected readonly envLabel = environment.environmentLabel;
+  protected readonly envBadgeClass = environment.environmentLabel === 'DEV'
+    ? 'bg-blue-500 text-white'
+    : environment.environmentLabel === 'TEST'
+      ? 'bg-green-500 text-white'
+      : '';
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
