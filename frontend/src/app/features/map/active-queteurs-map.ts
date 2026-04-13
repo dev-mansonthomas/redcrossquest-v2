@@ -216,7 +216,8 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
                       }
                     </td>
                     <td class="px-3 py-2">{{ q.point_name || '' }}</td>
-                    <td class="px-3 py-2 text-right font-mono">{{ formatDurationDisplay(q.depart) }}</td>
+                    <td class="px-3 py-2 text-right font-mono text-white rounded-r-lg"
+                        [style.backgroundColor]="getDurationBgColor(q.depart)">{{ formatDurationDisplay(q.depart) }}</td>
                   </tr>
                 }
               </tbody>
@@ -503,6 +504,10 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
   sortIndicatorPoints(column: string): string {
     if (this.pointsSortColumn() !== column) return '';
     return this.pointsSortDirection() === 'asc' ? '▲' : '▼';
+  }
+
+  getDurationBgColor(departIso: string): string {
+    return getDurationColor(departIso);
   }
 
   formatDurationDisplay(departIso: string): string {
