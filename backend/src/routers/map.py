@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/map", tags=["map"])
 
 ACTIVE_QUETEURS_QUERY = """
     SELECT
-        q.first_name, q.last_name, q.man,
+        q.first_name, q.last_name, q.man, q.mobile,
         pq.latitude, pq.longitude, pq.name AS point_name, pq.address,
         tq.depart,
         tq.point_quete_id,
@@ -98,6 +98,7 @@ async def get_available_years(
 async def get_points_quete_stats(
     request: FastAPIRequest,
     years: str = "",
+    all_years: bool = False,
     db: Session = Depends(get_rcq_db),
 ) -> PointsQueteStatsResponse:
     """Return aggregated stats per point de quête, filtered by years."""
@@ -106,17 +107,24 @@ async def get_points_quete_stats(
     user = get_authenticated_user(request, db)
     ul_id = user["ul_id"]
 
-    # Parse years parameter; default to last 5 years
-    if years and years.strip():
-        years_list = [int(y.strip()) for y in years.split(",") if y.strip()]
+    # Build query with conditional year filtering
+    if all_years:
+        # No year filtering - query all years
+        year_filter = ""
+        params: dict = {"ul_id": ul_id}
     else:
-        current_year = datetime.now().year
-        years_list = list(range(current_year - 4, current_year + 1))
+        # Parse years parameter; default to last 5 years
+        if years and years.strip():
+            years_list = [int(y.strip()) for y in years.split(",") if y.strip()]
+        else:
+            current_year = datetime.now().year
+            years_list = list(range(current_year - 4, current_year + 1))
 
-    # Build dynamic placeholders for IN clause
-    placeholders = ", ".join([f":year_{i}" for i in range(len(years_list))])
-    params: dict = {"ul_id": ul_id}
-    params.update({f"year_{i}": y for i, y in enumerate(years_list)})
+        # Build dynamic placeholders for IN clause
+        placeholders = ", ".join([f":year_{i}" for i in range(len(years_list))])
+        year_filter = f"AND YEAR(depart) IN ({placeholders})"
+        params = {"ul_id": ul_id}
+        params.update({f"year_{i}": y for i, y in enumerate(years_list)})
 
     query = f"""
         SELECT
@@ -136,7 +144,7 @@ async def get_points_quete_stats(
                 SUM(CASE WHEN duration_minutes >= 30 THEN duration_minutes ELSE 0 END) / 60.0 as total_hours,
                 COUNT(*) as tronc_count
             FROM v_tronc_queteur_enriched
-            WHERE ul_id = :ul_id AND YEAR(depart) IN ({placeholders})
+            WHERE ul_id = :ul_id {year_filter}
             GROUP BY point_quete_id
         ) stats ON stats.point_quete_id = pq.id
         LEFT JOIN (
