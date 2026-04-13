@@ -211,6 +211,9 @@ export class ControleDonneesPageComponent {
             if (ctx.dataset.yAxisID === 'y1') {
               return `${ctx.dataset.label}: ${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €/h`;
             }
+            if (ctx.dataset.yAxisID === 'y2') {
+              return `Heures: ${value.toFixed(1)}h`;
+            }
             return `${ctx.dataset.label}: ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value)}`;
           },
         },
@@ -235,6 +238,16 @@ export class ControleDonneesPageComponent {
         grid: { drawOnChartArea: false },
         ticks: {
           callback: (value) => Number(value).toFixed(1) + ' €/h',
+        },
+      },
+      y2: {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        title: { display: true, text: 'Heures' },
+        grid: { drawOnChartArea: false },
+        ticks: {
+          callback: (value) => Number(value).toFixed(0) + 'h',
         },
       },
     },
@@ -353,6 +366,16 @@ export class ControleDonneesPageComponent {
           borderColor: '#2563EB',
           borderWidth: 1,
           yAxisID: 'y',
+          order: 2,
+        },
+        {
+          type: 'bar',
+          label: 'Heures',
+          data: data.map(q => q.total_hours),
+          backgroundColor: 'rgba(249, 115, 22, 0.7)',
+          borderColor: '#F97316',
+          borderWidth: 1,
+          yAxisID: 'y2',
           order: 2,
         },
         {
