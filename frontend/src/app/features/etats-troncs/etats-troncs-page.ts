@@ -16,6 +16,7 @@ interface TroncEtatDetail {
   depart: string | null;
   retour: string | null;
   point_quete_name: string | null;
+  quete_day_num?: number | null;
   total_amount?: number;
   total_hours?: number;
 }
@@ -30,6 +31,18 @@ type TroncStatusFilter = 'prepared' | 'collecting' | 'uncounted' | 'counted';
 const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
 const RCQ_TRONC_URI = '#!/troncs/edit/';
 const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
+
+const DAY_LABELS = [
+  'J1: Sam',
+  'J2: Dim',
+  'J3: Lun',
+  'J4: Mar',
+  'J5: Mer',
+  'J6: Jeu',
+  'J7: Ven',
+  'J8: Sam',
+  'J9: Dim',
+];
 
 @Component({
   selector: 'app-etats-troncs-page',
@@ -73,6 +86,24 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
         </div>
       </div>
 
+      <!-- Day filter bar -->
+      <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-center gap-3 shrink-0">
+        <span class="text-sm font-medium text-gray-700 whitespace-nowrap">Jour :</span>
+        @for (label of dayLabels; track label; let i = $index) {
+          <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
+            <input type="checkbox"
+              [checked]="selectedDays()[i]"
+              (change)="toggleDay(i)"
+              class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+            {{ label }}
+          </label>
+        }
+        <button (click)="selectAllDays()"
+          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
+        <button (click)="selectNoDays()"
+          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
+      </div>
+
       <!-- Content -->
       <div class="flex-1 overflow-auto p-4">
         @if (loading()) {
@@ -92,19 +123,20 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
             <table class="min-w-full text-sm">
               <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">ID TQ</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Quêteur</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Tronc</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Prénom</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Nom</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Départ théorique</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Départ</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Retour</th>
-                  <th class="px-3 py-2 text-left font-semibold text-gray-700">Point de quête</th>
+                  <th (click)="onSort('tronc_queteur_id')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">ID TQ {{ sortIndicator('tronc_queteur_id') }}</th>
+                  <th (click)="onSort('queteur_id')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Quêteur {{ sortIndicator('queteur_id') }}</th>
+                  <th (click)="onSort('tronc_id')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Tronc {{ sortIndicator('tronc_id') }}</th>
+                  <th (click)="onSort('first_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Prénom {{ sortIndicator('first_name') }}</th>
+                  <th (click)="onSort('last_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Nom {{ sortIndicator('last_name') }}</th>
+                  <th (click)="onSort('depart_theorique')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Départ théorique {{ sortIndicator('depart_theorique') }}</th>
+                  <th (click)="onSort('depart')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Départ {{ sortIndicator('depart') }}</th>
+                  <th (click)="onSort('retour')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Retour {{ sortIndicator('retour') }}</th>
+                  <th (click)="onSort('point_quete_name')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Point de quête {{ sortIndicator('point_quete_name') }}</th>
+                  <th (click)="onSort('quete_day_num')" class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Jour {{ sortIndicator('quete_day_num') }}</th>
                   @if (selectedFilter() === 'counted') {
-                    <th class="px-3 py-2 text-right font-semibold text-gray-700">Montant (€)</th>
-                    <th class="px-3 py-2 text-right font-semibold text-gray-700">Heures</th>
-                    <th class="px-3 py-2 text-right font-semibold text-gray-700">€/h</th>
+                    <th (click)="onSort('total_amount')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Montant (€) {{ sortIndicator('total_amount') }}</th>
+                    <th (click)="onSort('total_hours')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">Heures {{ sortIndicator('total_hours') }}</th>
+                    <th (click)="onSort('euro_per_hour')" class="px-3 py-2 text-right font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100">€/h {{ sortIndicator('euro_per_hour') }}</th>
                   }
                 </tr>
               </thead>
@@ -120,6 +152,7 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
                     <td class="px-3 py-2">{{ t.depart | date:'dd/MM/yyyy HH:mm' }}</td>
                     <td class="px-3 py-2">{{ t.retour | date:'dd/MM/yyyy HH:mm' }}</td>
                     <td class="px-3 py-2">{{ t.point_quete_name }}</td>
+                    <td class="px-3 py-2">{{ t.quete_day_num ? 'J' + t.quete_day_num : '' }}</td>
                     @if (selectedFilter() === 'counted') {
                       <td class="px-3 py-2 text-right">{{ t.total_amount | number:'1.2-2' }}</td>
                       <td class="px-3 py-2 text-right">{{ t.total_hours | number:'1.1-1' }}h</td>
@@ -146,6 +179,7 @@ export class EtatsTroncsPageComponent {
     { value: 'counted', label: '✅ Compté' },
   ];
 
+  readonly dayLabels = DAY_LABELS;
   readonly selectedFilter = signal<TroncStatusFilter>('prepared');
   readonly selectedYear = signal(new Date().getFullYear());
   readonly yearOptions = signal<number[]>(this.buildYearOptions());
@@ -153,20 +187,84 @@ export class EtatsTroncsPageComponent {
   readonly error = signal('');
   readonly troncs = signal<TroncEtatDetail[]>([]);
   readonly searchQuery = signal('');
+  readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
+  readonly sortColumn = signal<string>('');
+  readonly sortDirection = signal<'asc' | 'desc'>('asc');
+
+  private static readonly DATE_COLUMNS = new Set(['depart_theorique', 'depart', 'retour']);
+  private static readonly NUMBER_COLUMNS = new Set([
+    'tronc_queteur_id', 'queteur_id', 'tronc_id', 'quete_day_num',
+    'total_amount', 'total_hours', 'euro_per_hour',
+  ]);
+
   readonly filteredTroncs = computed(() => {
     const query = this.searchQuery().toLowerCase().trim();
-    if (!query) return this.troncs();
-    return this.troncs().filter(t => {
-      const fields = [
-        t.first_name ?? '',
-        t.last_name ?? '',
-        String(t.tronc_id),
-        String(t.tronc_queteur_id),
-        String(t.queteur_id),
-        t.point_quete_name ?? '',
-      ];
-      return fields.some(f => f.toLowerCase().includes(query));
-    });
+    const days = this.selectedDays();
+    const anyDaySelected = days.some(d => d);
+
+    let result = this.troncs();
+
+    // Day filter
+    if (!anyDaySelected) {
+      return [];
+    }
+    if (!days.every(d => d)) {
+      result = result.filter(t => {
+        if (t.quete_day_num == null) return false;
+        return days[t.quete_day_num - 1] === true;
+      });
+    }
+
+    // Search filter
+    if (query) {
+      result = result.filter(t => {
+        const fields = [
+          t.first_name ?? '',
+          t.last_name ?? '',
+          String(t.tronc_id),
+          String(t.tronc_queteur_id),
+          String(t.queteur_id),
+          t.point_quete_name ?? '',
+        ];
+        return fields.some(f => f.toLowerCase().includes(query));
+      });
+    }
+
+    // Sort
+    const col = this.sortColumn();
+    const dir = this.sortDirection();
+    if (col) {
+      result = [...result].sort((a, b) => {
+        let valA: any;
+        let valB: any;
+
+        if (col === 'euro_per_hour') {
+          valA = (a.total_hours && a.total_hours > 0) ? a.total_amount! / a.total_hours : null;
+          valB = (b.total_hours && b.total_hours > 0) ? b.total_amount! / b.total_hours : null;
+        } else {
+          valA = (a as any)[col];
+          valB = (b as any)[col];
+        }
+
+        // Nulls last
+        if (valA == null && valB == null) return 0;
+        if (valA == null) return 1;
+        if (valB == null) return -1;
+
+        let cmp = 0;
+        if (EtatsTroncsPageComponent.DATE_COLUMNS.has(col)) {
+          cmp = new Date(valA).getTime() - new Date(valB).getTime();
+        } else if (EtatsTroncsPageComponent.NUMBER_COLUMNS.has(col)) {
+          cmp = Number(valA) - Number(valB);
+        } else {
+          cmp = String(valA).localeCompare(String(valB), 'fr', { sensitivity: 'base' });
+        }
+
+        return dir === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return result;
   });
 
   readonly rcqBaseUrl = environment.rcqV1Url;
@@ -197,6 +295,34 @@ export class EtatsTroncsPageComponent {
     const year = parseInt((event.target as HTMLSelectElement).value, 10);
     this.selectedYear.set(year);
     this.loadData();
+  }
+
+  toggleDay(index: number): void {
+    const current = [...this.selectedDays()];
+    current[index] = !current[index];
+    this.selectedDays.set(current);
+  }
+
+  selectAllDays(): void {
+    this.selectedDays.set(Array(9).fill(true));
+  }
+
+  selectNoDays(): void {
+    this.selectedDays.set(Array(9).fill(false));
+  }
+
+  onSort(column: string): void {
+    if (this.sortColumn() === column) {
+      this.sortDirection.set(this.sortDirection() === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortColumn.set(column);
+      this.sortDirection.set('asc');
+    }
+  }
+
+  sortIndicator(column: string): string {
+    if (this.sortColumn() !== column) return '';
+    return this.sortDirection() === 'asc' ? '▲' : '▼';
   }
 
   async loadData(): Promise<void> {

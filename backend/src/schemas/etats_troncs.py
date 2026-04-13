@@ -17,6 +17,7 @@ class TroncEtatDetail(BaseModel):
     depart: Optional[datetime] = None
     retour: Optional[datetime] = None
     point_quete_name: Optional[str] = None
+    quete_day_num: Optional[int] = None
     total_amount: Optional[float] = None
     total_hours: Optional[float] = None
 

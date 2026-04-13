@@ -68,10 +68,12 @@ ETATS_TRONCS_QUERY = """
       tq.depart_theorique,
       tq.depart,
       tq.retour,
-      pq.name AS point_quete_name
+      pq.name AS point_quete_name,
+      DATEDIFF(DATE(COALESCE(tq.depart, tq.depart_theorique)), qd.start_date) + 1 AS quete_day_num
     FROM tronc_queteur tq
     JOIN queteur q        ON tq.queteur_id   = q.id
     LEFT JOIN point_quete pq ON tq.point_quete_id = pq.id
+    LEFT JOIN quete_dates qd ON qd.year = YEAR(COALESCE(tq.depart, tq.depart_theorique))
     WHERE tq.ul_id   = :ul_id
       AND tq.deleted = 0
       {status_filter}
@@ -90,6 +92,7 @@ ETATS_TRONCS_COUNTED_QUERY = """
       tq.depart,
       tq.retour,
       pq.name AS point_quete_name,
+      DATEDIFF(DATE(COALESCE(tq.depart, tq.depart_theorique)), qd.start_date) + 1 AS quete_day_num,
       COALESCE(tq.euro500, 0) * 500 +
       COALESCE(tq.euro200, 0) * 200 +
       COALESCE(tq.euro100, 0) * 100 +
@@ -111,6 +114,7 @@ ETATS_TRONCS_COUNTED_QUERY = """
     FROM tronc_queteur tq
     JOIN queteur q        ON tq.queteur_id   = q.id
     LEFT JOIN point_quete pq ON tq.point_quete_id = pq.id
+    LEFT JOIN quete_dates qd ON qd.year = YEAR(COALESCE(tq.depart, tq.depart_theorique))
     WHERE tq.ul_id   = :ul_id
       AND tq.deleted = 0
       AND tq.comptage IS NOT NULL
