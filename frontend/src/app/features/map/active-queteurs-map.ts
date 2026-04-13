@@ -97,6 +97,29 @@ function getPointQueteIcon(type: number): L.DivIcon {
   });
 }
 
+function formatPhone(mobile: string | null): string {
+  if (!mobile) return '';
+  // Remove all spaces, dashes, dots
+  let cleaned = mobile.replace(/[\s\-.]/g, '');
+  // If starts with +, keep it; if starts with 33 (no +), prefix with +
+  if (cleaned.startsWith('+')) {
+    // already has +
+  } else if (cleaned.startsWith('33')) {
+    cleaned = '+' + cleaned;
+  } else if (cleaned.startsWith('0')) {
+    cleaned = '+33' + cleaned.substring(1);
+  } else {
+    return mobile; // unrecognized format, return as-is
+  }
+  // Now cleaned should be like +33XXXXXXXXX
+  // Format: +33 X XX XX XX XX
+  const match = cleaned.match(/^\+33([0-9])([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$/);
+  if (match) {
+    return `+33 ${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]}`;
+  }
+  return mobile; // fallback
+}
+
 function getDurationColor(departIso: string): string {
   const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
   if (hours < 2) return '#4caf50';
@@ -185,7 +208,7 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
                   <tr class="hover:bg-gray-50">
                     <td class="px-3 py-2">{{ q.first_name }}</td>
                     <td class="px-3 py-2">{{ q.last_name }}</td>
-                    <td class="px-3 py-2">{{ q.mobile || '' }}</td>
+                    <td class="px-3 py-2">{{ formatPhoneDisplay(q.mobile) }}</td>
                     <td class="px-3 py-2">{{ q.point_name || '' }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ formatDurationDisplay(q.depart) }}</td>
                   </tr>
@@ -357,7 +380,7 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
         this.api.get<PointsQueteResponse>('/api/map/points-quete'),
       );
       const points = response.points_quete.filter(
-        (p) => p.latitude != null && p.longitude != null,
+        (p) => p.latitude != null && p.longitude != null && p.type !== 3 && p.type !== 5,
       );
 
       this.pointsQueteLayer.clearLayers();
@@ -440,7 +463,9 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
       const response = await firstValueFrom(
         this.api.get<PointQueteStatsResponse>('/api/map/points-quete-stats?all_years=true'),
       );
-      this.pointsQueteStats.set(response.points_quete);
+      this.pointsQueteStats.set(response.points_quete.filter(
+        (p) => p.type !== 3 && p.type !== 5,
+      ));
     } catch (err) {
       console.error('Failed to load points quête stats', err);
     }
@@ -484,5 +509,9 @@ export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
 
   formatHourlyRate(rate: number): string {
     return this.numberFormatter.format(rate) + ' €/h';
+  }
+
+  formatPhoneDisplay(mobile: string | null): string {
+    return formatPhone(mobile);
   }
 }
