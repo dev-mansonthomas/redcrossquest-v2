@@ -68,8 +68,8 @@ type SortDir = 'asc' | 'desc';
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           <!-- Tableau 1 — Pièces -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700">🪙 Pièces</div>
+          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">🪙 Pièces</div>
             <table class="min-w-full divide-y divide-gray-200 text-sm">
               <thead class="bg-gray-50">
                 <tr>
@@ -87,7 +87,7 @@ type SortDir = 'asc' | 'desc';
                   </tr>
                 }
                 @if (totalsPieces(); as t) {
-                  <tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
+                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
                     <td class="px-4 py-2 text-left">TOTAL</td>
                     <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
                     <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
@@ -98,8 +98,8 @@ type SortDir = 'asc' | 'desc';
           </div>
 
           <!-- Tableau 2 — Billets -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700">💶 Billets</div>
+          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">💶 Billets</div>
             <table class="min-w-full divide-y divide-gray-200 text-sm">
               <thead class="bg-gray-50">
                 <tr>
@@ -117,7 +117,7 @@ type SortDir = 'asc' | 'desc';
                   </tr>
                 }
                 @if (totalsBillets(); as t) {
-                  <tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
+                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
                     <td class="px-4 py-2 text-left">TOTAL</td>
                     <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
                     <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
@@ -128,8 +128,8 @@ type SortDir = 'asc' | 'desc';
           </div>
 
           <!-- Tableau 3 — Tickets CB -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700">💳 Tickets CB</div>
+          <div class="bg-white rounded-lg shadow overflow-hidden max-h-[60vh] overflow-y-auto">
+            <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 sticky top-0 z-10">💳 Tickets CB</div>
             <table class="min-w-full divide-y divide-gray-200 text-sm">
               <thead class="bg-gray-50">
                 <tr>
@@ -147,7 +147,7 @@ type SortDir = 'asc' | 'desc';
                   </tr>
                 }
                 @if (totalsCb(); as t) {
-                  <tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
+                  <tr class="bg-white font-bold border-t-2 border-gray-300 sticky bottom-0">
                     <td class="px-4 py-2 text-left">TOTAL</td>
                     <td class="px-4 py-2 text-right">{{ formatInt(t.count) }}</td>
                     <td class="px-4 py-2 text-right">{{ formatEur(t.total) }}</td>
