@@ -70,7 +70,7 @@ const SECTOR_DATASETS = [
       </div>
 
       <!-- Content -->
-      <div class="flex-1 overflow-auto p-4">
+      <div class="flex-1 flex flex-col min-h-0 p-4">
         @if (loading()) {
           <div class="flex items-center justify-center h-64">
             <div class="text-gray-500 text-sm">Chargement...</div>
@@ -83,32 +83,32 @@ const SECTOR_DATASETS = [
           }
 
           <!-- Row 1: Financials + Hours by sector -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
               <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
-              <div style="height: 300px;">
+              <div class="flex-1 min-h-0">
                 <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
               <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
-              <div style="height: 300px;">
+              <div class="flex-1 min-h-0">
                 <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
               </div>
             </div>
           </div>
 
           <!-- Row 2: Quêteurs by sector + Activity -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 mt-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
               <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
-              <div style="height: 300px;">
+              <div class="flex-1 min-h-0">
                 <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
               <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
-              <div style="height: 300px;">
+              <div class="flex-1 min-h-0">
                 <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
               </div>
             </div>
