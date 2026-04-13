@@ -20,4 +20,5 @@ async def get_rcq_urls(
     return RcqUrlsResponse(
         base_url=settings.rcq_base_url,
         tronc_queteur_uri=settings.rcq_tronc_queteur_uri,
+        tronc_uri=settings.rcq_tronc_uri,
     )

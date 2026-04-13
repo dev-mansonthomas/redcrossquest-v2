@@ -62,3 +62,4 @@ class RcqUrlsResponse(BaseModel):
 
     base_url: str
     tronc_queteur_uri: str
+    tronc_uri: str
