@@ -35,8 +35,9 @@ type SortDir = 'asc' | 'desc';
   selector: 'app-comptage-pieces-billets-page',
   standalone: true,
   imports: [],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
-    <div class="flex-1 flex flex-col overflow-hidden p-6">
+    <div class="h-full flex flex-col overflow-hidden p-6">
       <!-- Header -->
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-gray-800">🪙 Comptage pièces, billets et CB</h2>
