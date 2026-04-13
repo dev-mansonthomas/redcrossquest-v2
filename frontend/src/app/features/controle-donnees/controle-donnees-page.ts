@@ -456,6 +456,12 @@ export class ControleDonneesPageComponent {
     try {
       const daysParam = this.getSelectedDaysParam();
       const pointTypesParam = this.getSelectedPointTypesParam();
+      if (!daysParam || !pointTypesParam) {
+        this.queteurs.set([]);
+        this.updateChart();
+        this.loading.set(false);
+        return;
+      }
       let url = `/api/controle-donnees?year=${this.selectedYear()}`;
       if (daysParam) {
         url += `&days=${daysParam}`;
@@ -481,6 +487,11 @@ export class ControleDonneesPageComponent {
     try {
       const daysParam = this.getSelectedDaysParam();
       const pointTypesParam = this.getSelectedPointTypesParam();
+      if (!daysParam || !pointTypesParam) {
+        this.drilldownData.set([]);
+        this.drilldownLoading.set(false);
+        return;
+      }
       let url = `/api/controle-donnees/${queteurId}/troncs?year=${this.selectedYear()}`;
       if (daysParam) {
         url += `&days=${daysParam}`;
