@@ -95,6 +95,24 @@ const DAY_LABELS = [
         </div>
       </div>
 
+      <!-- Point type filter bar -->
+      <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3 shrink-0">
+        <span class="text-sm font-medium text-gray-700 whitespace-nowrap">Type PQ :</span>
+        @for (pt of POINT_TYPES; track pt.type; let i = $index) {
+          <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
+            <input type="checkbox"
+              [checked]="selectedPointTypes()[i]"
+              (change)="togglePointType(i)"
+              class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+            {{ pt.emoji }} {{ pt.label }}
+          </label>
+        }
+        <button (click)="selectAllPointTypes()"
+          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
+        <button (click)="selectNoPointTypes()"
+          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
+      </div>
+
       <!-- Content -->
       <div class="flex-1 overflow-auto p-4">
         @if (loading()) {
@@ -181,9 +199,16 @@ export class ControleDonneesPageComponent {
   private readonly ulOverrideService = inject(UlOverrideService);
 
   readonly dayLabels = DAY_LABELS;
+  readonly POINT_TYPES = [
+    { type: 1, emoji: '🚦', label: 'Voie Publique' },
+    { type: 2, emoji: '🚶', label: 'Piétons' },
+    { type: 3, emoji: '🏪', label: 'Commerçant' },
+    { type: 4, emoji: '🏠', label: 'Base UL' },
+  ];
   readonly selectedYear = signal(new Date().getFullYear());
   readonly yearOptions = signal<number[]>(this.buildYearOptions());
   readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
+  readonly selectedPointTypes = signal<boolean[]>(Array(4).fill(true));
   readonly loading = signal(false);
   readonly error = signal('');
   readonly queteurs = signal<QueteurControleSummary[]>([]);
@@ -308,6 +333,29 @@ export class ControleDonneesPageComponent {
     this.loadData();
   }
 
+  togglePointType(index: number): void {
+    const current = [...this.selectedPointTypes()];
+    current[index] = !current[index];
+    this.selectedPointTypes.set(current);
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
+  }
+
+  selectAllPointTypes(): void {
+    this.selectedPointTypes.set(Array(4).fill(true));
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
+  }
+
+  selectNoPointTypes(): void {
+    this.selectedPointTypes.set(Array(4).fill(false));
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
+  }
+
   refresh(): void {
     this.selectedQueteur.set(null);
     this.drilldownData.set([]);
@@ -348,6 +396,13 @@ export class ControleDonneesPageComponent {
     const days: number[] = [];
     checked.forEach((v, i) => { if (v) days.push(i + 1); });
     return days.join(',');
+  }
+
+  private getSelectedPointTypesParam(): string {
+    const checked = this.selectedPointTypes();
+    const types: number[] = [];
+    checked.forEach((v, i) => { if (v) types.push(this.POINT_TYPES[i].type); });
+    return types.join(',');
   }
 
   private updateChart(): void {
@@ -400,9 +455,13 @@ export class ControleDonneesPageComponent {
     this.error.set('');
     try {
       const daysParam = this.getSelectedDaysParam();
+      const pointTypesParam = this.getSelectedPointTypesParam();
       let url = `/api/controle-donnees?year=${this.selectedYear()}`;
       if (daysParam) {
         url += `&days=${daysParam}`;
+      }
+      if (pointTypesParam) {
+        url += `&point_types=${pointTypesParam}`;
       }
       const resp = await firstValueFrom(
         this.api.get<ControleDonneesResponse>(url)
@@ -421,9 +480,13 @@ export class ControleDonneesPageComponent {
     this.drilldownData.set([]);
     try {
       const daysParam = this.getSelectedDaysParam();
+      const pointTypesParam = this.getSelectedPointTypesParam();
       let url = `/api/controle-donnees/${queteurId}/troncs?year=${this.selectedYear()}`;
       if (daysParam) {
         url += `&days=${daysParam}`;
+      }
+      if (pointTypesParam) {
+        url += `&point_types=${pointTypesParam}`;
       }
       const resp = await firstValueFrom(
         this.api.get<TroncsControleResponse>(url)

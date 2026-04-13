@@ -45,6 +45,22 @@ def _build_days_filter(days: Optional[str]) -> tuple[str, dict]:
     return f"AND tqe.quete_day_num IN ({placeholders})", params
 
 
+def _build_point_types_filter(point_types: Optional[str]) -> tuple[str, dict]:
+    """Return (SQL clause, params dict) for point_quete type filtering.
+
+    *point_types* is a comma-separated list of type numbers (e.g. "1,2,3").
+    Returns an empty clause when *point_types* is ``None`` or empty.
+    """
+    if not point_types or not point_types.strip():
+        return "", {}
+    type_list = [int(t.strip()) for t in point_types.split(",") if t.strip()]
+    if not type_list:
+        return "", {}
+    placeholders = ", ".join(f":pt_{i}" for i in range(len(type_list)))
+    params = {f"pt_{i}": t for i, t in enumerate(type_list)}
+    return f"AND pq.type IN ({placeholders})", params
+
+
 CONTROLE_QUERY = """
     SELECT
       q.id AS queteur_id,
@@ -56,9 +72,11 @@ CONTROLE_QUERY = """
       ROUND(SUM(tqe.weight) / 1000, 2) AS total_weight_kg
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
+    JOIN point_quete pq ON tqe.point_quete_id = pq.id
     WHERE tqe.ul_id = :ul_id
       {year_filter}
       {days_filter}
+      {point_types_filter}
     GROUP BY q.id, q.first_name, q.last_name
     ORDER BY total_amount DESC
 """
@@ -78,6 +96,7 @@ TRONCS_CONTROLE_QUERY = """
       AND tqe.ul_id = :ul_id
       {year_filter}
       {days_filter}
+      {point_types_filter}
     ORDER BY tqe.depart DESC
 """
 
@@ -87,6 +106,7 @@ async def get_controle_donnees(
     request: FastAPIRequest,
     year: Optional[int] = Query(default=None, description="Année (défaut: année courante, 0=toutes)"),
     days: Optional[str] = Query(default=None, description="Jours de quête (ex: 1,2,3)"),
+    point_types: Optional[str] = Query(default=None, description="Types de point de quête (ex: 1,2,3)"),
     db: Session = Depends(get_rcq_db),
 ) -> ControleDonneesResponse:
     """Return aggregated data per quêteur for data-quality control."""
@@ -95,8 +115,9 @@ async def get_controle_donnees(
 
     year_clause, year_params = build_year_filter(year)
     days_clause, days_params = _build_days_filter(days)
-    query = CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause)
-    params = {"ul_id": user["ul_id"], **year_params, **days_params}
+    pt_clause, pt_params = _build_point_types_filter(point_types)
+    query = CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause, point_types_filter=pt_clause)
+    params = {"ul_id": user["ul_id"], **year_params, **days_params, **pt_params}
 
     rows = db.execute(text(query), params).mappings().all()
     queteurs = [QueteurControleSummary(**row) for row in rows]
@@ -109,6 +130,7 @@ async def get_queteur_troncs_controle(
     request: FastAPIRequest,
     year: Optional[int] = Query(default=None, description="Année (défaut: année courante, 0=toutes)"),
     days: Optional[str] = Query(default=None, description="Jours de quête (ex: 1,2,3)"),
+    point_types: Optional[str] = Query(default=None, description="Types de point de quête (ex: 1,2,3)"),
     db: Session = Depends(get_rcq_db),
 ) -> TroncsControleResponse:
     """Return tronc details for a specific quêteur (drill-down)."""
@@ -117,12 +139,14 @@ async def get_queteur_troncs_controle(
 
     year_clause, year_params = build_year_filter(year)
     days_clause, days_params = _build_days_filter(days)
-    query = TRONCS_CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause)
+    pt_clause, pt_params = _build_point_types_filter(point_types)
+    query = TRONCS_CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause, point_types_filter=pt_clause)
     params = {
         "queteur_id": queteur_id,
         "ul_id": user["ul_id"],
         **year_params,
         **days_params,
+        **pt_params,
     }
 
     rows = db.execute(text(query), params).mappings().all()
