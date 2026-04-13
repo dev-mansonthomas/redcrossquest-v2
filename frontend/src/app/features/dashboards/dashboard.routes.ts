@@ -82,6 +82,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'repartition-jours',
+        loadComponent: () =>
+          import('../repartition-jours/repartition-jours-page').then(
+            (m) => m.RepartitionJoursPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
