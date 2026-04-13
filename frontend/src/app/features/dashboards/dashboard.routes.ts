@@ -89,6 +89,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'stats-journalieres',
+        loadComponent: () =>
+          import('../stats-journalieres/stats-journalieres-page').then(
+            (m) => m.StatsJournalieresPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
