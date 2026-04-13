@@ -163,6 +163,7 @@ export class EtatsTroncsPageComponent {
         String(t.tronc_id),
         String(t.tronc_queteur_id),
         String(t.queteur_id),
+        t.point_quete_name ?? '',
       ];
       return fields.some(f => f.toLowerCase().includes(query));
     });
