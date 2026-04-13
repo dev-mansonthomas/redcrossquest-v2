@@ -1,5 +1,5 @@
 import { Component, inject, signal, effect } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
@@ -16,13 +16,15 @@ interface TroncEtatDetail {
   depart: string | null;
   retour: string | null;
   point_quete_name: string | null;
+  total_amount?: number;
+  total_hours?: number;
 }
 
 interface EtatsTroncsResponse {
   troncs: TroncEtatDetail[];
 }
 
-type TroncStatusFilter = 'prepared' | 'collecting' | 'uncounted';
+type TroncStatusFilter = 'prepared' | 'collecting' | 'uncounted' | 'counted';
 
 // ── RCQ V1 URL constants ─────────────────────────────────────────────
 const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
@@ -32,7 +34,7 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
 @Component({
   selector: 'app-etats-troncs-page',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, DecimalPipe],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
@@ -93,6 +95,11 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
                   <th class="px-3 py-2 text-left font-semibold text-gray-700">Départ</th>
                   <th class="px-3 py-2 text-left font-semibold text-gray-700">Retour</th>
                   <th class="px-3 py-2 text-left font-semibold text-gray-700">Point de quête</th>
+                  @if (selectedFilter() === 'counted') {
+                    <th class="px-3 py-2 text-right font-semibold text-gray-700">Montant (€)</th>
+                    <th class="px-3 py-2 text-right font-semibold text-gray-700">Heures</th>
+                    <th class="px-3 py-2 text-right font-semibold text-gray-700">€/h</th>
+                  }
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -107,6 +114,11 @@ const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
                     <td class="px-3 py-2">{{ t.depart | date:'dd/MM/yyyy HH:mm' }}</td>
                     <td class="px-3 py-2">{{ t.retour | date:'dd/MM/yyyy HH:mm' }}</td>
                     <td class="px-3 py-2">{{ t.point_quete_name }}</td>
+                    @if (selectedFilter() === 'counted') {
+                      <td class="px-3 py-2 text-right">{{ t.total_amount | number:'1.2-2' }}</td>
+                      <td class="px-3 py-2 text-right">{{ t.total_hours | number:'1.1-1' }}h</td>
+                      <td class="px-3 py-2 text-right">{{ t.total_hours && t.total_hours > 0 ? (t.total_amount! / t.total_hours | number:'1.2-2') : '–' }}</td>
+                    }
                   </tr>
                 }
               </tbody>
@@ -125,6 +137,7 @@ export class EtatsTroncsPageComponent {
     { value: 'prepared', label: '⏳ Préparé' },
     { value: 'collecting', label: '🚶 En quête' },
     { value: 'uncounted', label: '📥 Non compté' },
+    { value: 'counted', label: '✅ Compté' },
   ];
 
   readonly selectedFilter = signal<TroncStatusFilter>('prepared');

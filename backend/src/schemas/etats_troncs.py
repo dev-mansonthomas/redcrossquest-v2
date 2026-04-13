@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class TroncEtatDetail(BaseModel):
-    """Detail of a tronc in a given state (prepared/collecting/uncounted)."""
+    """Detail of a tronc in a given state (prepared/collecting/uncounted/counted)."""
 
     tronc_queteur_id: int
     queteur_id: int
@@ -17,6 +17,8 @@ class TroncEtatDetail(BaseModel):
     depart: Optional[datetime] = None
     retour: Optional[datetime] = None
     point_quete_name: Optional[str] = None
+    total_amount: Optional[float] = None
+    total_hours: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
