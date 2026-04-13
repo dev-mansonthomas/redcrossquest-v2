@@ -60,8 +60,23 @@ const DAY_LABELS = [
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
-        <h2 class="text-lg font-semibold text-gray-800">🔍 Contrôle de données</h2>
+      <div class="min-h-14 px-4 py-2 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 gap-4">
+        <h2 class="text-lg font-semibold text-gray-800 whitespace-nowrap">🔍 Contrôle de données</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          @for (label of dayLabels; track label; let i = $index) {
+            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
+              <input type="checkbox"
+                [checked]="selectedDays()[i]"
+                (change)="toggleDay(i)"
+                class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+              {{ label }}
+            </label>
+          }
+          <button (click)="selectAllDays()"
+            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
+          <button (click)="selectNoDays()"
+            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
+        </div>
         <div class="flex items-center gap-3">
           <select
             [value]="selectedYear()"
@@ -78,20 +93,6 @@ const DAY_LABELS = [
             🔄
           </button>
         </div>
-      </div>
-
-      <!-- Day checkboxes -->
-      <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-3 items-center shrink-0">
-        <span class="text-sm font-medium text-gray-600">Jours :</span>
-        @for (label of dayLabels; track label; let i = $index) {
-          <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
-            <input type="checkbox"
-              [checked]="selectedDays()[i]"
-              (change)="toggleDay(i)"
-              class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-            {{ label }}
-          </label>
-        }
       </div>
 
       <!-- Content -->
@@ -275,6 +276,20 @@ export class ControleDonneesPageComponent {
     const current = [...this.selectedDays()];
     current[index] = !current[index];
     this.selectedDays.set(current);
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
+  }
+
+  selectAllDays(): void {
+    this.selectedDays.set(Array(9).fill(true));
+    this.selectedQueteur.set(null);
+    this.drilldownData.set([]);
+    this.loadData();
+  }
+
+  selectNoDays(): void {
+    this.selectedDays.set(Array(9).fill(false));
     this.selectedQueteur.set(null);
     this.drilldownData.set([]);
     this.loadData();
