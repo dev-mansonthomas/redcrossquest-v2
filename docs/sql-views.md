@@ -25,6 +25,7 @@ euro2, euro1, cents50, cents20, cents10, cents5, cents2, cent1, don_cheque, don_
 | `total_amount` | DECIMAL | € | Somme pièces + billets + chèques + CB |
 | `weight` | DECIMAL | grammes | Poids physique (pièces + billets) |
 | `duration_minutes` | INT | minutes | TIMESTAMPDIFF(MINUTE, depart, retour) |
+| `quete_day_num` | INT | jour | DATEDIFF(DATE(depart), qd.start_date) + 1 — jour de quête (1 = premier jour). Peut être < 1 ou > nb_days pour les troncs hors période. |
 
 ### Formule total_amount
 > Note: `don_creditcard` est un cache de la table `credit_card`, ne pas additionner les deux.
@@ -70,6 +71,9 @@ COALESCE(tq.don_creditcard, 0)
 
 ### Jointure credit_card
 LEFT JOIN sur `credit_card` agrégée par `tronc_queteur_id` : `SUM(quantity * amount)`
+
+### Jointure quete_dates
+LEFT JOIN sur `quete_dates` par `YEAR(tq.depart)` pour calculer `quete_day_num`
 
 ---
 
