@@ -31,7 +31,7 @@ STATUS_FILTERS: dict[TroncStatus, str] = {
     TroncStatus.collecting: "AND tq.depart IS NOT NULL AND tq.retour IS NULL",
     TroncStatus.uncounted: "AND tq.retour IS NOT NULL AND tq.comptage IS NULL",
     TroncStatus.counted: "AND tq.comptage IS NOT NULL",
-    TroncStatus.missing_bags: "AND tq.comptage IS NOT NULL AND (tq.coins_money_bag_id IS NULL OR tq.bills_money_bag_id IS NULL)",
+    TroncStatus.missing_bags: "AND tq.comptage IS NOT NULL AND (tq.coins_money_bag_id IS NULL OR tq.coins_money_bag_id = '' OR tq.bills_money_bag_id IS NULL OR tq.bills_money_bag_id = '')",
 }
 
 
@@ -163,7 +163,7 @@ ETATS_TRONCS_MISSING_BAGS_QUERY = """
     WHERE tq.ul_id   = :ul_id
       AND tq.deleted = 0
       AND tq.comptage IS NOT NULL
-      AND (tq.coins_money_bag_id IS NULL OR tq.bills_money_bag_id IS NULL)
+      AND (tq.coins_money_bag_id IS NULL OR tq.coins_money_bag_id = '' OR tq.bills_money_bag_id IS NULL OR tq.bills_money_bag_id = '')
       {year_filter}
     ORDER BY tq.comptage DESC
 """
