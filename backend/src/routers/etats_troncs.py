@@ -1,0 +1,100 @@
+"""États des troncs endpoints — prepared / collecting / uncounted."""
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request as FastAPIRequest, status
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from ..database import get_rcq_db
+from ..schemas.etats_troncs import EtatsTroncsResponse, TroncEtatDetail
+from .auth import get_authenticated_user
+
+router = APIRouter(prefix="/api/etats-troncs", tags=["etats-troncs"])
+
+ALLOWED_ROLES = {"3", "4", "9"}
+
+
+class TroncStatus(str, Enum):
+    """Allowed status values for the tronc state filter."""
+
+    prepared = "prepared"
+    collecting = "collecting"
+    uncounted = "uncounted"
+
+
+STATUS_FILTERS: dict[TroncStatus, str] = {
+    TroncStatus.prepared: "AND tq.depart_theorique IS NOT NULL AND tq.depart IS NULL",
+    TroncStatus.collecting: "AND tq.depart IS NOT NULL AND tq.retour IS NULL",
+    TroncStatus.uncounted: "AND tq.retour IS NOT NULL AND tq.comptage IS NULL",
+}
+
+
+def _check_role(user: dict) -> None:
+    """Raise 403 if the user role is not in ALLOWED_ROLES."""
+    if str(user.get("role")) not in ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé aux rôles admin ou super admin",
+        )
+
+
+def _build_year_filter(year: Optional[int]) -> tuple[str, dict]:
+    """Return (SQL clause, params) for year filtering on tronc_queteur.
+
+    Uses COALESCE(tq.depart, tq.depart_theorique) so that:
+    - For "prepared" troncs (depart IS NULL), the filter applies to depart_theorique.
+    - For other statuses, it applies to depart.
+
+    ``None`` → current year.  ``0`` → no filter.
+    """
+    if year is None:
+        year = datetime.now().year
+    if year == 0:
+        return "", {}
+    return "AND YEAR(COALESCE(tq.depart, tq.depart_theorique)) = :year", {"year": year}
+
+
+ETATS_TRONCS_QUERY = """
+    SELECT
+      tq.id   AS tronc_queteur_id,
+      tq.queteur_id,
+      tq.tronc_id,
+      q.first_name,
+      q.last_name,
+      tq.depart_theorique,
+      tq.depart,
+      tq.retour,
+      pq.name AS point_quete_name
+    FROM tronc_queteur tq
+    JOIN queteur q        ON tq.queteur_id   = q.id
+    LEFT JOIN point_quete pq ON tq.point_quete_id = pq.id
+    WHERE tq.ul_id   = :ul_id
+      AND tq.deleted = 0
+      {status_filter}
+      {year_filter}
+    ORDER BY COALESCE(tq.depart, tq.depart_theorique) DESC
+"""
+
+
+@router.get("", response_model=EtatsTroncsResponse)
+async def get_etats_troncs(
+    request: FastAPIRequest,
+    status_param: TroncStatus = Query(..., alias="status", description="État du tronc: prepared | collecting | uncounted"),
+    year: Optional[int] = Query(default=None, description="Année (défaut: année courante, 0=toutes)"),
+    db: Session = Depends(get_rcq_db),
+) -> EtatsTroncsResponse:
+    """Return troncs matching the requested state."""
+    user = get_authenticated_user(request, db)
+    _check_role(user)
+
+    status_clause = STATUS_FILTERS[status_param]
+    year_clause, year_params = _build_year_filter(year)
+
+    query = ETATS_TRONCS_QUERY.format(status_filter=status_clause, year_filter=year_clause)
+    params = {"ul_id": user["ul_id"], **year_params}
+
+    rows = db.execute(text(query), params).mappings().all()
+    troncs = [TroncEtatDetail(**row) for row in rows]
+    return EtatsTroncsResponse(troncs=troncs)
