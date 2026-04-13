@@ -96,6 +96,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'comptage-pieces-billets',
+        loadComponent: () =>
+          import('../comptage-pieces-billets/comptage-pieces-billets-page').then(
+            (m) => m.ComptagePiecesBilletsPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
