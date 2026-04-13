@@ -237,7 +237,7 @@ export class ControleDonneesPageComponent {
               return `${ctx.dataset.label}: ${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €/h`;
             }
             if (ctx.dataset.yAxisID === 'y2') {
-              return `Heures: ${value.toFixed(1)}h`;
+              return `Heures: ${value.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}h`;
             }
             return `${ctx.dataset.label}: ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value)}`;
           },
@@ -262,7 +262,7 @@ export class ControleDonneesPageComponent {
         title: { display: true, text: 'Euros / heure' },
         grid: { drawOnChartArea: false },
         ticks: {
-          callback: (value) => Number(value).toFixed(1) + ' €/h',
+          callback: (value) => Number(value).toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + ' €/h',
         },
       },
       y2: {
@@ -272,7 +272,7 @@ export class ControleDonneesPageComponent {
         title: { display: true, text: 'Heures' },
         grid: { drawOnChartArea: false },
         ticks: {
-          callback: (value) => Number(value).toFixed(0) + 'h',
+          callback: (value) => Math.round(Number(value)).toLocaleString('fr-FR') + 'h',
         },
       },
     },

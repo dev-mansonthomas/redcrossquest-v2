@@ -136,7 +136,14 @@ export class UlOverviewPageComponent {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } } },
-    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+    scales: {
+      x: { stacked: true },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        ticks: { callback: (value) => Number(value).toLocaleString('fr-FR') },
+      },
+    },
   });
 
   readonly groupedBarOptions = signal<ChartOptions<'bar'>>({
@@ -150,6 +157,7 @@ export class UlOverviewPageComponent {
         position: 'left',
         beginAtZero: true,
         title: { display: true, text: 'Sorties' },
+        ticks: { callback: (value) => Number(value).toLocaleString('fr-FR') },
       },
       y1: {
         type: 'linear',
@@ -157,6 +165,7 @@ export class UlOverviewPageComponent {
         beginAtZero: true,
         title: { display: true, text: 'Points / Troncs' },
         grid: { drawOnChartArea: false },
+        ticks: { callback: (value) => Number(value).toLocaleString('fr-FR') },
       },
     },
   });

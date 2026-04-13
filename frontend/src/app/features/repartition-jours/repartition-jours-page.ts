@@ -67,7 +67,7 @@ export class RepartitionJoursPageComponent {
     const sm = h.filter(d => d.jour_num >= 3 && d.jour_num <= 7).reduce((s, d) => s + d.montant_jour, 0);
     const w2 = h.filter(d => d.jour_num >= 8).reduce((s, d) => s + d.montant_jour, 0);
     const t = w1 + sm + w2;
-    const p = (v: number) => t > 0 ? ((v / t) * 100).toFixed(1) : '0.0';
+    const p = (v: number) => t > 0 ? ((v / t) * 100).toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : '0,0';
     return {
       labels: [`Weekend 1 (J1+J2) — ${p(w1)}%`, `Semaine (J3-J7) — ${p(sm)}%`, `Weekend 2 (J8+J9) — ${p(w2)}%`],
       datasets: [{ data: [w1, sm, w2], backgroundColor: ['#3B82F6', '#F97316', '#22C55E'], borderWidth: 2, borderColor: '#fff' }],
@@ -125,7 +125,7 @@ export class RepartitionJoursPageComponent {
         if (!r) return '';
         const year = parseInt(ctx.label, 10);
         const entry = r.data.find(d => d.year === year && d.jour_num === ctx.datasetIndex + 1);
-        return `${ctx.dataset.label}: ${EUR.format(entry?.montant_jour ?? 0)} (${(ctx.parsed.x ?? 0).toFixed(1)}%)`;
+        return `${ctx.dataset.label}: ${EUR.format(entry?.montant_jour ?? 0)} (${(ctx.parsed.x ?? 0).toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}%)`;
       } } },
     },
   };
