@@ -15,7 +15,7 @@ import { environment } from '../../../environments/environment';
       <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <!-- Header avec logo -->
         <div class="h-14 px-4 border-b border-gray-200 flex items-center justify-between">
-          <h1 class="text-lg font-bold text-red-600">✚ RedCrossQuest</h1>
+          <a routerLink="/dashboards" class="text-lg font-bold text-red-600 hover:text-red-700 transition-colors cursor-pointer">✚ RedCrossQuest</a>
           @if (envLabel) {
             <span [class]="'px-2 py-0.5 text-xs font-bold rounded-md ' + envBadgeClass">{{ envLabel }}</span>
           }
