@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import * as L from 'leaflet';
 import { environment } from '../../../environments/environment';
 import { firstValueFrom } from 'rxjs';
@@ -152,7 +153,7 @@ function formatNumber(n: number): string {
           <div class="max-w-4xl mx-auto px-4 mb-6">
             <div class="bg-red-50 rounded-xl shadow p-6 border border-red-100">
               <h3 class="text-lg font-semibold text-red-800 mb-3">Message de votre Unité Locale</h3>
-              <div [innerHTML]="thanksMessage()" class="prose prose-sm text-gray-700"></div>
+              <div [innerHTML]="thanksMessageHtml()" class="prose prose-sm text-gray-700"></div>
             </div>
           </div>
         }
@@ -170,6 +171,7 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
 
   private readonly route = inject(ActivatedRoute);
   private readonly http = inject(HttpClient);
+  private readonly sanitizer = inject(DomSanitizer);
   private map: L.Map | null = null;
   private circlesLayer = L.layerGroup();
 
@@ -181,6 +183,7 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
   readonly stats = signal<MerciStats>({ total_amount: 0, total_hours: 0, total_weight_grams: 0, tronc_count: 0 });
   readonly pointsQuete = signal<PointQueteMerci[]>([]);
   readonly thanksMessage = signal('');
+  readonly thanksMessageHtml = signal<SafeHtml>('');
   readonly noData = signal(false);
 
   private uuid = '';
@@ -239,13 +242,11 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
       this.stats.set(response.stats);
       this.pointsQuete.set(response.points_quete);
       this.thanksMessage.set(response.thanks_message || '');
+      this.thanksMessageHtml.set(this.sanitizer.bypassSecurityTrustHtml(response.thanks_message || ''));
 
       if (response.stats.tronc_count === 0) {
         this.noData.set(true);
       }
-
-      this.initMap();
-      this.renderCircles();
     } catch (err: any) {
       if (err?.status === 404) {
         this.error.set('Quêteur non trouvé — vérifiez le lien reçu par email.');
@@ -256,6 +257,11 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
       }
     } finally {
       this.loading.set(false);
+      // Defer map init until DOM has rendered after loading signal change
+      setTimeout(() => {
+        this.initMap();
+        this.renderCircles();
+      }, 50);
     }
   }
 
@@ -271,6 +277,8 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
       maxZoom: 19,
     }).addTo(this.map);
     this.circlesLayer.addTo(this.map);
+    // Force recalcul de la taille du container
+    setTimeout(() => this.map?.invalidateSize(), 100);
   }
 
   private renderCircles(): void {
