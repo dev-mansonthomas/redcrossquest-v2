@@ -12,7 +12,7 @@ interface CumulativeOpenPoint {
   secteur_label: string;
   cumulative_count: number;
 }
-interface SummaryBySecteur { secteur_label: string; count: number; }
+interface SummaryBySecteur { secteur_label: string; total_sent: number; total_opened: number; }
 interface SummaryByStatus { status_code: string; label: string; count: number; }
 interface MailingStatsEntry { queteur_id: number; first_name: string; last_name: string; email_send_date: string; status_code: string; }
 interface MailingStatsResponse {
@@ -76,12 +76,12 @@ const STATUS_LABELS: Record<string, string> = {
             </div>
           </div>
 
-          <!-- Donuts -->
+          <!-- Charts: bar + donut -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">🍩 Ouvertures par type de bénévole</h3>
-              <div style="height: 280px; max-width: 400px; margin: 0 auto;">
-                <canvas baseChart [data]="donutSecteurData()" [options]="donutOptions" type="doughnut"></canvas>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">📊 Taux d'ouverture par type de bénévole</h3>
+              <div style="height: 280px;">
+                <canvas baseChart [data]="barSecteurData()" [options]="barSecteurOptions" type="bar"></canvas>
               </div>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -140,7 +140,7 @@ const STATUS_LABELS: Record<string, string> = {
                       <td class="px-3 py-2 text-gray-700">{{ row.first_name }}</td>
                       <td class="px-3 py-2 text-gray-700">{{ row.last_name }}</td>
                       <td class="px-3 py-2 text-gray-700">{{ row.email_send_date }}</td>
-                      <td class="px-3 py-2 text-gray-700">{{ row.status_code }}</td>
+                      <td class="px-3 py-2 text-gray-700">{{ row.status_code }} - {{ getStatusLabel(row.status_code) }}</td>
                     </tr>
                   }
                 </tbody>
@@ -224,18 +224,43 @@ export class MailingStatsPageComponent {
     },
   };
 
-  // ── Donut: by secteur ───────────────────────────────────────────────
-  readonly donutSecteurData = computed<ChartData<'doughnut'>>(() => {
+  // ── Bar chart: taux d'ouverture par secteur ─────────────────────────
+  readonly barSecteurData = computed<ChartData<'bar'>>(() => {
     const s = this.summaryBySecteur();
     return {
       labels: s.map(x => x.secteur_label),
       datasets: [{
-        data: s.map(x => x.count),
+        label: "Taux d'ouverture (%)",
+        data: s.map(x => x.total_sent > 0 ? Math.round(x.total_opened / x.total_sent * 1000) / 10 : 0),
         backgroundColor: s.map(x => SECTEUR_COLORS[x.secteur_label] ?? '#6B7280'),
-        borderWidth: 2, borderColor: '#fff',
+        borderWidth: 1, borderColor: '#fff',
+        borderRadius: 4,
       }],
     };
   });
+
+  readonly barSecteurOptions: ChartOptions<'bar'> = {
+    responsive: true, maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const s = this.summaryBySecteur();
+            const i = ctx.dataIndex;
+            const item = s[i];
+            if (!item) return `${ctx.formattedValue}%`;
+            return `${ctx.formattedValue}% (${item.total_opened}/${item.total_sent})`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: { beginAtZero: true, max: 100, title: { display: true, text: "Taux d'ouverture (%)" } },
+      y: { title: { display: false } },
+    },
+  };
 
   // ── Donut: by status ────────────────────────────────────────────────
   readonly donutStatusData = computed<ChartData<'doughnut'>>(() => {
@@ -269,6 +294,10 @@ export class MailingStatsPageComponent {
 
   refresh(): void {
     this.loadData();
+  }
+
+  getStatusLabel(code: string): string {
+    return STATUS_LABELS[code] ?? 'Unknown';
   }
 
   private async loadData(): Promise<void> {

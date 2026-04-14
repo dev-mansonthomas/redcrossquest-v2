@@ -66,11 +66,13 @@ ORDER BY open_date
 SUMMARY_BY_SECTEUR_QUERY = f"""
 SELECT
     {SECTEUR_CASE} AS secteur_label,
-    COUNT(*) AS count
+    COUNT(*) AS total_sent,
+    SUM(CASE WHEN qms.spotfire_open_date IS NOT NULL THEN 1 ELSE 0 END) AS total_opened
 FROM queteur_mailing_status qms
 JOIN queteur q ON q.id = qms.queteur_id
-WHERE qms.year = :year AND q.ul_id = :ul_id AND qms.spotfire_open_date IS NOT NULL
+WHERE qms.year = :year AND q.ul_id = :ul_id
 GROUP BY secteur_label
+ORDER BY total_sent DESC
 """
 
 SUMMARY_BY_STATUS_QUERY = """

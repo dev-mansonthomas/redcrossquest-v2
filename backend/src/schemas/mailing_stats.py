@@ -18,7 +18,8 @@ class CumulativeOpenPoint(BaseModel):
 
 class SummaryBySecteur(BaseModel):
     secteur_label: str
-    count: int
+    total_sent: int
+    total_opened: int
 
 
 class SummaryByStatus(BaseModel):
