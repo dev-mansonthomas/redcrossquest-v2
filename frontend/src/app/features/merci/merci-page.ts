@@ -41,23 +41,10 @@ interface MerciResponse {
   points_quete: PointQueteMerci[];
 }
 
-const POINT_TYPE_INFO: Record<number, { emoji: string; label: string }> = {
-  1: { emoji: '🚦', label: 'Voie Publique' },
-  2: { emoji: '🚶', label: 'Piéton' },
-  3: { emoji: '🏪', label: 'Commerçant' },
-  4: { emoji: '🏠', label: 'Base UL' },
-  5: { emoji: '📌', label: 'Autre' },
-};
-
 const DEFAULT_CENTER: L.LatLngExpression = [48.8566, 2.3522];
 const DEFAULT_ZOOM = 13;
 const MIN_RADIUS = 10;
 const MAX_RADIUS = 35;
-
-function getPointTypeLabel(type: number): string {
-  const info = POINT_TYPE_INFO[type] || { emoji: '📍', label: 'Inconnu' };
-  return `${info.emoji} ${info.label}`;
-}
 
 function getRadius(value: number, minVal: number, maxVal: number): number {
   if (maxVal <= minVal) return MIN_RADIUS;
@@ -290,36 +277,73 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
 
-    for (const p of points) {
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
       const latLng: L.LatLngExpression = [p.latitude!, p.longitude!];
       const radius = getRadius(p.total_amount, minVal, maxVal);
-      const typeLabel = getPointTypeLabel(p.type);
       const name = p.name || 'Sans nom';
 
+      // 1. Marker cercle plein coloré vif
       const circle = L.circleMarker(latLng, {
-        radius,
-        fillColor: '#dc2626',
-        fillOpacity: 0.6,
+        radius: Math.max(radius, 12),
+        fillColor: '#DC2626',
+        fillOpacity: 0.9,
         color: '#fff',
-        weight: 2,
+        weight: 3,
         opacity: 1.0,
       });
-
-      const tooltip = `
-        <div style="font-size:13px;line-height:1.6;">
-          <strong>${name}</strong><br/>
-          ${typeLabel}<br/>
-          💰 ${formatNumber(p.total_amount)} €
-        </div>
-      `;
-      circle.bindTooltip(tooltip, { direction: 'top', offset: [0, -radius] });
       this.circlesLayer.addLayer(circle);
+
+      // 2. Position décalée pour le label (offset variable pour éviter les superpositions)
+      const angle = (2 * Math.PI * i) / points.length;
+      const OFFSET = 0.003; // ~300m
+      const offsetLat = p.latitude! + OFFSET * Math.cos(angle);
+      const offsetLng = p.longitude! + OFFSET * Math.sin(angle);
+      const labelLatLng: L.LatLngExpression = [offsetLat, offsetLng];
+
+      // 3. Trait reliant le marker au label
+      const line = L.polyline([latLng, labelLatLng], {
+        color: '#6B7280',
+        weight: 1.5,
+        dashArray: '4,4',
+        opacity: 0.7,
+      });
+      this.circlesLayer.addLayer(line);
+
+      // 4. Label permanent au bout du trait
+      const labelIcon = L.divIcon({
+        className: 'merci-label',
+        html: `<div style="
+          background: white;
+          border: 2px solid #DC2626;
+          border-radius: 8px;
+          padding: 4px 8px;
+          font-size: 12px;
+          font-weight: 600;
+          white-space: nowrap;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+          line-height: 1.4;
+        ">
+          <div style="color: #1F2937;">${name}</div>
+          <div style="color: #DC2626;">💰 ${formatNumber(p.total_amount)} €</div>
+        </div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+      const labelMarker = L.marker(labelLatLng, { icon: labelIcon, interactive: false });
+      this.circlesLayer.addLayer(labelMarker);
     }
 
-    // Fit bounds
+    // Fit bounds avec padding pour les labels
     if (this.map) {
-      const bounds = points.map(p => [p.latitude!, p.longitude!] as L.LatLngExpression);
-      this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
+      const allLatLngs = points.flatMap((p, idx) => {
+        const angle = (2 * Math.PI * idx) / points.length;
+        return [
+          [p.latitude!, p.longitude!] as L.LatLngExpression,
+          [p.latitude! + 0.003 * Math.cos(angle), p.longitude! + 0.003 * Math.sin(angle)] as L.LatLngExpression,
+        ];
+      });
+      this.map.fitBounds(L.latLngBounds(allLatLngs), { padding: [60, 60], maxZoom: 15 });
     }
   }
 }
