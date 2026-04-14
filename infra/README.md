@@ -22,7 +22,7 @@ This infrastructure deploys:
 1. **GCP Access**: Admin access to projects `rcq-fr-dev`, `rcq-fr-test`, `rcq-fr-prod`
 2. **Terraform**: Version 1.5 or higher`# macOSbrew install terraform
 
-# Or download from: [https://www.terraform.io/downloads`](https://www.terraform.io/downloads%60)
+# Or download from: [[https://www.terraform.io/downloads`](https://www.terraform.io/downloads%60)](https://www.terraform.io/downloads%60%5D(https://www.terraform.io/downloads%60))
 
 1. **GCP CLI**: Authenticated and configured`gcloud auth application-default login gcloud config set project rcq-fr-dev`
 2. **GCS Bucket for State**: Create a bucket for Terraform state`gsutil mb -p rcq-fr-dev -l europe-west1 gs://rcq-terraform-state-dev gsutil versioning set on gs://rcq-terraform-state-dev`

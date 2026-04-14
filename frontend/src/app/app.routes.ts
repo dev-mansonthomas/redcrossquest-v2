@@ -20,6 +20,11 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'merci',
+    loadComponent: () =>
+      import('./features/merci/merci-page').then((m) => m.MerciPageComponent),
+  },
+  {
     path: 'dashboards',
     canActivate: [authGuard],
     loadChildren: () =>
