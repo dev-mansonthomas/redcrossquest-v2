@@ -159,7 +159,17 @@ function formatNumber(n: number): string {
       </div>
     }
   `,
-  styles: [`:host { display: block; }`],
+  styles: [`
+  :host { display: block; }
+  :host ::ng-deep .prose a {
+    color: #DC2626;
+    text-decoration: underline;
+    font-weight: 500;
+  }
+  :host ::ng-deep .prose a:hover {
+    color: #991B1B;
+  }
+`],
 })
 export class MerciPageComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
