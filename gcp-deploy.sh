@@ -706,6 +706,7 @@ check_environment() {
     # ── Secret Manager ───────────────────────────────────────
     echo "  Secret Manager"
     local check_secrets=(
+        "rcq_db_readonly_username"
         "rcq_db_readonly_password"
         "rcq_db_graph_username"
         "rcq_db_graph_password"
@@ -1167,8 +1168,8 @@ seed_secrets() {
     log_info "Seeding Secret Manager values from .env..."
 
     local secrets_to_seed=(
-        "rcq_db_readonly_username:RCQ_DB_USER"
-        "rcq_db_readonly_password:RCQ_DB_PASSWORD"
+        "rcq_db_readonly_username:RCQ_DB_READONLY_USER"
+        "rcq_db_readonly_password:RCQ_DB_READONLY_PASSWORD"
         "rcq_db_graph_username:RCQ_DB_USER"
         "rcq_db_graph_password:RCQ_DB_PASSWORD"
         "rcq_google_oauth_client_id:GOOGLE_OAUTH_CLIENT_ID"
