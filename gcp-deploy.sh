@@ -890,6 +890,7 @@ create_db_users() {
     require_var MIGRATION_DB_NAME "db user creation"
     require_var RCQ_DB_PASSWORD "db user creation"
     require_var RCQ_DB_USER "db user creation"
+    require_var RCQ_DB_READONLY_PASSWORD "db user creation"
 
     local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
     local db_port="${MIGRATION_DB_PORT:-3306}"
@@ -911,12 +912,20 @@ create_db_users() {
     else
         log_info "Creating MySQL user 'rcq_readonly'..."
         $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
-CREATE USER 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+CREATE USER IF NOT EXISTS 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_READONLY_PASSWORD}';
 GRANT SELECT ON \`${MIGRATION_DB_NAME}\`.* TO 'rcq_readonly'@'%';
 FLUSH PRIVILEGES;
 SQL_EOF
         log_success "MySQL user 'rcq_readonly' created with SELECT privileges on '${MIGRATION_DB_NAME}'."
     fi
+
+    # Ensure password is up to date (in case user was created with wrong password)
+    log_info "Ensuring 'rcq_readonly' password is up to date..."
+    $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+ALTER USER 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_READONLY_PASSWORD}';
+FLUSH PRIVILEGES;
+SQL_EOF
+    log_success "MySQL user 'rcq_readonly' password updated."
 
     # ── 2. User rcq-graph (SELECT + targeted UPDATE — for backend API) ──
     local graph_exists
@@ -928,7 +937,7 @@ SQL_EOF
     else
         log_info "Creating MySQL user '${RCQ_DB_USER}'..."
         $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
-CREATE USER '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
 GRANT SELECT ON \`${MIGRATION_DB_NAME}\`.* TO '${RCQ_DB_USER}'@'%';
 GRANT UPDATE ON \`${MIGRATION_DB_NAME}\`.\`queteur_mailing_status\` TO '${RCQ_DB_USER}'@'%';
 GRANT UPDATE ON \`${MIGRATION_DB_NAME}\`.\`ul_settings\` TO '${RCQ_DB_USER}'@'%';
@@ -936,6 +945,14 @@ FLUSH PRIVILEGES;
 SQL_EOF
         log_success "MySQL user '${RCQ_DB_USER}' created with SELECT + targeted UPDATE privileges on '${MIGRATION_DB_NAME}'."
     fi
+
+    # Ensure password is up to date (in case user was created with wrong password)
+    log_info "Ensuring '${RCQ_DB_USER}' password is up to date..."
+    $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+ALTER USER '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+FLUSH PRIVILEGES;
+SQL_EOF
+    log_success "MySQL user '${RCQ_DB_USER}' password updated."
 
     echo ""
 }
