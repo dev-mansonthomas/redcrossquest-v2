@@ -49,14 +49,6 @@ SECTEUR_CASE = """
 # ---------------------------------------------------------------------------
 # SQL queries
 # ---------------------------------------------------------------------------
-AVAILABLE_YEARS_QUERY = """
-SELECT DISTINCT year
-FROM queteur_mailing_status qms
-JOIN queteur q ON q.id = qms.queteur_id
-WHERE q.ul_id = :ul_id
-ORDER BY year DESC
-"""
-
 CUMULATIVE_OPENS_QUERY = f"""
 SELECT
     DATE(qms.spotfire_open_date) AS open_date,
@@ -140,9 +132,9 @@ async def get_mailing_stats(
 
     params = {"ul_id": ul_id, "year": year}
 
-    # Available years
-    year_rows = db.execute(text(AVAILABLE_YEARS_QUERY), {"ul_id": ul_id}).mappings().all()
-    available_years = [int(r["year"]) for r in year_rows]
+    # Available years – always propose the last 10 years regardless of data
+    current_year = datetime.now().year
+    available_years = list(range(current_year, current_year - 10, -1))
 
     # Cumulative opens
     open_rows = db.execute(text(CUMULATIVE_OPENS_QUERY), params).mappings().all()
