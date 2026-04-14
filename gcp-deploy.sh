@@ -614,6 +614,7 @@ check_environment() {
     local db_port="${MIGRATION_DB_PORT:-3306}"
     local db_user="${MIGRATION_DB_USER:-root}"
 
+    MYSQL_CMD=""
     find_mysql_cmds 2>/dev/null || true
     if [ -z "$MYSQL_CMD" ]; then
         check_fail "  mysql client not found — install with: brew install mysql-client"
