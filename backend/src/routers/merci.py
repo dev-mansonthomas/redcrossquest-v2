@@ -97,7 +97,7 @@ async def get_merci(
     db.commit()
 
     # 4. Cache check
-    cache_key = f"merci:{uuid}:{year}"
+    cache_key = f"merci:v2:{uuid}:{year}"
     cached = cache_get(cache_key)
     if cached is not None:
         return MerciResponse(**cached)

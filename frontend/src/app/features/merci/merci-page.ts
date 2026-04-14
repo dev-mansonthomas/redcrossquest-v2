@@ -65,14 +65,14 @@ function formatNumber(n: number): string {
   standalone: true,
   template: `
     @if (loading()) {
-      <div class="min-h-screen flex items-center justify-center bg-red-50">
+      <div class="min-h-screen flex items-center justify-center bg-red-50/30">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
           <p class="mt-4 text-gray-600">Chargement de tes résultats...</p>
         </div>
       </div>
     } @else if (error()) {
-      <div class="min-h-screen flex items-center justify-center bg-red-50">
+      <div class="min-h-screen flex items-center justify-center bg-red-50/30">
         <div class="text-center max-w-md px-4">
           <div class="text-6xl mb-4">😕</div>
           <h2 class="text-xl font-bold text-gray-800 mb-2">Oups !</h2>
@@ -80,7 +80,7 @@ function formatNumber(n: number): string {
         </div>
       </div>
     } @else {
-      <div class="min-h-screen bg-gradient-to-b from-red-50 to-white">
+      <div class="min-h-screen bg-gradient-to-b from-red-50/30 to-white">
         <header class="bg-white py-6 px-4 text-center shadow-sm border-b-4 border-[#E30613]">
           <div class="flex items-center justify-center gap-4 mb-2">
             <!-- SVG avec couleurs OFFICIELLES : croix=#E30613, texte=#000 -->
