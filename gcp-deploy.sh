@@ -822,6 +822,36 @@ build_and_push() {
         # shellcheck disable=SC2086
         docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $cache_flag $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
 
+        # Post-build guard: verify frontend image contains correct apiUrl for the target env
+        if [ "$svc" = "frontend" ]; then
+            local api_url
+            api_url=$(docker run --rm --platform linux/amd64 "$image" sh -c 'grep -o "apiUrl:\"[^\"]*\"" /usr/share/nginx/html/*.js 2>/dev/null | head -1')
+            local url_ok=false
+            case "$ENV" in
+                dev)
+                    if echo "$api_url" | grep -q "dev\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+                test)
+                    if echo "$api_url" | grep -q "test\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+                prod)
+                    if echo "$api_url" | grep -q "back\.graph\." && ! echo "$api_url" | grep -q "dev\.back\." && ! echo "$api_url" | grep -q "test\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+            esac
+            if $url_ok; then
+                log_success "Frontend API URL verified: ${api_url}"
+            else
+                log_error "FATAL: Frontend image contains wrong API URL for env '${ENV}': ${api_url}"
+                exit 1
+            fi
+        fi
+
         log_info "Pushing ${svc}..."
         docker push "$image"
 
@@ -1245,12 +1275,14 @@ run_infra() {
         log_info "Skip-build: looking up latest image tag from registry..."
         # Query the latest tag for any service (e.g. rcq-frontend)
         local latest_tag
-        latest_tag=$(gcloud artifacts docker tags list \
+        latest_tag=$(gcloud artifacts docker images list \
             "${REGISTRY}/rcq-frontend" \
-            --project="${GCP_PROJECT_ID}" \
-            --sort-by=~UPDATE_TIME \
-            --limit=5 \
-            --format="value(tag)" 2>/dev/null \
+            --include-tags \
+            --sort-by=~CREATE_TIME \
+            --limit=1 \
+            --filter="tags~^${ENV}-" \
+            --format="value(tags)" 2>/dev/null \
+            | tr "," "\n" \
             | grep "^${ENV}-" \
             | head -1)
         if [ -n "$latest_tag" ]; then
