@@ -18,6 +18,7 @@ from ..schemas.ul import (
     UlSearchResponse,
     UlSearchResult,
 )
+from ..schemas.ul_settings import UlSettingsResponse, UlSettingsUpdate
 
 router = APIRouter(prefix="/api", tags=["ul"])
 
@@ -31,8 +32,9 @@ SECTEUR_LABELS: dict[int, str] = {
     6: "Spécial",
 }
 
-# Roles allowed to access UL overview
+# Roles allowed to access UL overview and settings
 OVERVIEW_ALLOWED_ROLES = {"4", "9"}
+SETTINGS_ALLOWED_ROLES = {"4", "9"}
 
 # Cache TTL for UL overview (1 hour)
 UL_OVERVIEW_CACHE_TTL = 3600
@@ -250,3 +252,98 @@ async def get_ul_overview(
     cache_set(cache_key, result.model_dump(), ttl_seconds=UL_OVERVIEW_CACHE_TTL)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# UL Settings — thank-you messages
+# ---------------------------------------------------------------------------
+
+SETTINGS_QUERY = """
+    SELECT u.name AS ul_name,
+           us.thanks_mail_benevole,
+           us.thanks_mail_benevole1j
+      FROM ul_settings us
+      JOIN ul u ON u.id = us.ul_id
+     WHERE us.ul_id = :ul_id
+"""
+
+
+def _check_settings_role(user: dict) -> None:
+    """Raise 403 if the user role is not allowed for settings."""
+    if str(user.get("role")) not in SETTINGS_ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé aux rôles admin ou super admin",
+        )
+
+
+@router.get("/ul/settings", response_model=UlSettingsResponse)
+async def get_ul_settings(
+    request: Request,
+    db: Session = Depends(get_rcq_db),
+) -> UlSettingsResponse:
+    """Return the UL's thank-you message settings."""
+    user = get_authenticated_user(request, db)
+    _check_settings_role(user)
+    ul_id = user["ul_id"]
+
+    row = db.execute(text(SETTINGS_QUERY), {"ul_id": ul_id}).mappings().first()
+
+    if row is None:
+        # Return defaults when no settings row exists yet
+        return UlSettingsResponse(
+            ul_id=ul_id,
+            ul_name=user["ul_name"],
+        )
+
+    return UlSettingsResponse(
+        ul_id=ul_id,
+        ul_name=row["ul_name"],
+        thanks_mail_benevole=row["thanks_mail_benevole"],
+        thanks_mail_benevole1j=row["thanks_mail_benevole1j"],
+    )
+
+
+@router.put("/ul/settings", response_model=UlSettingsResponse)
+async def update_ul_settings(
+    body: UlSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_rcq_db),
+) -> UlSettingsResponse:
+    """Update the UL's thank-you message settings."""
+    user = get_authenticated_user(request, db)
+    _check_settings_role(user)
+    ul_id = user["ul_id"]
+    user_id = user["user_id"]
+
+    # Build SET clause with only provided (non-None) fields
+    updates: dict[str, Any] = {}
+    if body.thanks_mail_benevole is not None:
+        updates["thanks_mail_benevole"] = body.thanks_mail_benevole
+    if body.thanks_mail_benevole1j is not None:
+        updates["thanks_mail_benevole1j"] = body.thanks_mail_benevole1j
+
+    if updates:
+        set_parts = [f"{col} = :{col}" for col in updates]
+        set_parts.append("updated = NOW()")
+        set_parts.append("last_update_user_id = :user_id")
+        sql = f"UPDATE ul_settings SET {', '.join(set_parts)} WHERE ul_id = :ul_id"
+        params = {**updates, "user_id": user_id, "ul_id": ul_id}
+        db.execute(text(sql), params)
+        db.commit()
+
+    # Re-query to return updated state
+    row = db.execute(text(SETTINGS_QUERY), {"ul_id": ul_id}).mappings().first()
+
+    if row is None:
+        return UlSettingsResponse(
+            ul_id=ul_id,
+            ul_name=user["ul_name"],
+        )
+
+    return UlSettingsResponse(
+        ul_id=ul_id,
+        ul_name=row["ul_name"],
+        thanks_mail_benevole=row["thanks_mail_benevole"],
+        thanks_mail_benevole1j=row["thanks_mail_benevole1j"],
+    )

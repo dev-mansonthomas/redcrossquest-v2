@@ -150,6 +150,7 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
     user_data = results[0]
     role = str(user_data["role"]) if user_data["role"] is not None else ""
     return {
+        "user_id": user_data["user_id"],
         "email": user_data["email"],
         "role": user_data["role"],
         "ul_id": user_data["ul_id"],
