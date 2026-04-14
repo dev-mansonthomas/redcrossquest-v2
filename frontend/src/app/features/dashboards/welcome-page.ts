@@ -10,7 +10,7 @@ import { ENV_HEADER_BG } from '../../core/utils/env-header';
       <div
         [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center shrink-0 ' + headerBg"
       >
-        <h2 class="text-lg font-semibold text-gray-800">✚ RedCrossQuest</h2>
+
       </div>
 
       <!-- Content -->
@@ -23,14 +23,7 @@ import { ENV_HEADER_BG } from '../../core/utils/env-header';
           <p class="text-gray-500 mb-6">
             Sélectionnez un dashboard dans le menu de gauche pour commencer.
           </p>
-          <div
-            class="flex flex-wrap justify-center gap-3 text-sm text-gray-400"
-          >
-            <span>📊 Objectifs Annuels</span>
-            <span>🗺️ Cartes</span>
-            <span>💰 Sacs de Banque</span>
-            <span>🏆 Classements</span>
-          </div>
+
         </div>
       </div>
     </div>
