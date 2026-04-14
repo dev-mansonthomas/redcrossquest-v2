@@ -11,6 +11,6 @@ export const environment = {
   rcqV1Url: 'https://dev.redcrossquest.croix-rouge.fr',
   // Set to true to enable Superset embedded dashboards (requires Superset Cloud Run service)
   enableSuperset: false,
-  environmentLabel: '',
+  environmentLabel: 'LOCAL',
 };
 

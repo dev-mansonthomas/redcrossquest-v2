@@ -162,7 +162,7 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly ulOverrideService = inject(UlOverrideService);
   protected readonly enableSuperset = environment.enableSuperset;
   protected readonly envLabel = environment.environmentLabel;
-  protected readonly envBadgeClass = environment.environmentLabel === 'DEV'
+  protected readonly envBadgeClass = ['DEV', 'LOCAL'].includes(environment.environmentLabel)
     ? 'bg-blue-500 text-white'
     : environment.environmentLabel === 'TEST'
       ? 'bg-green-500 text-white'
