@@ -503,6 +503,33 @@ ensure_ar_repository() {
     fi
 }
 
+# ── Helper: Find mysql/mysqldump binaries ─────────────────────
+# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
+# Handles keg-only installs on macOS / Homebrew.
+find_mysql_cmds() {
+    if command -v mysql >/dev/null 2>&1; then
+        MYSQL_CMD="mysql"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
+    else
+        log_error "MySQL client not found. Install with: brew install mysql-client"
+        return 1
+    fi
+
+    if command -v mysqldump >/dev/null 2>&1; then
+        MYSQLDUMP_CMD="mysqldump"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
+    else
+        log_error "mysqldump not found. Install with: brew install mysql-client"
+        return 1
+    fi
+}
+
 # ══════════════════════════════════════════════════════════════
 # Step 0: Check environment readiness
 # ══════════════════════════════════════════════════════════════
@@ -791,33 +818,6 @@ if $DO_BUILD; then
     build_and_push
 fi
 
-
-# ── Helper: Find mysql/mysqldump binaries ─────────────────────
-# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
-# Handles keg-only installs on macOS / Homebrew.
-find_mysql_cmds() {
-    if command -v mysql >/dev/null 2>&1; then
-        MYSQL_CMD="mysql"
-    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
-        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
-    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
-        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
-    else
-        log_error "MySQL client not found. Install with: brew install mysql-client"
-        return 1
-    fi
-
-    if command -v mysqldump >/dev/null 2>&1; then
-        MYSQLDUMP_CMD="mysqldump"
-    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
-        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
-    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
-        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
-    else
-        log_error "mysqldump not found. Install with: brew install mysql-client"
-        return 1
-    fi
-}
 
 # ── Helper: Create MySQL read-only user ──────────────────────
 create_readonly_user() {
