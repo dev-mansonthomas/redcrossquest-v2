@@ -825,7 +825,7 @@ build_and_push() {
         # Post-build guard: verify frontend image contains correct apiUrl for the target env
         if [ "$svc" = "frontend" ]; then
             local api_url
-            api_url=$(docker run --rm --platform linux/amd64 "$image" sh -c 'grep -o "apiUrl:\"[^\"]*\"" /usr/share/nginx/html/*.js 2>/dev/null | head -1')
+            api_url=$(docker run --rm --platform linux/amd64 "$image" sh -c 'grep -oE "apiUrl:[[:space:]]*\"[^\"]*\"" /usr/share/nginx/html/*.js 2>/dev/null | head -1')
             local url_ok=false
             case "$ENV" in
                 dev)
