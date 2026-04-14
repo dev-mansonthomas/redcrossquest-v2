@@ -98,7 +98,7 @@ export class SettingsPageComponent implements AfterViewInit {
       this.dirty.set(false);
       return;
     }
-    const tb = [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['link'], ['clean']];
+    const tb = [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], [{ color: [] }], ['link'], ['clean']];
     this.quillBenevole = new Quill(this.editorBenevoleRef.nativeElement, {
       theme: 'snow', modules: { toolbar: tb }, placeholder: 'Saisissez le message de remerciement…',
     });
