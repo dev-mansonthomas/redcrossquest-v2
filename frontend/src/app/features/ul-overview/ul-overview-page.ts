@@ -57,6 +57,7 @@ const SECTOR_DATASETS = [
   selector: 'app-ul-overview-page',
   standalone: true,
   imports: [BaseChartDirective],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
@@ -83,34 +84,36 @@ const SECTOR_DATASETS = [
             </div>
           }
 
-          <!-- Row 1: Financials + Hours by sector -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+          <div class="flex-1 flex flex-col min-h-0 gap-4">
+            <!-- Row 1: Financials + Hours by sector -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
+              </div>
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
-              </div>
-            </div>
-          </div>
 
-          <!-- Row 2: Quêteurs by sector + Activity -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 mt-6">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+            <!-- Row 2: Quêteurs by sector + Activity -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
             </div>
           </div>
