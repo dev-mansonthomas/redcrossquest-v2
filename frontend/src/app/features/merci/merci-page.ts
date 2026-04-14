@@ -315,7 +315,7 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
 
       // 4. Label permanent au bout du trait
       const labelIcon = L.divIcon({
-        className: 'merci-label',
+        className: '',
         html: `<div style="
           background: white;
           border: 2px solid #DC2626;
