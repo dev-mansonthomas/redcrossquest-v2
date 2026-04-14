@@ -103,6 +103,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'suivi-mails',
+        loadComponent: () =>
+          import('../mailing-stats/mailing-stats-page').then(
+            (m) => m.MailingStatsPageComponent,
+          ),
+      },
+      {
         path: 'welcome',
         loadComponent: () =>
           import('./welcome-page').then((m) => m.WelcomePageComponent),
