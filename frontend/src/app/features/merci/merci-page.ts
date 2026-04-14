@@ -35,6 +35,10 @@ interface MerciResponse {
   queteur_first_name: string;
   queteur_man: boolean;
   thanks_message: string | null;
+  ul_name: string | null;
+  president_title: string | null;
+  president_first_name: string | null;
+  president_last_name: string | null;
   year: number;
   available_years: number[];
   stats: MerciStats;
@@ -126,6 +130,15 @@ function formatNumber(n: number): string {
             </div>
           </div>
 
+          @if (thanksMessage()) {
+            <div class="max-w-4xl mx-auto px-4 mb-6">
+              <div class="bg-red-50 rounded-xl shadow p-6 border border-red-100">
+                <h3 class="text-lg font-semibold text-red-800 mb-3">Message du président de l'unité locale de {{ ulName() }} : {{ presidentTitle() }} {{ presidentFirstName() }}, {{ presidentLastName() }}</h3>
+                <div [innerHTML]="thanksMessageHtml()" class="prose prose-sm text-gray-700"></div>
+              </div>
+            </div>
+          }
+
           <div class="max-w-4xl mx-auto px-4 mb-6">
             <div class="bg-white rounded-xl shadow overflow-hidden">
               <h3 class="px-4 py-3 text-lg font-semibold border-b">📍 Tes points de quête</h3>
@@ -136,15 +149,6 @@ function formatNumber(n: number): string {
           <div class="max-w-4xl mx-auto px-4 mb-6 text-center">
             <div class="bg-gray-100 rounded-xl p-8 text-gray-400">
               📸 Photo des troncs à venir
-            </div>
-          </div>
-        }
-
-        @if (thanksMessage()) {
-          <div class="max-w-4xl mx-auto px-4 mb-6">
-            <div class="bg-red-50 rounded-xl shadow p-6 border border-red-100">
-              <h3 class="text-lg font-semibold text-red-800 mb-3">Message de votre Unité Locale</h3>
-              <div [innerHTML]="thanksMessageHtml()" class="prose prose-sm text-gray-700"></div>
             </div>
           </div>
         }
@@ -175,6 +179,10 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
   readonly pointsQuete = signal<PointQueteMerci[]>([]);
   readonly thanksMessage = signal('');
   readonly thanksMessageHtml = signal<SafeHtml>('');
+  readonly ulName = signal('');
+  readonly presidentTitle = signal('');
+  readonly presidentFirstName = signal('');
+  readonly presidentLastName = signal('');
   readonly noData = signal(false);
 
   private uuid = '';
@@ -234,6 +242,10 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
       this.pointsQuete.set(response.points_quete);
       this.thanksMessage.set(response.thanks_message || '');
       this.thanksMessageHtml.set(this.sanitizer.bypassSecurityTrustHtml(response.thanks_message || ''));
+      this.ulName.set(response.ul_name || '');
+      this.presidentTitle.set(response.president_title || '');
+      this.presidentFirstName.set(response.president_first_name || '');
+      this.presidentLastName.set(response.president_last_name || '');
 
       if (response.stats.tronc_count === 0) {
         this.noData.set(true);
@@ -324,7 +336,9 @@ export class MerciPageComponent implements AfterViewInit, OnDestroy {
           padding: 4px 8px;
           font-size: 12px;
           font-weight: 600;
-          white-space: nowrap;
+          white-space: normal;
+          max-width: 200px;
+          width: max-content;
           box-shadow: 0 2px 6px rgba(0,0,0,0.15);
           line-height: 1.4;
         ">

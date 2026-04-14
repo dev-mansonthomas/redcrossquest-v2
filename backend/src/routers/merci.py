@@ -52,9 +52,11 @@ GROUP BY pq.id, pq.name, pq.latitude, pq.longitude, pq.address, pq.type
 """
 
 THANKS_MESSAGE_QUERY = """
-SELECT thanks_mail_benevole, thanks_mail_benevole1j
-FROM ul_settings
-WHERE ul_id = :ul_id
+SELECT us.thanks_mail_benevole, us.thanks_mail_benevole1j,
+       u.name AS ul_name, u.president_man, u.president_first_name, u.president_last_name
+FROM ul_settings us
+JOIN ul u ON u.id = us.ul_id
+WHERE us.ul_id = :ul_id
 """
 
 
@@ -136,12 +138,20 @@ async def get_merci(
     # 6. Thanks message
     thanks_row = db.execute(text(THANKS_MESSAGE_QUERY), {"ul_id": queteur["ul_id"]}).mappings().first()
     thanks_message = None
+    ul_name = None
+    president_title = None
+    president_first_name = None
+    president_last_name = None
     if thanks_row:
         secteur = queteur.get("secteur")
         if secteur in (1, 2):
             thanks_message = thanks_row["thanks_mail_benevole"]
         else:
             thanks_message = thanks_row["thanks_mail_benevole1j"]
+        ul_name = thanks_row.get("ul_name")
+        president_title = "Mr" if thanks_row.get("president_man") else "Mme"
+        president_first_name = thanks_row.get("president_first_name")
+        president_last_name = thanks_row.get("president_last_name")
 
     # Available years
     available_years = list(range(current_year, current_year - 10, -1))
@@ -150,6 +160,10 @@ async def get_merci(
         queteur_first_name=queteur["first_name"],
         queteur_man=bool(queteur["man"]),
         thanks_message=thanks_message,
+        ul_name=ul_name,
+        president_title=president_title,
+        president_first_name=president_first_name,
+        president_last_name=president_last_name,
         year=year,
         available_years=available_years,
         stats=stats,

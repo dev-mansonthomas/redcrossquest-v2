@@ -25,6 +25,10 @@ class MerciResponse(BaseModel):
     queteur_first_name: str
     queteur_man: bool
     thanks_message: Optional[str] = None
+    ul_name: Optional[str] = None
+    president_title: Optional[str] = None
+    president_first_name: Optional[str] = None
+    president_last_name: Optional[str] = None
     year: int
     available_years: list[int]
     stats: MerciStats
