@@ -10,7 +10,7 @@ import { environment } from '../../../environments/environment';
   standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <div class="h-screen flex bg-gray-100">
+    <div class="h-screen flex bg-white">
       <!-- Sidebar - Thème clair -->
       <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <!-- Header avec logo -->
@@ -150,7 +150,7 @@ import { environment } from '../../../environments/environment';
       </aside>
 
       <!-- Main content -->
-      <main class="flex-1 overflow-hidden bg-gray-50 flex flex-col">
+      <main class="flex-1 overflow-hidden bg-white flex flex-col">
         <router-outlet />
       </main>
     </div>
