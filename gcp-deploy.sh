@@ -614,35 +614,47 @@ check_environment() {
     local db_port="${MIGRATION_DB_PORT:-3306}"
     local db_user="${MIGRATION_DB_USER:-root}"
 
+    local check_err
+    check_err=$(mktemp)
+
     # Check user rcq_readonly
     local user_exists
     user_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>/dev/null || true)
+        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>"$check_err" || true)
     if [ -n "$user_exists" ]; then
         check_ok "  User rcq_readonly exists"
+    elif [ -s "$check_err" ]; then
+        check_fail "  User rcq_readonly — query failed: $(cat "$check_err")"
     else
         check_fail "  User rcq_readonly does NOT exist — will be created during --infra"
     fi
 
     # Check table schema_migrations
     local table_exists
+    > "$check_err"
     table_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='schema_migrations'" 2>/dev/null || true)
+        --skip-column-names -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='schema_migrations'" 2>"$check_err" || true)
     if [ -n "$table_exists" ]; then
         check_ok "  Table schema_migrations exists"
+    elif [ -s "$check_err" ]; then
+        check_fail "  Table schema_migrations — query failed: $(cat "$check_err")"
     else
         check_fail "  Table schema_migrations does NOT exist — will be created during --migrate"
     fi
 
     # Check view v_tronc_queteur_enriched
     local view_exists
+    > "$check_err"
     view_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT 1 FROM information_schema.views WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='v_tronc_queteur_enriched'" 2>/dev/null || true)
+        --skip-column-names -e "SELECT 1 FROM information_schema.views WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='v_tronc_queteur_enriched'" 2>"$check_err" || true)
     if [ -n "$view_exists" ]; then
         check_ok "  View v_tronc_queteur_enriched exists"
+    elif [ -s "$check_err" ]; then
+        check_fail "  View v_tronc_queteur_enriched — query failed: $(cat "$check_err")"
     else
         check_fail "  View v_tronc_queteur_enriched does NOT exist — will be created during --migrate"
     fi
+    rm -f "$check_err"
     echo ""
 
     # ── Secret Manager ───────────────────────────────────────
@@ -659,15 +671,19 @@ check_environment() {
     echo "  Memorystore (Valkey)"
     local valkey_name="rcq-valkey-${ENV}"
     local valkey_output
-    valkey_output=$(gcloud memorystore instances describe "$valkey_name" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" --format="value(engineVersion,authorizationMode)" 2>/dev/null || true)
+    check_err=$(mktemp)
+    valkey_output=$(gcloud memorystore instances describe "$valkey_name" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" --format="value(engineVersion,authorizationMode)" 2>"$check_err" || true)
     if [ -n "$valkey_output" ]; then
         local valkey_version valkey_auth
         valkey_version=$(echo "$valkey_output" | head -1 | cut -f1)
         valkey_auth=$(echo "$valkey_output" | head -1 | cut -f2)
         check_ok "  Instance ${valkey_name} exists (Valkey ${valkey_version}, ${valkey_auth})"
+    elif [ -s "$check_err" ]; then
+        check_fail "  Instance ${valkey_name} — query failed: $(head -1 "$check_err")"
     else
         check_fail "  Instance ${valkey_name} does NOT exist — will be created during --infra"
     fi
+    rm -f "$check_err"
     echo ""
 
     # ── Summary ──────────────────────────────────────────────
