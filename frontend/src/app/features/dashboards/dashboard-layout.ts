@@ -119,7 +119,7 @@ import { environment } from '../../../environments/environment';
         <div class="p-4 border-t border-gray-200">
           <div class="space-y-1 mb-3">
             <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
-            <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }}</p>
+            <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }} (id:{{ authService.user()?.ul_id }})</p>
             @if (authService.user()?.role === 9) {
               <a routerLink="/dashboards/admin"
                  class="block px-3 text-sm text-gray-500 hover:text-red-600 cursor-pointer transition-colors">

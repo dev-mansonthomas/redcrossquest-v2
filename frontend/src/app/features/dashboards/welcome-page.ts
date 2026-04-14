@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 @Component({
   selector: 'app-welcome-page',
@@ -7,7 +8,7 @@ import { Component } from '@angular/core';
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
       <div
-        class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center shrink-0"
+        [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center shrink-0 ' + headerBg"
       >
         <h2 class="text-lg font-semibold text-gray-800">✚ RedCrossQuest</h2>
       </div>
@@ -35,4 +36,6 @@ import { Component } from '@angular/core';
     </div>
   `,
 })
-export class WelcomePageComponent {}
+export class WelcomePageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
+}

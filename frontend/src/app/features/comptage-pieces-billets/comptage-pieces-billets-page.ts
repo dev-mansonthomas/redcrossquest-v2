@@ -2,6 +2,7 @@ import { Component, inject, signal, effect, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface DenominationCount {
@@ -37,10 +38,10 @@ type SortDir = 'asc' | 'desc';
   imports: [],
   styles: [`:host { display: block; height: 100%; }`],
   template: `
-    <div class="h-full flex flex-col overflow-hidden p-6">
+    <div class="h-full flex flex-col overflow-hidden">
       <!-- Header -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-gray-800">🪙 Comptage pièces, billets et CB</h2>
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
+        <h2 class="text-lg font-semibold text-gray-800">🪙 Comptage pièces, billets et CB</h2>
         <div class="flex items-center gap-2">
           <select
             [value]="selectedYear()"
@@ -56,6 +57,7 @@ type SortDir = 'asc' | 'desc';
         </div>
       </div>
 
+      <div class="flex-1 overflow-hidden p-6">
       <!-- Loading / Error -->
       @if (loading()) {
         <div class="text-center py-12 text-gray-500">Chargement…</div>
@@ -166,10 +168,12 @@ type SortDir = 'asc' | 'desc';
 
         </div>
       }
+      </div>
     </div>
   `,
 })
 export class ComptagePiecesBilletsPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 

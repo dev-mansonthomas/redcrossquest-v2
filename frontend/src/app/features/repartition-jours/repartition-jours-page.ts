@@ -4,6 +4,7 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 interface DailyAmount { year: number; jour_num: number; montant_jour: number; }
 interface RepartitionJoursResponse { data: DailyAmount[]; min_year: number; max_year: number; current_year: number; }
@@ -18,7 +19,7 @@ const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' 
   imports: [BaseChartDirective],
   template: `
     <div class="h-full flex flex-col">
-      <div class="h-14 px-4 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">📊 Répartition journalière</h2>
         <button (click)="loadData(true)" class="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors" [disabled]="loading()">🔄 Rafraîchir</button>
       </div>
@@ -46,6 +47,7 @@ const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' 
   `,
 })
 export class RepartitionJoursPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
   readonly loading = signal(false);

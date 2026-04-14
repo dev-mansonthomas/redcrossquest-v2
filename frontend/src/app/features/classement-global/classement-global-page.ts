@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { environment } from '../../../environments/environment';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 interface QueteurRow {
   queteur_id: number;
@@ -37,7 +38,7 @@ type SortDirection = 'asc' | 'desc';
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">🏆 Classement Global</h2>
         <div class="flex items-center gap-3">
           <select
@@ -175,6 +176,7 @@ type SortDirection = 'asc' | 'desc';
   `],
 })
 export class ClassementGlobalPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 

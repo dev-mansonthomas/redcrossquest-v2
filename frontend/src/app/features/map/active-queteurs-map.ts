@@ -12,6 +12,7 @@ import {
 import * as L from 'leaflet';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 import { firstValueFrom } from 'rxjs';
 
 interface ActiveQueteur {
@@ -170,7 +171,7 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
   standalone: true,
   template: `
     <div class="h-full w-full bg-white overflow-y-auto">
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">🗺️ Carte des quêteurs actifs</h2>
         <div class="flex items-center gap-3">
           <button
@@ -268,6 +269,7 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
   `],
 })
 export class ActiveQueteursMapComponent implements AfterViewInit, OnDestroy {
+  protected readonly headerBg = ENV_HEADER_BG;
   @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
 
   private readonly api = inject(ApiService);
