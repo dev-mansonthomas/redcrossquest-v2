@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface DailyStats {
@@ -31,10 +32,10 @@ const DAY_LABELS = [
   standalone: true,
   imports: [DecimalPipe],
   template: `
-    <div class="flex-1 overflow-auto p-6">
+    <div class="h-full flex flex-col overflow-hidden">
       <!-- Header -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-gray-800">📊 Stats journalières</h2>
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
+        <h2 class="text-lg font-semibold text-gray-800">📊 Stats journalières</h2>
         <div class="flex items-center gap-2">
           <select
             [value]="selectedYear()"
@@ -53,6 +54,8 @@ const DAY_LABELS = [
           </button>
         </div>
       </div>
+
+      <div class="flex-1 overflow-auto p-6">
 
       <!-- Warning banner -->
       <div class="bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 rounded-md text-sm font-medium mb-4">
@@ -109,10 +112,12 @@ const DAY_LABELS = [
           </table>
         </div>
       }
+      </div>
     </div>
   `,
 })
 export class StatsJournalieresPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly authService = inject(AuthService);
   private readonly ulOverrideService = inject(UlOverrideService);

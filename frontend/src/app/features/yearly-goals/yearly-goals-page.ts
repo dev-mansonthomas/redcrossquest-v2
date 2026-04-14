@@ -5,6 +5,7 @@ import { ChartData, ChartOptions } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { environment } from '../../../environments/environment';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 // ── API response interfaces ─────────────────────────────────────────
 interface YearlyGoalDataPoint {
@@ -28,7 +29,7 @@ const PAST_YEAR_COLORS = ['#93C5FD', '#86EFAC', '#FDBA74', '#C4B5FD', '#F9A8D4']
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">📊 Objectifs Annuels</h2>
         <button
           (click)="refresh()"
@@ -73,6 +74,7 @@ const PAST_YEAR_COLORS = ['#93C5FD', '#86EFAC', '#FDBA74', '#C4B5FD', '#F9A8D4']
   `,
 })
 export class YearlyGoalsPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 

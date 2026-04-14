@@ -1,5 +1,6 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { UlOverrideService } from '../services/ul-override.service';
 
@@ -8,6 +9,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const ulOverrideService = inject(UlOverrideService);
   const token = authService.getToken();
 
+  let request = req;
   if (token) {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
@@ -18,10 +20,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       headers['X-Override-UL-Id'] = String(override.id);
     }
 
-    const authReq = req.clone({ setHeaders: headers });
-    return next(authReq);
+    request = req.clone({ setHeaders: headers });
   }
 
-  return next(req);
+  return next(request).pipe(
+    catchError((error: HttpErrorResponse) => {
+      if (error.status === 401) {
+        authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
 };
 

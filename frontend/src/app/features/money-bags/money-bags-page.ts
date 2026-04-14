@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { environment } from '../../../environments/environment';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 interface MoneyBagSummary {
   bag_id: string;
@@ -46,7 +47,7 @@ const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header — same h-14 as sidebar header -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">💰 Sacs de Banque</h2>
         <div class="flex items-center gap-3">
           <!-- Toggle Pièces / Billets -->
@@ -206,6 +207,7 @@ const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
   `],
 })
 export class MoneyBagsPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 

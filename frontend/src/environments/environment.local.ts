@@ -7,4 +7,5 @@ export const environment = {
   environment: 'local',
   // Set to true to enable Superset embedded dashboards (requires Superset Cloud Run service)
   enableSuperset: false,
+  environmentLabel: 'LOCAL',
 };

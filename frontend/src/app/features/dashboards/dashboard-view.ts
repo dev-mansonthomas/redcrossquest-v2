@@ -12,6 +12,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { SupersetService } from '../../core/services/superset.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 @Component({
   selector: 'app-dashboard-view',
@@ -19,7 +20,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header avec style cohérent -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">{{ title() }}</h2>
       </div>
       @if (error()) {
@@ -46,6 +47,7 @@ import { UlOverrideService } from '../../core/services/ul-override.service';
   `],
 })
 export class DashboardViewComponent implements OnInit, OnDestroy {
+  protected readonly headerBg = ENV_HEADER_BG;
   @ViewChild('dashboardContainer', { static: true })
   container!: ElementRef<HTMLElement>;
 

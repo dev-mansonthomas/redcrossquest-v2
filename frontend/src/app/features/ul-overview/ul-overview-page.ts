@@ -4,6 +4,7 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
 // ── API response interfaces ─────────────────────────────────────────
 interface FinancialYear {
@@ -56,10 +57,11 @@ const SECTOR_DATASETS = [
   selector: 'app-ul-overview-page',
   standalone: true,
   imports: [BaseChartDirective],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
-      <div class="h-14 px-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0">
+      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">📊 Vue globale UL</h2>
         <button
           (click)="refresh()"
@@ -82,34 +84,36 @@ const SECTOR_DATASETS = [
             </div>
           }
 
-          <!-- Row 1: Financials + Hours by sector -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+          <div class="flex-1 flex flex-col min-h-0 gap-4">
+            <!-- Row 1: Financials + Hours by sector -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">💰 Total collecté par type (€)</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="financialsChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
+              </div>
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">⏱️ Heures de quête par secteur</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="hoursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
-              </div>
-            </div>
-          </div>
 
-          <!-- Row 2: Quêteurs by sector + Activity -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 mt-6">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+            <!-- Row 2: Quêteurs by sector + Activity -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">👥 Quêteurs par secteur</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="queteursChartData()" [options]="stackedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-              <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
-              <div class="flex-1 min-h-0">
-                <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
+              <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">📈 Activité : sorties, points, troncs</h3>
+                <div class="flex-1 min-h-0">
+                  <canvas baseChart [data]="activityChartData()" [options]="groupedBarOptions()" type="bar"></canvas>
+                </div>
               </div>
             </div>
           </div>
@@ -119,6 +123,7 @@ const SECTOR_DATASETS = [
   `,
 })
 export class UlOverviewPageComponent {
+  protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 
