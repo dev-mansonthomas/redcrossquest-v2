@@ -142,6 +142,13 @@ import { environment } from '../../../environments/environment';
           <div class="space-y-1 mb-3">
             <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
             <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }} (id:{{ authService.user()?.ul_id }})</p>
+            @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+              <a routerLink="/dashboards/settings"
+                 routerLinkActive="text-red-600"
+                 class="block px-3 text-sm text-gray-500 hover:text-red-600 cursor-pointer transition-colors">
+                ⚙️ Paramètres UL
+              </a>
+            }
             @if (authService.user()?.role === 9) {
               <a routerLink="/dashboards/admin"
                  class="block px-3 text-sm text-gray-500 hover:text-red-600 cursor-pointer transition-colors">

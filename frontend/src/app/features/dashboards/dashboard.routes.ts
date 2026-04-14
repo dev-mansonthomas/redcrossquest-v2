@@ -115,6 +115,13 @@ export const DASHBOARD_ROUTES: Routes = [
           import('./welcome-page').then((m) => m.WelcomePageComponent),
       },
       {
+        path: 'settings',
+        loadComponent: () =>
+          import('../settings/settings-page').then(
+            (m) => m.SettingsPageComponent,
+          ),
+      },
+      {
         path: ':slug',
         loadComponent: () =>
           import('./dashboard-view').then((m) => m.DashboardViewComponent),
