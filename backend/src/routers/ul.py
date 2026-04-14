@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..cache import cache_delete, cache_delete_pattern, cache_get, cache_set
+from ..cache import cache_delete, cache_get, cache_set
 from ..database import get_rcq_db
 from ..routers.auth import get_authenticated_user
 from ..schemas.ul import (
@@ -332,9 +332,8 @@ async def update_ul_settings(
         db.execute(text(sql), params)
         db.commit()
 
-        # Invalidate all merci page caches since the thanks message changed
-        # Keys are like merci:v2:{uuid}:{year}
-        cache_delete_pattern("merci:v2:*")
+        # Invalidate the UL info cache so merci pages pick up the new message
+        cache_delete(f"ul:{ul_id}:info")
 
     # Re-query to return updated state
     row = db.execute(text(SETTINGS_QUERY), {"ul_id": ul_id}).mappings().first()

@@ -21,6 +21,7 @@ UUID_V4_REGEX = re.compile(
 )
 
 CACHE_TTL = 5_184_000  # 2 months in seconds
+UL_INFO_CACHE_TTL = 86_400  # 24h (invalidated manually on PUT settings)
 
 # ---------------------------------------------------------------------------
 # SQL queries
@@ -60,6 +61,28 @@ WHERE us.ul_id = :ul_id
 """
 
 
+def _get_ul_info(db: Session, ul_id: int) -> dict:
+    """Get UL info from cache or DB."""
+    cache_key = f"ul:{ul_id}:info"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    row = db.execute(text(THANKS_MESSAGE_QUERY), {"ul_id": ul_id}).mappings().first()
+    info: dict = {}
+    if row:
+        info = {
+            "ul_name": row.get("ul_name"),
+            "president_man": row.get("president_man"),
+            "president_first_name": row.get("president_first_name"),
+            "president_last_name": row.get("president_last_name"),
+            "thanks_mail_benevole": row.get("thanks_mail_benevole"),
+            "thanks_mail_benevole1j": row.get("thanks_mail_benevole1j"),
+        }
+    cache_set(cache_key, info, ttl_seconds=UL_INFO_CACHE_TTL)
+    return info
+
+
 @router.get("/merci/{uuid}", response_model=MerciResponse)
 async def get_merci(
     uuid: str,
@@ -96,81 +119,93 @@ async def get_merci(
     )
     db.commit()
 
-    # 4. Cache check
-    cache_key = f"merci:v2:{uuid}:{year}"
+    # 4. Cache check (quêteur stats only, UL info has its own cache)
+    cache_key = f"merci:{uuid}:{year}"
     cached = cache_get(cache_key)
+
     if cached is not None:
-        return MerciResponse(**cached)
-
-    # 5. Query stats per point_quete
-    pq_rows = (
-        db.execute(text(POINTS_QUETE_QUERY), {"queteur_id": queteur_id, "year": year})
-        .mappings()
-        .all()
-    )
-
-    points_quete = [
-        PointQueteMerci(
-            id=int(r["id"]),
-            name=r["name"],
-            latitude=float(r["latitude"]) if r["latitude"] is not None else None,
-            longitude=float(r["longitude"]) if r["longitude"] is not None else None,
-            address=r["address"],
-            type=int(r["type"]) if r["type"] is not None else 1,
-            total_amount=float(r["total_amount"]),
-        )
-        for r in pq_rows
-    ]
-
-    # Aggregate stats
-    total_amount = sum(p.total_amount for p in points_quete)
-    total_hours = sum(float(r["total_hours"] or 0) for r in pq_rows)
-    total_weight_grams = sum(float(r["total_weight_grams"] or 0) for r in pq_rows)
-    tronc_count = sum(int(r["tronc_count"]) for r in pq_rows)
-
-    stats = MerciStats(
-        total_amount=round(total_amount, 2),
-        total_hours=round(total_hours, 2),
-        total_weight_grams=round(total_weight_grams, 0),
-        tronc_count=tronc_count,
-    )
-
-    # 6. Thanks message
-    thanks_row = db.execute(text(THANKS_MESSAGE_QUERY), {"ul_id": queteur["ul_id"]}).mappings().first()
-    thanks_message = None
-    ul_name = None
-    president_title = None
-    president_first_name = None
-    president_last_name = None
-    if thanks_row:
+        # Cache hit — read ul_id and secteur from cache
+        ul_id = cached["ul_id"]
+        secteur = cached["secteur"]
+    else:
+        ul_id = queteur["ul_id"]
         secteur = queteur.get("secteur")
+
+        # 5. Query stats per point_quete
+        pq_rows = (
+            db.execute(text(POINTS_QUETE_QUERY), {"queteur_id": queteur_id, "year": year})
+            .mappings()
+            .all()
+        )
+
+        points_quete = [
+            PointQueteMerci(
+                id=int(r["id"]),
+                name=r["name"],
+                latitude=float(r["latitude"]) if r["latitude"] is not None else None,
+                longitude=float(r["longitude"]) if r["longitude"] is not None else None,
+                address=r["address"],
+                type=int(r["type"]) if r["type"] is not None else 1,
+                total_amount=float(r["total_amount"]),
+            )
+            for r in pq_rows
+        ]
+
+        # Aggregate stats
+        total_amount = sum(p.total_amount for p in points_quete)
+        total_hours = sum(float(r["total_hours"] or 0) for r in pq_rows)
+        total_weight_grams = sum(float(r["total_weight_grams"] or 0) for r in pq_rows)
+        tronc_count = sum(int(r["tronc_count"]) for r in pq_rows)
+
+        stats = MerciStats(
+            total_amount=round(total_amount, 2),
+            total_hours=round(total_hours, 2),
+            total_weight_grams=round(total_weight_grams, 0),
+            tronc_count=tronc_count,
+        )
+
+        # Available years
+        available_years = list(range(current_year, current_year - 10, -1))
+
+        # Cache quêteur stats (WITHOUT UL data)
+        cache_data = {
+            "queteur_first_name": queteur["first_name"],
+            "queteur_man": bool(queteur["man"]),
+            "secteur": secteur,
+            "ul_id": ul_id,
+            "year": year,
+            "available_years": available_years,
+            "stats": stats.model_dump(),
+            "points_quete": [p.model_dump() for p in points_quete],
+        }
+        cache_set(cache_key, cache_data, ttl_seconds=CACHE_TTL)
+        cached = cache_data
+
+    # 6. Always get UL info from its own cache
+    ul_info = _get_ul_info(db, ul_id)
+
+    # Determine thanks message based on secteur
+    thanks_message = None
+    if ul_info:
         if secteur in (1, 2):
-            thanks_message = thanks_row["thanks_mail_benevole"]
+            thanks_message = ul_info.get("thanks_mail_benevole")
         else:
-            thanks_message = thanks_row["thanks_mail_benevole1j"]
-        ul_name = thanks_row.get("ul_name")
-        president_title = "Mr" if thanks_row.get("president_man") else "Mme"
-        president_first_name = thanks_row.get("president_first_name")
-        president_last_name = thanks_row.get("president_last_name")
+            thanks_message = ul_info.get("thanks_mail_benevole1j")
 
-    # Available years
-    available_years = list(range(current_year, current_year - 10, -1))
+    president_title = None
+    if ul_info.get("president_man") is not None:
+        president_title = "Mr" if ul_info.get("president_man") else "Mme"
 
-    response = MerciResponse(
-        queteur_first_name=queteur["first_name"],
-        queteur_man=bool(queteur["man"]),
+    return MerciResponse(
+        queteur_first_name=cached["queteur_first_name"],
+        queteur_man=cached["queteur_man"],
         thanks_message=thanks_message,
-        ul_name=ul_name,
+        ul_name=ul_info.get("ul_name"),
         president_title=president_title,
-        president_first_name=president_first_name,
-        president_last_name=president_last_name,
-        year=year,
-        available_years=available_years,
-        stats=stats,
-        points_quete=points_quete,
+        president_first_name=ul_info.get("president_first_name"),
+        president_last_name=ul_info.get("president_last_name"),
+        year=cached["year"],
+        available_years=cached["available_years"],
+        stats=MerciStats(**cached["stats"]),
+        points_quete=[PointQueteMerci(**p) for p in cached["points_quete"]],
     )
-
-    # Cache the result
-    cache_set(cache_key, response.model_dump(), ttl_seconds=CACHE_TTL)
-
-    return response
