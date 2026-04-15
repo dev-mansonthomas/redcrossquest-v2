@@ -179,14 +179,15 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
 
     # Un seul compte trouvé
     user_data = results[0]
-    role = str(user_data["role"]) if user_data["role"] is not None else ""
+    role_int = int(user_data["role"]) if user_data["role"] is not None else 0
+    role_key = str(role_int)
     return {
         "user_id": user_data["user_id"],
         "email": user_data["email"],
-        "role": user_data["role"],
+        "role": role_int,
         "ul_id": user_data["ul_id"],
         "ul_name": user_data["ul_name"],
-        "role_name": ROLE_NAMES.get(role, ""),
+        "role_name": ROLE_NAMES.get(role_key, ""),
     }
 
 

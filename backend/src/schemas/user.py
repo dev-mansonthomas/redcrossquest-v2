@@ -7,7 +7,7 @@ class UserResponse(BaseModel):
     """User information returned by /api/me endpoint."""
 
     email: EmailStr
-    role: str
+    role: int  # was str — frontend expects a number for role comparisons
     ul_id: Optional[int] = None
     ul_name: Optional[str] = None
     role_name: Optional[str] = None

@@ -45,7 +45,7 @@ export class CallbackComponent implements OnInit {
           this.authService.setUser({
             email: user.email,
             name: user.email,
-            role: user.role,
+            role: typeof user.role === 'string' ? parseInt(user.role, 10) : user.role,
             ul_id: user.ul_id,
             ul_name: user.ul_name,
             role_name: user.role_name,
