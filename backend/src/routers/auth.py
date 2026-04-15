@@ -242,6 +242,20 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
         except (ValueError, TypeError):
             pass
 
+    # Super Admin Role override
+    override_role = request.headers.get("X-Override-Role")
+    if override_role and str(user_profile.get("role")) == "9":
+        try:
+            override_role_int = int(override_role)
+            real_role = int(user_profile.get("role", 0))
+            # Security: override role must be <= real role (hierarchy: 1 < 2 < 3 < 4 < 9)
+            if override_role_int <= real_role and str(override_role_int) in ROLE_NAMES:
+                user_profile["real_role"] = real_role
+                user_profile["role"] = override_role_int
+                user_profile["role_name"] = ROLE_NAMES[str(override_role_int)]
+        except (ValueError, TypeError):
+            pass
+
     return user_profile
 
 

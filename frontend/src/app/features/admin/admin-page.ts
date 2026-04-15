@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subject, debounceTime, distinctUntilChanged, switchMap, of, map } from 'rxjs';
 import { UlOverrideService, UlOverride } from '../../core/services/ul-override.service';
+import { RoleOverrideService, RoleOverride, ROLE_OPTIONS } from '../../core/services/role-override.service';
 import { AuthService } from '../../core/services/auth.service';
 import { environment } from '../../../environments/environment';
 
@@ -40,6 +41,43 @@ interface UlSearchResult {
             <span class="text-sm text-gray-400 ml-2">(ID: {{ authService.user()?.ul_id || '?' }})</span>
           </p>
         }
+      </div>
+
+      <!-- Current Role -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-2">Rôle actuel</h2>
+        @if (roleOverrideService.isOverridden()) {
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-base font-medium text-red-600">{{ getRoleEmoji(roleOverrideService.override()?.role_name) }} {{ roleOverrideService.override()?.role_name }}</p>
+              <p class="text-sm text-gray-500">Rôle: {{ roleOverrideService.override()?.role }}</p>
+              <p class="text-xs text-orange-500 mt-1">⚠️ Override actif</p>
+            </div>
+            <button
+              (click)="clearRoleOverride()"
+              class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm transition-colors">
+              ✕ Revenir à mon rôle
+            </button>
+          </div>
+        } @else {
+          <p class="text-base text-gray-600">
+            {{ getRoleEmoji(authService.user()?.role_name) }} {{ authService.user()?.role_name || 'Rôle inconnu' }}
+            <span class="text-sm text-gray-400 ml-2">(Rôle: {{ authService.user()?.role || '?' }})</span>
+          </p>
+        }
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1">Changer de rôle</label>
+          <div class="flex gap-2 flex-wrap">
+            @for (option of availableRoles(); track option.role) {
+              <button
+                (click)="selectRole(option)"
+                [class]="'px-3 py-1.5 rounded-md text-sm transition-colors border ' +
+                  (isCurrentRole(option.role) ? 'bg-red-100 border-red-400 text-red-700 font-medium' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100')">
+                {{ getRoleEmoji(option.role_name) }} {{ option.role_name }}
+              </button>
+            }
+          </div>
+        </div>
       </div>
 
       <!-- Search -->
@@ -82,8 +120,22 @@ interface UlSearchResult {
 })
 export class AdminPageComponent {
   protected readonly ulOverrideService = inject(UlOverrideService);
+  protected readonly roleOverrideService = inject(RoleOverrideService);
   protected readonly authService = inject(AuthService);
   private readonly http = inject(HttpClient);
+
+  private readonly ROLE_EMOJIS: Record<string, string> = {
+    'Lecture seul': '👁️',
+    'Opérateur': '👷',
+    'Compteur': '📊',
+    'Admin': '🔑',
+    'Super Admin': '👑',
+  };
+
+  readonly availableRoles = computed(() => {
+    const userRole = this.authService.user()?.role ?? 0;
+    return ROLE_OPTIONS.filter(r => r.role <= userRole);
+  });
 
   readonly searchTerm = signal('');
   readonly results = signal<UlSearchResult[]>([]);
@@ -137,5 +189,30 @@ export class AdminPageComponent {
 
   clearOverride(): void {
     this.ulOverrideService.clearOverride();
+  }
+
+  selectRole(role: RoleOverride): void {
+    const userRole = this.authService.user()?.role ?? 0;
+    if (role.role === userRole) {
+      this.roleOverrideService.clearOverride();
+    } else {
+      this.roleOverrideService.setOverride(role);
+    }
+  }
+
+  clearRoleOverride(): void {
+    this.roleOverrideService.clearOverride();
+  }
+
+  isCurrentRole(role: number): boolean {
+    const override = this.roleOverrideService.override();
+    if (override) {
+      return override.role === role;
+    }
+    return (this.authService.user()?.role ?? 0) === role;
+  }
+
+  getRoleEmoji(roleName: string | undefined): string {
+    return this.ROLE_EMOJIS[roleName || ''] || '🎭';
   }
 }
