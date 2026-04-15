@@ -135,15 +135,9 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
         )
 
     if len(results) > 1:
-        accounts_info = []
-        for row in results:
-            accounts_info.append(
-                f"user_id={row['user_id']}, role={row['role']}, queteur_id={row['queteur_id']}, "
-                f"ul_id={row['ul_id']}, name={row['first_name']} {row['last_name']}, email={row['email']}"
-            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Plusieurs comptes actifs trouvés pour cet email:\n" + "\n".join(accounts_info),
+            detail=f"Plusieurs comptes actifs trouvés pour cet email ({len(results)} comptes). Contactez votre administrateur.",
         )
 
     # Un seul compte trouvé
@@ -331,11 +325,9 @@ async def auth_callback(
         user_profile = get_user_profile_by_email(db, email)
     except HTTPException as exc:
         if exc.status_code == status.HTTP_400_BAD_REQUEST and "Plusieurs comptes" in str(exc.detail):
-            # Redirect to the frontend multi-account error page
-            details = str(exc.detail).replace("Plusieurs comptes actifs trouvés pour cet email:\n", "")
-            error_params = urlencode({"details": details})
+            # Redirect to the frontend multi-account error page (no PII in URL)
             return RedirectResponse(
-                url=f"{settings.frontend_url}/auth/multi-account-error?{error_params}",
+                url=f"{settings.frontend_url}/auth/multi-account-error",
                 status_code=302,
             )
         raise
