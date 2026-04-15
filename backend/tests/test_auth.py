@@ -71,7 +71,9 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
     response = client.get("/api/auth/callback?code=oauth-code&state=expected-state", follow_redirects=False)
 
     assert response.status_code == 302
-    assert "role_name=Op" in response.headers["location"]
+    # Token should NOT be in the redirect URL (security: httpOnly cookie only)
+    assert "token=" not in response.headers["location"]
+    assert response.headers["location"].endswith("/auth/callback")
     assert response.cookies.get(auth.SESSION_COOKIE_NAME)
 
 

@@ -385,19 +385,8 @@ async def auth_callback(
 
     session_token = create_session_token(user_profile)
 
-    # Pass user info as query params so the frontend CallbackComponent can store them
-    role = str(user_profile.get("role", ""))
-    role_name = ROLE_NAMES.get(role, "")
-    callback_params = urlencode({
-        "token": session_token,
-        "email": user_profile["email"],
-        "name": google_user.get("name", user_profile["email"]),
-        "role": role,
-        "ul_id": str(user_profile.get("ul_id", "")),
-        "ul_name": user_profile.get("ul_name", ""),
-        "role_name": role_name,
-    })
-    redirect_url = f"{settings.frontend_url}/auth/callback?{callback_params}"
+    # Redirect to the frontend callback — session token is in httpOnly cookie only (not in URL)
+    redirect_url = f"{settings.frontend_url}/auth/callback"
 
     redirect_response = RedirectResponse(url=redirect_url, status_code=302)
     redirect_response.set_cookie(

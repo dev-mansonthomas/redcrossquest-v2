@@ -9,26 +9,24 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const ulOverrideService = inject(UlOverrideService);
   const roleOverrideService = inject(RoleOverrideService);
-  const token = authService.getToken();
 
-  let request = req;
-  if (token) {
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-    };
+  const headers: Record<string, string> = {};
 
-    const ulOverride = ulOverrideService.override();
-    if (ulOverride) {
-      headers['X-Override-UL-Id'] = String(ulOverride.id);
-    }
-
-    const roleOverride = roleOverrideService.override();
-    if (roleOverride) {
-      headers['X-Override-Role'] = String(roleOverride.role);
-    }
-
-    request = req.clone({ setHeaders: headers });
+  const ulOverride = ulOverrideService.override();
+  if (ulOverride) {
+    headers['X-Override-UL-Id'] = String(ulOverride.id);
   }
+
+  const roleOverride = roleOverrideService.override();
+  if (roleOverride) {
+    headers['X-Override-Role'] = String(roleOverride.role);
+  }
+
+  // Send httpOnly cookie with every request (withCredentials) instead of Bearer token
+  const request = req.clone({
+    setHeaders: headers,
+    withCredentials: true,
+  });
 
   return next(request).pipe(
     catchError((error: HttpErrorResponse) => {

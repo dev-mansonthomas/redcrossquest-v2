@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -23,19 +24,13 @@ import { AuthService } from '../../core/services/auth.service';
 export class CallbackComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly api = inject(ApiService);
   private readonly authService = inject(AuthService);
 
   error = '';
 
   ngOnInit(): void {
     const params = this.route.snapshot.queryParamMap;
-    const token = params.get('token');
-    const name = params.get('name');
-    const email = params.get('email');
-    const role = params.get('role');
-    const ulId = params.get('ul_id');
-    const ulName = params.get('ul_name');
-    const roleName = params.get('role_name');
     const errorParam = params.get('error');
 
     if (errorParam) {
@@ -43,20 +38,24 @@ export class CallbackComponent implements OnInit {
       return;
     }
 
-    if (token && email && name) {
-      this.authService.setToken(token);
-      this.authService.setUser({
-        email,
-        name,
-        role: role ? parseInt(role, 10) : undefined,
-        ul_id: ulId ? parseInt(ulId, 10) : undefined,
-        ul_name: ulName || undefined,
-        role_name: roleName || undefined,
+    // Session token is in httpOnly cookie — fetch user info from /api/me
+    this.api.get<{ email: string; role: number; ul_id: number; ul_name: string; role_name: string }>('/api/me')
+      .subscribe({
+        next: (user) => {
+          this.authService.setUser({
+            email: user.email,
+            name: user.email,
+            role: user.role,
+            ul_id: user.ul_id,
+            ul_name: user.ul_name,
+            role_name: user.role_name,
+          });
+          this.router.navigate(['/dashboards']);
+        },
+        error: () => {
+          this.error = 'Erreur lors de la récupération du profil. Veuillez réessayer.';
+        },
       });
-      this.router.navigate(['/dashboards']);
-    } else {
-      this.error = 'Paramètres d\'authentification manquants.';
-    }
   }
 }
 

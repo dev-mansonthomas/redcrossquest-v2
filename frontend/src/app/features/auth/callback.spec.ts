@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { CallbackComponent } from './callback';
@@ -10,6 +11,8 @@ import { AuthService } from '../../core/services/auth.service';
 class DummyComponent {}
 
 describe('CallbackComponent', () => {
+  let httpTesting: HttpTestingController;
+
   function createFixture(queryParams: Record<string, string>) {
     TestBed.configureTestingModule({
       imports: [CallbackComponent],
@@ -19,6 +22,7 @@ describe('CallbackComponent', () => {
           { path: 'login', component: DummyComponent },
         ]),
         provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -29,6 +33,7 @@ describe('CallbackComponent', () => {
         },
       ],
     });
+    httpTesting = TestBed.inject(HttpTestingController);
     return TestBed.createComponent(CallbackComponent);
   }
 
@@ -45,26 +50,25 @@ describe('CallbackComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should set token and user on valid callback', () => {
-    const fixture = createFixture({
-      token: 'test-token',
-      name: 'Test User',
-      email: 'test@example.com',
-      role: '2',
-      ul_id: '42',
-      ul_name: 'Paris 15',
-      role_name: 'Opérateur',
-    });
+  it('should fetch user from /api/me and set user on valid callback', () => {
+    const fixture = createFixture({});
     const authService = TestBed.inject(AuthService);
-    const spy = vi.spyOn(authService, 'setToken');
     const userSpy = vi.spyOn(authService, 'setUser');
 
     fixture.detectChanges();
 
-    expect(spy).toHaveBeenCalledWith('test-token');
+    const req = httpTesting.expectOne((r) => r.url.includes('/api/me'));
+    req.flush({
+      email: 'test@example.com',
+      role: 2,
+      ul_id: 42,
+      ul_name: 'Paris 15',
+      role_name: 'Opérateur',
+    });
+
     expect(userSpy).toHaveBeenCalledWith({
       email: 'test@example.com',
-      name: 'Test User',
+      name: 'test@example.com',
       role: 2,
       ul_id: 42,
       ul_name: 'Paris 15',
@@ -78,10 +82,14 @@ describe('CallbackComponent', () => {
     expect(fixture.componentInstance.error).toContain('Erreur');
   });
 
-  it('should show error when params are missing', () => {
-    const fixture = createFixture({ token: 'abc' });
+  it('should show error when /api/me fails', () => {
+    const fixture = createFixture({});
     fixture.detectChanges();
-    expect(fixture.componentInstance.error).toContain('manquants');
+
+    const req = httpTesting.expectOne((r) => r.url.includes('/api/me'));
+    req.flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    expect(fixture.componentInstance.error).toContain('récupération du profil');
   });
 });
 
