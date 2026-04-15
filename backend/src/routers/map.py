@@ -17,8 +17,8 @@ from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/map", tags=["map"])
 
-# Roles allowed: 3 (compteur), 4 (admin UL) and 9 (super admin)
-ALLOWED_ROLES = {3, 4, 9}
+# Roles allowed: 2 (opérateur), 3 (compteur), 4 (admin UL) and 9 (super admin)
+ALLOWED_ROLES = {2, 3, 4, 9}
 
 
 def _check_role(user: dict) -> None:
@@ -32,7 +32,7 @@ def _check_role(user: dict) -> None:
     if role not in ALLOWED_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles compteur, admin ou super admin",
+            detail="Accès réservé aux rôles opérateur, compteur, admin ou super admin",
         )
 
 
