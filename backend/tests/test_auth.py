@@ -80,10 +80,10 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
 @pytest.mark.parametrize(
     ("role", "ul_id", "ul_name"),
     [
-        ("1", None, None),
-        ("2", 123, "Paris 15"),
-        ("3", 456, "Lyon 3"),
-        ("4", 789, "Marseille 8"),
+        (1, None, None),
+        (2, 123, "Paris 15"),
+        (3, 456, "Lyon 3"),
+        (4, 789, "Marseille 8"),
     ],
 )
 def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_name):
