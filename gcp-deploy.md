@@ -115,7 +115,7 @@ Vérifie : projet GCP, bucket Terraform, APIs activées, Artifact Registry, Terr
 - Phase 1 : Crée les secrets dans Secret Manager
 - Phase 2 : Peuple les secrets depuis `.env`
 - Phase 3 : `terraform apply` complet
-- Crée l'utilisateur MySQL `rcq_readonly` si inexistant
+- Crée les utilisateurs MySQL `rcq_readonly` et `rcq-graph` si inexistants
 - Crée la base Superset metadata + utilisateur RW
 
 ### Step 3 : `--migrate` — Migrations SQL
@@ -139,6 +139,8 @@ Appelle `scripts/run-migrations.sh` avec les credentials appropriés.
 |--------|----------------|
 | `rcq_db_readonly_username` | `RCQ_DB_USER` |
 | `rcq_db_readonly_password` | `RCQ_DB_PASSWORD` |
+| `rcq_db_graph_username` | `RCQ_DB_USER` |
+| `rcq_db_graph_password` | `RCQ_DB_PASSWORD` |
 | `rcq_google_oauth_client_id` | `GOOGLE_OAUTH_CLIENT_ID` |
 | `rcq_google_oauth_client_secret` | `GOOGLE_OAUTH_CLIENT_SECRET` |
 | `rcq_superset_secret_key` | `SUPERSET_SECRET_KEY` |

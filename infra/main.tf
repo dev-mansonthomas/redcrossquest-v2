@@ -117,8 +117,8 @@ module "api" {
   }
 
   secrets = {
-    RCQ_DB_USER                = google_secret_manager_secret.db_readonly_username.secret_id
-    RCQ_DB_PASSWORD            = google_secret_manager_secret.db_readonly_password.secret_id
+    RCQ_DB_USER                = google_secret_manager_secret.db_graph_username.secret_id
+    RCQ_DB_PASSWORD            = google_secret_manager_secret.db_graph_password.secret_id
     GOOGLE_OAUTH_CLIENT_ID     = google_secret_manager_secret.google_oauth_client_id.secret_id
     GOOGLE_OAUTH_CLIENT_SECRET = google_secret_manager_secret.google_oauth_client_secret.secret_id
     JWT_SECRET_KEY             = google_secret_manager_secret.jwt_secret_key.secret_id
@@ -212,6 +212,42 @@ resource "google_secret_manager_secret" "db_readonly_password" {
   labels = {
     app = "rcq"
     component = "database"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "db_graph_username" {
+  secret_id = "rcq_db_graph_username"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "database"
+    environment = var.environment
+  }
+}
+
+resource "google_secret_manager_secret" "db_graph_password" {
+  secret_id = "rcq_db_graph_password"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  labels = {
+    app         = "rcq"
+    component   = "database"
     environment = var.environment
   }
 }

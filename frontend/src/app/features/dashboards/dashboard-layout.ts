@@ -1,8 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, computed } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
+import { RoleOverrideService } from '../../core/services/role-override.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -24,7 +25,7 @@ import { environment } from '../../../environments/environment';
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
           <!-- 1. Carte des quêteurs -->
-          @if ([2, 3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([2, 3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/carte-queteurs"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -32,7 +33,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 2. Carte points de quête -->
-          @if ([2, 3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([2, 3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/carte-points-quete"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -40,7 +41,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 3. Vue globale -->
-          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/vue-globale"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -48,7 +49,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 4. Objectifs Annuels -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/objectifs-annuels"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -56,7 +57,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 4.5. Objectifs Annuels Superset (conditionnel) -->
-          @if (enableSuperset && [4, 9].includes(authService.user()?.role ?? 0)) {
+          @if (enableSuperset && [4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/kpi"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -64,7 +65,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 5. Répartition journalière -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/repartition-jours"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -72,7 +73,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 6. Classement Global -->
-          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/classement-global"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -80,7 +81,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 7. Classement Tronc -->
-          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/classement-tronc"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -88,7 +89,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 7.5. Suivi Mail Remerciement -->
-          @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/suivi-mails"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -96,7 +97,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 8. Contrôle de données -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/controle-donnees"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -104,7 +105,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 9. États des troncs -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/etats-troncs"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -112,7 +113,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 10. Sacs de Banque -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/sacs-banque"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -120,7 +121,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 11. Pièces & billets -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/comptage-pieces-billets"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -128,7 +129,7 @@ import { environment } from '../../../environments/environment';
             </a>
           }
           <!-- 12. Stats journalières -->
-          @if ([3, 4, 9].includes(authService.user()?.role ?? 0)) {
+          @if ([3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/stats-journalieres"
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
@@ -142,7 +143,7 @@ import { environment } from '../../../environments/environment';
           <div class="space-y-1 mb-3">
             <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
             <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }} (id:{{ authService.user()?.ul_id }})</p>
-            @if ([4, 9].includes(authService.user()?.role ?? 0)) {
+            @if ([4, 9].includes(effectiveRole())) {
               <a routerLink="/dashboards/settings"
                  routerLinkActive="text-red-600"
                  class="block px-3 text-sm text-gray-500 hover:text-red-600 cursor-pointer transition-colors">
@@ -164,9 +165,21 @@ import { environment } from '../../../environments/environment';
               <p style="font-size: 13px; font-weight: 600; margin: 4px 0 2px;">{{ ulOverrideService.override()?.name }}</p>
               <p style="font-size: 11px; color: #666; margin: 0 0 6px;">ID: {{ ulOverrideService.override()?.id }}</p>
               <button
-                (click)="clearOverride()"
+                (click)="clearUlOverride()"
                 style="width: 100%; padding: 4px 8px; font-size: 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">
                 ✕ Revenir à mon UL
+              </button>
+            </div>
+          }
+          @if (roleOverrideService.isOverridden()) {
+            <div style="border: 2px solid #ea580c; background: #fff7ed; border-radius: 6px; padding: 8px; margin-top: 4px; margin-bottom: 8px;">
+              <p style="color: #ea580c; font-weight: bold; font-size: 12px; margin: 0;">⚠️ Rôle Override</p>
+              <p style="font-size: 13px; font-weight: 600; margin: 4px 0 2px;">{{ getRoleEmoji(roleOverrideService.override()?.role_name) }} {{ roleOverrideService.override()?.role_name }}</p>
+              <p style="font-size: 11px; color: #666; margin: 0 0 6px;">Rôle: {{ roleOverrideService.override()?.role }}</p>
+              <button
+                (click)="clearRoleOverride()"
+                style="width: 100%; padding: 4px 8px; font-size: 12px; background: #ea580c; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ✕ Revenir à mon rôle
               </button>
             </div>
           }
@@ -189,6 +202,7 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly authService = inject(AuthService);
   protected readonly dashboardService = inject(DashboardService);
   protected readonly ulOverrideService = inject(UlOverrideService);
+  protected readonly roleOverrideService = inject(RoleOverrideService);
   protected readonly enableSuperset = environment.enableSuperset;
   protected readonly envLabel = environment.environmentLabel;
   protected readonly envBadgeClass = ['DEV', 'LOCAL'].includes(environment.environmentLabel)
@@ -196,6 +210,14 @@ export class DashboardLayoutComponent implements OnInit {
     : environment.environmentLabel === 'TEST'
       ? 'bg-green-500 text-white'
       : '';
+
+  protected readonly effectiveRole = computed(() => {
+    const roleOverride = this.roleOverrideService.override();
+    if (roleOverride) {
+      return roleOverride.role;
+    }
+    return this.authService.user()?.role ?? 0;
+  });
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
     'Lecture seul': '👁️',
@@ -215,8 +237,12 @@ export class DashboardLayoutComponent implements OnInit {
     return this.ROLE_EMOJIS[roleName || ''] || '🎭';
   }
 
-  clearOverride(): void {
+  clearUlOverride(): void {
     this.ulOverrideService.clearOverride();
+  }
+
+  clearRoleOverride(): void {
+    this.roleOverrideService.clearOverride();
   }
 }
 

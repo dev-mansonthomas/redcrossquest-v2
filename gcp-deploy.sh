@@ -503,6 +503,33 @@ ensure_ar_repository() {
     fi
 }
 
+# ── Helper: Find mysql/mysqldump binaries ─────────────────────
+# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
+# Handles keg-only installs on macOS / Homebrew.
+find_mysql_cmds() {
+    if command -v mysql >/dev/null 2>&1; then
+        MYSQL_CMD="mysql"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
+        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
+    else
+        log_error "MySQL client not found. Install with: brew install mysql-client"
+        return 1
+    fi
+
+    if command -v mysqldump >/dev/null 2>&1; then
+        MYSQLDUMP_CMD="mysqldump"
+    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
+    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
+        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
+    else
+        log_error "mysqldump not found. Install with: brew install mysql-client"
+        return 1
+    fi
+}
+
 # ══════════════════════════════════════════════════════════════
 # Step 0: Check environment readiness
 # ══════════════════════════════════════════════════════════════
@@ -614,60 +641,102 @@ check_environment() {
     local db_port="${MIGRATION_DB_PORT:-3306}"
     local db_user="${MIGRATION_DB_USER:-root}"
 
-    # Check user rcq_readonly
-    local user_exists
-    user_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>/dev/null || true)
-    if [ -n "$user_exists" ]; then
-        check_ok "  User rcq_readonly exists"
+    MYSQL_CMD=""
+    find_mysql_cmds 2>/dev/null || true
+    if [ -z "$MYSQL_CMD" ]; then
+        check_fail "  mysql client not found — install with: brew install mysql-client"
     else
-        check_fail "  User rcq_readonly does NOT exist — will be created during --infra"
-    fi
+        local check_err
+        check_err=$(mktemp)
 
-    # Check table schema_migrations
-    local table_exists
-    table_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='schema_migrations'" 2>/dev/null || true)
-    if [ -n "$table_exists" ]; then
-        check_ok "  Table schema_migrations exists"
-    else
-        check_fail "  Table schema_migrations does NOT exist — will be created during --migrate"
-    fi
+        # Check user rcq_readonly
+        local user_exists
+        user_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+            --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>"$check_err" || true)
+        if [ -n "$user_exists" ]; then
+            check_ok "  User rcq_readonly exists"
+        elif [ -s "$check_err" ]; then
+            check_fail "  User rcq_readonly — query failed: $(cat "$check_err")"
+        else
+            check_fail "  User rcq_readonly does NOT exist — will be created during --infra"
+        fi
 
-    # Check view v_tronc_queteur_enriched
-    local view_exists
-    view_exists=$(mysql -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
-        --skip-column-names -e "SELECT 1 FROM information_schema.views WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='v_tronc_queteur_enriched'" 2>/dev/null || true)
-    if [ -n "$view_exists" ]; then
-        check_ok "  View v_tronc_queteur_enriched exists"
-    else
-        check_fail "  View v_tronc_queteur_enriched does NOT exist — will be created during --migrate"
+        # Check user rcq-graph
+        local graph_user_exists
+        > "$check_err"
+        graph_user_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+            --skip-column-names -e "SELECT User FROM mysql.user WHERE User='${RCQ_DB_USER:-rcq-graph}'" 2>"$check_err" || true)
+        if [ -n "$graph_user_exists" ]; then
+            check_ok "  User ${RCQ_DB_USER:-rcq-graph} exists"
+        elif [ -s "$check_err" ]; then
+            check_fail "  User ${RCQ_DB_USER:-rcq-graph} — query failed: $(cat "$check_err")"
+        else
+            check_fail "  User ${RCQ_DB_USER:-rcq-graph} does NOT exist — will be created during --infra"
+        fi
+
+        # Check table schema_migrations
+        local table_exists
+        > "$check_err"
+        table_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+            --skip-column-names -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='schema_migrations'" 2>"$check_err" || true)
+        if [ -n "$table_exists" ]; then
+            check_ok "  Table schema_migrations exists"
+        elif [ -s "$check_err" ]; then
+            check_fail "  Table schema_migrations — query failed: $(cat "$check_err")"
+        else
+            check_fail "  Table schema_migrations does NOT exist — will be created during --migrate"
+        fi
+
+        # Check view v_tronc_queteur_enriched
+        local view_exists
+        > "$check_err"
+        view_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+            --skip-column-names -e "SELECT 1 FROM information_schema.views WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='v_tronc_queteur_enriched'" 2>"$check_err" || true)
+        if [ -n "$view_exists" ]; then
+            check_ok "  View v_tronc_queteur_enriched exists"
+        elif [ -s "$check_err" ]; then
+            check_fail "  View v_tronc_queteur_enriched — query failed: $(cat "$check_err")"
+        else
+            check_fail "  View v_tronc_queteur_enriched does NOT exist — will be created during --migrate"
+        fi
+        rm -f "$check_err"
     fi
     echo ""
 
     # ── Secret Manager ───────────────────────────────────────
     echo "  Secret Manager"
-    local secret_name="rcq_db_readonly_password"
-    if gcloud secrets describe "$secret_name" --project="$GCP_PROJECT_ID" &>/dev/null; then
-        check_ok "  Secret ${secret_name} exists"
-    else
-        check_fail "  Secret ${secret_name} does NOT exist — will be created during --infra"
-    fi
+    local check_secrets=(
+        "rcq_db_readonly_username"
+        "rcq_db_readonly_password"
+        "rcq_db_graph_username"
+        "rcq_db_graph_password"
+    )
+    for secret_name in "${check_secrets[@]}"; do
+        if gcloud secrets describe "$secret_name" --project="$GCP_PROJECT_ID" &>/dev/null; then
+            check_ok "  Secret ${secret_name} exists"
+        else
+            check_fail "  Secret ${secret_name} does NOT exist — will be created during --infra"
+        fi
+    done
     echo ""
 
     # ── Memorystore (Valkey) ─────────────────────────────────
     echo "  Memorystore (Valkey)"
     local valkey_name="rcq-valkey-${ENV}"
     local valkey_output
-    valkey_output=$(gcloud memorystore instances describe "$valkey_name" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" --format="value(engineVersion,authorizationMode)" 2>/dev/null || true)
+    check_err=$(mktemp)
+    valkey_output=$(gcloud memorystore instances describe "$valkey_name" --location="$GCP_REGION" --project="$GCP_PROJECT_ID" --format="value(engineVersion,authorizationMode)" 2>"$check_err" || true)
     if [ -n "$valkey_output" ]; then
         local valkey_version valkey_auth
         valkey_version=$(echo "$valkey_output" | head -1 | cut -f1)
         valkey_auth=$(echo "$valkey_output" | head -1 | cut -f2)
         check_ok "  Instance ${valkey_name} exists (Valkey ${valkey_version}, ${valkey_auth})"
+    elif [ -s "$check_err" ]; then
+        check_fail "  Instance ${valkey_name} — query failed: $(head -1 "$check_err")"
     else
         check_fail "  Instance ${valkey_name} does NOT exist — will be created during --infra"
     fi
+    rm -f "$check_err"
     echo ""
 
     # ── Summary ──────────────────────────────────────────────
@@ -753,6 +822,36 @@ build_and_push() {
         # shellcheck disable=SC2086
         docker buildx build --platform linux/amd64 --provenance=false --sbom=false --output type=docker $cache_flag $extra_build_args -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR/$context"
 
+        # Post-build guard: verify frontend image contains correct apiUrl for the target env
+        if [ "$svc" = "frontend" ]; then
+            local api_url
+            api_url=$(docker run --rm --platform linux/amd64 "$image" sh -c 'grep -oE "apiUrl:[[:space:]]*\"[^\"]*\"" /usr/share/nginx/html/*.js 2>/dev/null | head -1')
+            local url_ok=false
+            case "$ENV" in
+                dev)
+                    if echo "$api_url" | grep -q "dev\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+                test)
+                    if echo "$api_url" | grep -q "test\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+                prod)
+                    if echo "$api_url" | grep -q "back\.graph\." && ! echo "$api_url" | grep -q "dev\.back\." && ! echo "$api_url" | grep -q "test\.back\."; then
+                        url_ok=true
+                    fi
+                    ;;
+            esac
+            if $url_ok; then
+                log_success "Frontend API URL verified: ${api_url}"
+            else
+                log_error "FATAL: Frontend image contains wrong API URL for env '${ENV}': ${api_url}"
+                exit 1
+            fi
+        fi
+
         log_info "Pushing ${svc}..."
         docker push "$image"
 
@@ -770,36 +869,9 @@ if $DO_BUILD; then
 fi
 
 
-# ── Helper: Find mysql/mysqldump binaries ─────────────────────
-# Sets MYSQL_CMD and MYSQLDUMP_CMD variables for the caller.
-# Handles keg-only installs on macOS / Homebrew.
-find_mysql_cmds() {
-    if command -v mysql >/dev/null 2>&1; then
-        MYSQL_CMD="mysql"
-    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysql" ]; then
-        MYSQL_CMD="/opt/homebrew/opt/mysql-client/bin/mysql"
-    elif [ -x "/usr/local/opt/mysql-client/bin/mysql" ]; then
-        MYSQL_CMD="/usr/local/opt/mysql-client/bin/mysql"
-    else
-        log_error "MySQL client not found. Install with: brew install mysql-client"
-        return 1
-    fi
-
-    if command -v mysqldump >/dev/null 2>&1; then
-        MYSQLDUMP_CMD="mysqldump"
-    elif [ -x "/opt/homebrew/opt/mysql-client/bin/mysqldump" ]; then
-        MYSQLDUMP_CMD="/opt/homebrew/opt/mysql-client/bin/mysqldump"
-    elif [ -x "/usr/local/opt/mysql-client/bin/mysqldump" ]; then
-        MYSQLDUMP_CMD="/usr/local/opt/mysql-client/bin/mysqldump"
-    else
-        log_error "mysqldump not found. Install with: brew install mysql-client"
-        return 1
-    fi
-}
-
-# ── Helper: Create MySQL read-only user ──────────────────────
-create_readonly_user() {
-    log_info "Checking if MySQL user 'rcq_readonly' exists..."
+# ── Helper: Create MySQL database users ──────────────────────
+create_db_users() {
+    log_info "Creating MySQL database users..."
 
     # Find mysql client binary (keg-only on macOS / Homebrew)
     local mysql_cmd
@@ -814,9 +886,11 @@ create_readonly_user() {
         return 1
     fi
 
-    require_var MIGRATION_DB_PASSWORD "readonly user creation"
-    require_var MIGRATION_DB_NAME "readonly user creation"
-    require_var RCQ_DB_PASSWORD "readonly user creation"
+    require_var MIGRATION_DB_PASSWORD "db user creation"
+    require_var MIGRATION_DB_NAME "db user creation"
+    require_var RCQ_DB_PASSWORD "db user creation"
+    require_var RCQ_DB_USER "db user creation"
+    require_var RCQ_DB_READONLY_PASSWORD "db user creation"
 
     local db_host="${MIGRATION_DB_HOST:-127.0.0.1}"
     local db_port="${MIGRATION_DB_PORT:-3306}"
@@ -828,25 +902,57 @@ create_readonly_user() {
     printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
     trap "rm -f $mysql_cnf" RETURN
 
-    local user_exists
-    user_exists=$($mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" \
+    # ── 1. User rcq_readonly (SELECT on all tables — for Superset) ──
+    local readonly_exists
+    readonly_exists=$($mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" \
         --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>/dev/null || true)
 
-    if [ -n "$user_exists" ]; then
+    if [ -n "$readonly_exists" ]; then
         log_success "MySQL user 'rcq_readonly' already exists — skipping creation."
-        return
-    fi
-
-    log_info "Creating MySQL user 'rcq_readonly'..."
-
-    # Create the user and grant SELECT privileges (password from .env)
-    $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
-CREATE USER 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+    else
+        log_info "Creating MySQL user 'rcq_readonly'..."
+        $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+CREATE USER IF NOT EXISTS 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_READONLY_PASSWORD}';
 GRANT SELECT ON \`${MIGRATION_DB_NAME}\`.* TO 'rcq_readonly'@'%';
 FLUSH PRIVILEGES;
 SQL_EOF
+        log_success "MySQL user 'rcq_readonly' created with SELECT privileges on '${MIGRATION_DB_NAME}'."
+    fi
 
-    log_success "MySQL user 'rcq_readonly' created with SELECT privileges on '${MIGRATION_DB_NAME}' (password from .env)."
+    # Ensure password is up to date (in case user was created with wrong password)
+    log_info "Ensuring 'rcq_readonly' password is up to date..."
+    $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+ALTER USER 'rcq_readonly'@'%' IDENTIFIED BY '${RCQ_DB_READONLY_PASSWORD}';
+FLUSH PRIVILEGES;
+SQL_EOF
+    log_success "MySQL user 'rcq_readonly' password updated."
+
+    # ── 2. User rcq-graph (SELECT + targeted UPDATE — for backend API) ──
+    local graph_exists
+    graph_exists=$($mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" \
+        --skip-column-names -e "SELECT User FROM mysql.user WHERE User='${RCQ_DB_USER}'" 2>/dev/null || true)
+
+    if [ -n "$graph_exists" ]; then
+        log_success "MySQL user '${RCQ_DB_USER}' already exists — skipping creation."
+    else
+        log_info "Creating MySQL user '${RCQ_DB_USER}'..."
+        $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+CREATE USER IF NOT EXISTS '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+GRANT SELECT ON \`${MIGRATION_DB_NAME}\`.* TO '${RCQ_DB_USER}'@'%';
+GRANT UPDATE ON \`${MIGRATION_DB_NAME}\`.\`queteur_mailing_status\` TO '${RCQ_DB_USER}'@'%';
+GRANT UPDATE ON \`${MIGRATION_DB_NAME}\`.\`ul_settings\` TO '${RCQ_DB_USER}'@'%';
+FLUSH PRIVILEGES;
+SQL_EOF
+        log_success "MySQL user '${RCQ_DB_USER}' created with SELECT + targeted UPDATE privileges on '${MIGRATION_DB_NAME}'."
+    fi
+
+    # Ensure password is up to date (in case user was created with wrong password)
+    log_info "Ensuring '${RCQ_DB_USER}' password is up to date..."
+    $mysql_cmd --defaults-extra-file="$mysql_cnf" --get-server-public-key -h "$db_host" -P "$db_port" -u "$db_user" <<SQL_EOF
+ALTER USER '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}';
+FLUSH PRIVILEGES;
+SQL_EOF
+    log_success "MySQL user '${RCQ_DB_USER}' password updated."
 
     echo ""
 }
@@ -1109,8 +1215,10 @@ seed_secrets() {
     log_info "Seeding Secret Manager values from .env..."
 
     local secrets_to_seed=(
-        "rcq_db_readonly_username:RCQ_DB_USER"
-        "rcq_db_readonly_password:RCQ_DB_PASSWORD"
+        "rcq_db_readonly_username:RCQ_DB_READONLY_USER"
+        "rcq_db_readonly_password:RCQ_DB_READONLY_PASSWORD"
+        "rcq_db_graph_username:RCQ_DB_USER"
+        "rcq_db_graph_password:RCQ_DB_PASSWORD"
         "rcq_google_oauth_client_id:GOOGLE_OAUTH_CLIENT_ID"
         "rcq_google_oauth_client_secret:GOOGLE_OAUTH_CLIENT_SECRET"
         "rcq_superset_admin_password:SUPERSET_ADMIN_PASSWORD"
@@ -1184,12 +1292,14 @@ run_infra() {
         log_info "Skip-build: looking up latest image tag from registry..."
         # Query the latest tag for any service (e.g. rcq-frontend)
         local latest_tag
-        latest_tag=$(gcloud artifacts docker tags list \
+        latest_tag=$(gcloud artifacts docker images list \
             "${REGISTRY}/rcq-frontend" \
-            --project="${GCP_PROJECT_ID}" \
-            --sort-by=~UPDATE_TIME \
-            --limit=5 \
-            --format="value(tag)" 2>/dev/null \
+            --include-tags \
+            --sort-by=~CREATE_TIME \
+            --limit=1 \
+            --filter="tags~^${ENV}-" \
+            --format="value(tags)" 2>/dev/null \
+            | tr "," "\n" \
             | grep "^${ENV}-" \
             | head -1)
         if [ -n "$latest_tag" ]; then
@@ -1238,6 +1348,8 @@ run_infra() {
     local secret_targets=(
         "-target=google_secret_manager_secret.db_readonly_username"
         "-target=google_secret_manager_secret.db_readonly_password"
+        "-target=google_secret_manager_secret.db_graph_username"
+        "-target=google_secret_manager_secret.db_graph_password"
         "-target=google_secret_manager_secret.google_oauth_client_id"
         "-target=google_secret_manager_secret.google_oauth_client_secret"
         "-target=google_secret_manager_secret.superset_admin_password"
@@ -1264,7 +1376,7 @@ run_infra() {
 
     # Phase 2b: Create MySQL users (before Cloud Run needs them)
     cd "$SCRIPT_DIR"
-    create_readonly_user
+    create_db_users
     if $ENABLE_SUPERSET; then
         create_superset_db
     else

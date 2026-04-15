@@ -19,11 +19,11 @@ class Settings(BaseSettings):
     environment: Literal["dev", "test", "prod"] = "dev"
     debug: bool = False
 
-    # Database - MySQL RCQ (read-only)
+    # Database - MySQL RCQ
     rcq_db_host: str = "localhost"
     rcq_db_port: int = 3306
     rcq_db_name: str = "rcq_fr_dev_db"
-    rcq_db_user: str = "rcq_readonly"
+    rcq_db_user: str = "rcq-graph"
     rcq_db_password: str = ""
 
     # CORS — stored as comma-separated string to avoid pydantic-settings JSON parsing

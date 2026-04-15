@@ -3,10 +3,12 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { UlOverrideService } from '../services/ul-override.service';
+import { RoleOverrideService } from '../services/role-override.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const ulOverrideService = inject(UlOverrideService);
+  const roleOverrideService = inject(RoleOverrideService);
   const token = authService.getToken();
 
   let request = req;
@@ -15,9 +17,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       Authorization: `Bearer ${token}`,
     };
 
-    const override = ulOverrideService.override();
-    if (override) {
-      headers['X-Override-UL-Id'] = String(override.id);
+    const ulOverride = ulOverrideService.override();
+    if (ulOverride) {
+      headers['X-Override-UL-Id'] = String(ulOverride.id);
+    }
+
+    const roleOverride = roleOverrideService.override();
+    if (roleOverride) {
+      headers['X-Override-Role'] = String(roleOverride.role);
     }
 
     request = req.clone({ setHeaders: headers });

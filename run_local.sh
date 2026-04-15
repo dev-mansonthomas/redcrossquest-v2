@@ -321,11 +321,19 @@ for i in {1..60}; do
     sleep 1
 done
 
-# Setup MySQL user if needed
-echo "   🔧 Configuring MySQL user..."
+# Setup MySQL users
+echo "   🔧 Configuring MySQL users..."
+# 1. rcq_readonly — Superset (SELECT only)
 docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
     "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}'; \
      GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%'; \
+     FLUSH PRIVILEGES;" 2>/dev/null || true
+# 2. rcq-graph — Backend (SELECT + targeted UPDATE)
+docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
+    "CREATE USER IF NOT EXISTS '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}'; \
+     GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${RCQ_DB_USER}'@'%'; \
+     GRANT UPDATE ON ${MYSQL_DATABASE}.queteur_mailing_status TO '${RCQ_DB_USER}'@'%'; \
+     GRANT UPDATE ON ${MYSQL_DATABASE}.ul_settings TO '${RCQ_DB_USER}'@'%'; \
      FLUSH PRIVILEGES;" 2>/dev/null || true
 
 # Initialize database if --init-db flag is passed

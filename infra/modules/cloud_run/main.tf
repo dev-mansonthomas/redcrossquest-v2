@@ -84,6 +84,10 @@ resource "google_cloud_run_v2_service" "service" {
       managed-by = "terraform"
     }
   )
+
+  depends_on = [
+    google_secret_manager_secret_iam_member.secret_access,
+  ]
 }
 
 # Allow unauthenticated access (will be restricted by IAM in production)
