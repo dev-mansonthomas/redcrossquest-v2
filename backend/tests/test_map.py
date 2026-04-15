@@ -34,17 +34,17 @@ def auth_token():
     })
 
 
-def _mock_authenticated_user(monkeypatch, ul_id=123):
+def _mock_authenticated_user(monkeypatch, ul_id=123, role=4):
     """Mock get_authenticated_user to return a user with the given ul_id."""
     monkeypatch.setattr(
         map_router,
         "get_authenticated_user",
         lambda request, db: {
             "email": "user@croix-rouge.fr",
-            "role": "2",
+            "role": role,
             "ul_id": ul_id,
             "ul_name": "Paris 15",
-            "role_name": "Opérateur",
+            "role_name": "Admin",
         },
     )
 
