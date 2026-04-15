@@ -71,17 +71,19 @@ def test_auth_callback_creates_session_cookie(client, monkeypatch):
     response = client.get("/api/auth/callback?code=oauth-code&state=expected-state", follow_redirects=False)
 
     assert response.status_code == 302
-    assert "role_name=Op" in response.headers["location"]
+    # Token should NOT be in the redirect URL (security: httpOnly cookie only)
+    assert "token=" not in response.headers["location"]
+    assert response.headers["location"].endswith("/auth/callback")
     assert response.cookies.get(auth.SESSION_COOKIE_NAME)
 
 
 @pytest.mark.parametrize(
     ("role", "ul_id", "ul_name"),
     [
-        ("1", None, None),
-        ("2", 123, "Paris 15"),
-        ("3", 456, "Lyon 3"),
-        ("4", 789, "Marseille 8"),
+        (1, None, None),
+        (2, 123, "Paris 15"),
+        (3, 456, "Lyon 3"),
+        (4, 789, "Marseille 8"),
     ],
 )
 def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_name):
@@ -118,4 +120,5 @@ def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_
         "ul_id": ul_id,
         "ul_name": ul_name,
         "role_name": role_name,
+        "real_role": None,
     }

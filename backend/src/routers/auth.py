@@ -1,6 +1,8 @@
 """Authentication endpoints for Google OAuth 2.0 and JWT sessions."""
 import json
+import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -13,9 +15,17 @@ from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from ..cache import _get_client as _get_cache_client
 from ..config import settings
 from ..database import get_rcq_db
 from ..schemas.user import UserResponse
+
+limiter = Limiter(key_func=get_remote_address)
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -55,6 +65,33 @@ def _require_jwt_settings() -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="JWT session signing is not configured",
         )
+
+
+_JTI_BLACKLIST_PREFIX = "jti_blacklist:"
+
+
+def _blacklist_jti(jti: str, ttl_seconds: int) -> None:
+    """Add a JTI to the blacklist in Valkey with a TTL matching token expiry."""
+    client = _get_cache_client()
+    if client is None:
+        logger.warning("Cannot blacklist jti=%s – Valkey unavailable", jti)
+        return
+    try:
+        client.set(f"{_JTI_BLACKLIST_PREFIX}{jti}", "1", ex=ttl_seconds)
+    except Exception:
+        logger.warning("Failed to blacklist jti=%s", jti, exc_info=True)
+
+
+def _is_jti_blacklisted(jti: str) -> bool:
+    """Check whether a JTI has been revoked."""
+    client = _get_cache_client()
+    if client is None:
+        return False
+    try:
+        return client.exists(f"{_JTI_BLACKLIST_PREFIX}{jti}") > 0
+    except Exception:
+        logger.debug("Failed to check jti blacklist for jti=%s", jti, exc_info=True)
+        return False
 
 
 def _google_http_request(url: str, *, data: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> dict[str, Any]:
@@ -135,27 +172,22 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
         )
 
     if len(results) > 1:
-        accounts_info = []
-        for row in results:
-            accounts_info.append(
-                f"user_id={row['user_id']}, role={row['role']}, queteur_id={row['queteur_id']}, "
-                f"ul_id={row['ul_id']}, name={row['first_name']} {row['last_name']}, email={row['email']}"
-            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Plusieurs comptes actifs trouvés pour cet email:\n" + "\n".join(accounts_info),
+            detail=f"Plusieurs comptes actifs trouvés pour cet email ({len(results)} comptes). Contactez votre administrateur.",
         )
 
     # Un seul compte trouvé
     user_data = results[0]
-    role = str(user_data["role"]) if user_data["role"] is not None else ""
+    role_int = int(user_data["role"]) if user_data["role"] is not None else 0
+    role_key = str(role_int)
     return {
         "user_id": user_data["user_id"],
         "email": user_data["email"],
-        "role": user_data["role"],
+        "role": role_int,
         "ul_id": user_data["ul_id"],
         "ul_name": user_data["ul_name"],
-        "role_name": ROLE_NAMES.get(role, ""),
+        "role_name": ROLE_NAMES.get(role_key, ""),
     }
 
 
@@ -169,12 +201,16 @@ def create_session_token(user_profile: dict[str, Any]) -> str:
         "role": user_profile["role"],
         "ul_id": user_profile.get("ul_id"),
         "exp": expires_at,
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode and validate a signed JWT session token."""
+    """Decode and validate a signed JWT session token.
+
+    Checks the JTI blacklist so that revoked tokens are rejected.
+    """
     _require_jwt_settings()
 
     try:
@@ -184,6 +220,14 @@ def decode_session_token(token: str) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
         ) from exc
+
+    # Check JTI blacklist (revoked tokens)
+    jti = payload.get("jti")
+    if jti and _is_jti_blacklisted(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+        )
 
     email = payload.get("email") or payload.get("sub")
     if not email:
@@ -260,7 +304,8 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
 
 
 @router.get("/auth/login/google")
-async def login() -> Response:
+@limiter.limit("10/minute")
+async def login(request: FastAPIRequest) -> Response:
     """Redirect the browser to the Google OAuth consent screen."""
     _require_oauth_settings()
 
@@ -294,6 +339,7 @@ async def login() -> Response:
 
 
 @router.get("/auth/callback")
+@limiter.limit("10/minute")
 async def auth_callback(
     request: FastAPIRequest,
     code: str | None = None,
@@ -331,30 +377,17 @@ async def auth_callback(
         user_profile = get_user_profile_by_email(db, email)
     except HTTPException as exc:
         if exc.status_code == status.HTTP_400_BAD_REQUEST and "Plusieurs comptes" in str(exc.detail):
-            # Redirect to the frontend multi-account error page
-            details = str(exc.detail).replace("Plusieurs comptes actifs trouvés pour cet email:\n", "")
-            error_params = urlencode({"details": details})
+            # Redirect to the frontend multi-account error page (no PII in URL)
             return RedirectResponse(
-                url=f"{settings.frontend_url}/auth/multi-account-error?{error_params}",
+                url=f"{settings.frontend_url}/auth/multi-account-error",
                 status_code=302,
             )
         raise
 
     session_token = create_session_token(user_profile)
 
-    # Pass user info as query params so the frontend CallbackComponent can store them
-    role = str(user_profile.get("role", ""))
-    role_name = ROLE_NAMES.get(role, "")
-    callback_params = urlencode({
-        "token": session_token,
-        "email": user_profile["email"],
-        "name": google_user.get("name", user_profile["email"]),
-        "role": role,
-        "ul_id": str(user_profile.get("ul_id", "")),
-        "ul_name": user_profile.get("ul_name", ""),
-        "role_name": role_name,
-    })
-    redirect_url = f"{settings.frontend_url}/auth/callback?{callback_params}"
+    # Redirect to the frontend callback — session token is in httpOnly cookie only (not in URL)
+    redirect_url = f"{settings.frontend_url}/auth/callback"
 
     redirect_response = RedirectResponse(url=redirect_url, status_code=302)
     redirect_response.set_cookie(
@@ -376,8 +409,23 @@ async def auth_callback(
 
 
 @router.get("/auth/logout")
-async def logout(response: Response) -> dict[str, str]:
-    """Invalidate the current authenticated session."""
+async def logout(request: FastAPIRequest, response: Response) -> dict[str, str]:
+    """Invalidate the current authenticated session and blacklist the JWT."""
+    # Attempt to blacklist the current token's jti
+    try:
+        token = extract_session_token(request)
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        jti = payload.get("jti")
+        if jti:
+            # Blacklist for the remaining token lifetime
+            exp = payload.get("exp", 0)
+            remaining = max(int(exp - datetime.now(timezone.utc).timestamp()), 0)
+            if remaining > 0:
+                _blacklist_jti(jti, remaining)
+    except Exception:
+        # Best-effort: if token is missing/invalid, just clear cookies
+        pass
+
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
         path="/",

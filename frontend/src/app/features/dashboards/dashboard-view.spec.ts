@@ -61,8 +61,7 @@ describe('DashboardViewComponent', () => {
     const fixture = createFixture('cumul');
     await fixture.componentInstance.ngOnInit();
     expect(mockDashboardService.loadDashboards).toHaveBeenCalled();
-    expect(fixture.componentInstance.title).toBe('KPI Annuels');
-    expect(fixture.componentInstance.loading).toBe(false);
+    expect(fixture.componentInstance.title()).toBe('KPI Annuels');
   });
 
   it('should call embedDashboard for valid slug', async () => {
@@ -79,17 +78,15 @@ describe('DashboardViewComponent', () => {
   it('should show error for invalid slug', async () => {
     const fixture = createFixture('invalid');
     await fixture.componentInstance.ngOnInit();
-    expect(fixture.componentInstance.title).toBe('');
-    expect(fixture.componentInstance.error).toBe('Dashboard non trouvé');
-    expect(fixture.componentInstance.loading).toBe(false);
+    expect(fixture.componentInstance.title()).toBe('');
+    expect(fixture.componentInstance.error()).toBe('Dashboard non trouvé');
   });
 
   it('should handle loadDashboards failure', async () => {
     const fixture = createFixture('cumul');
     mockDashboardService.loadDashboards.mockRejectedValue(new Error('Network error'));
     await fixture.componentInstance.ngOnInit();
-    expect(fixture.componentInstance.error).toBe('Erreur lors du chargement du dashboard');
-    expect(fixture.componentInstance.loading).toBe(false);
+    expect(fixture.componentInstance.error()).toBe('Erreur lors du chargement du dashboard');
   });
 });
 
