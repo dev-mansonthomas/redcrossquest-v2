@@ -1,5 +1,5 @@
 """Map endpoints for quêteur geolocation."""
-from fastapi import APIRouter, Depends, Request as FastAPIRequest
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,25 @@ from ..schemas.map import (
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/map", tags=["map"])
+
+# Roles allowed: 3 (compteur), 4 (admin UL) and 9 (super admin)
+ALLOWED_ROLES = {3, 4, 9}
+
+
+def _check_role(user: dict) -> None:
+    """Raise 403 if the user role is not in ALLOWED_ROLES."""
+    role = user.get("role")
+    if isinstance(role, str):
+        try:
+            role = int(role)
+        except (ValueError, TypeError):
+            role = None
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé aux rôles compteur, admin ou super admin",
+        )
+
 
 ACTIVE_QUETEURS_QUERY = """
     SELECT
@@ -65,6 +84,7 @@ async def get_points_quete(
 ) -> PointsQueteResponse:
     """Return all enabled points de quête for the user's UL."""
     user = get_authenticated_user(request, db)
+    _check_role(user)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(POINTS_QUETE_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -88,6 +108,7 @@ async def get_available_years(
 ) -> AvailableYearsResponse:
     """Return distinct years with collection data for the user's UL."""
     user = get_authenticated_user(request, db)
+    _check_role(user)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(AVAILABLE_YEARS_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -106,6 +127,7 @@ async def get_points_quete_stats(
     from datetime import datetime
 
     user = get_authenticated_user(request, db)
+    _check_role(user)
     ul_id = user["ul_id"]
 
     # Build query with conditional year filtering
