@@ -1,6 +1,8 @@
 """Authentication endpoints for Google OAuth 2.0 and JWT sessions."""
 import json
+import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -13,9 +15,12 @@ from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..cache import _get_client as _get_cache_client
 from ..config import settings
 from ..database import get_rcq_db
 from ..schemas.user import UserResponse
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -55,6 +60,33 @@ def _require_jwt_settings() -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="JWT session signing is not configured",
         )
+
+
+_JTI_BLACKLIST_PREFIX = "jti_blacklist:"
+
+
+def _blacklist_jti(jti: str, ttl_seconds: int) -> None:
+    """Add a JTI to the blacklist in Valkey with a TTL matching token expiry."""
+    client = _get_cache_client()
+    if client is None:
+        logger.warning("Cannot blacklist jti=%s – Valkey unavailable", jti)
+        return
+    try:
+        client.set(f"{_JTI_BLACKLIST_PREFIX}{jti}", "1", ex=ttl_seconds)
+    except Exception:
+        logger.warning("Failed to blacklist jti=%s", jti, exc_info=True)
+
+
+def _is_jti_blacklisted(jti: str) -> bool:
+    """Check whether a JTI has been revoked."""
+    client = _get_cache_client()
+    if client is None:
+        return False
+    try:
+        return client.exists(f"{_JTI_BLACKLIST_PREFIX}{jti}") > 0
+    except Exception:
+        logger.debug("Failed to check jti blacklist for jti=%s", jti, exc_info=True)
+        return False
 
 
 def _google_http_request(url: str, *, data: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> dict[str, Any]:
@@ -163,12 +195,16 @@ def create_session_token(user_profile: dict[str, Any]) -> str:
         "role": user_profile["role"],
         "ul_id": user_profile.get("ul_id"),
         "exp": expires_at,
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode and validate a signed JWT session token."""
+    """Decode and validate a signed JWT session token.
+
+    Checks the JTI blacklist so that revoked tokens are rejected.
+    """
     _require_jwt_settings()
 
     try:
@@ -178,6 +214,14 @@ def decode_session_token(token: str) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
         ) from exc
+
+    # Check JTI blacklist (revoked tokens)
+    jti = payload.get("jti")
+    if jti and _is_jti_blacklisted(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+        )
 
     email = payload.get("email") or payload.get("sub")
     if not email:
@@ -368,8 +412,23 @@ async def auth_callback(
 
 
 @router.get("/auth/logout")
-async def logout(response: Response) -> dict[str, str]:
-    """Invalidate the current authenticated session."""
+async def logout(request: FastAPIRequest, response: Response) -> dict[str, str]:
+    """Invalidate the current authenticated session and blacklist the JWT."""
+    # Attempt to blacklist the current token's jti
+    try:
+        token = extract_session_token(request)
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        jti = payload.get("jti")
+        if jti:
+            # Blacklist for the remaining token lifetime
+            exp = payload.get("exp", 0)
+            remaining = max(int(exp - datetime.now(timezone.utc).timestamp()), 0)
+            if remaining > 0:
+                _blacklist_jti(jti, remaining)
+    except Exception:
+        # Best-effort: if token is missing/invalid, just clear cookies
+        pass
+
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
         path="/",
