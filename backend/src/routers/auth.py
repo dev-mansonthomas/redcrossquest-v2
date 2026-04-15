@@ -15,10 +15,15 @@ from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from ..cache import _get_client as _get_cache_client
 from ..config import settings
 from ..database import get_rcq_db
 from ..schemas.user import UserResponse
+
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +303,8 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
 
 
 @router.get("/auth/login/google")
-async def login() -> Response:
+@limiter.limit("10/minute")
+async def login(request: FastAPIRequest) -> Response:
     """Redirect the browser to the Google OAuth consent screen."""
     _require_oauth_settings()
 
@@ -332,6 +338,7 @@ async def login() -> Response:
 
 
 @router.get("/auth/callback")
+@limiter.limit("10/minute")
 async def auth_callback(
     request: FastAPIRequest,
     code: str | None = None,
