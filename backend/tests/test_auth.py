@@ -120,4 +120,5 @@ def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_
         "ul_id": ul_id,
         "ul_name": ul_name,
         "role_name": role_name,
+        "real_role": None,
     }
