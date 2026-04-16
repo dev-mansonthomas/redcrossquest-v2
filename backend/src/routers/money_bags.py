@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
+from ..roles import ROLES_COMPTEUR_AND_ABOVE, check_role
 from ..schemas.money_bags import (
     BagTroncsResponse,
     MoneyBagDetail,
@@ -17,8 +18,6 @@ from ..schemas.money_bags import (
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/money-bags", tags=["money-bags"])
-
-ALLOWED_ROLES = {"3", "4", "9"}
 
 LIST_BAGS_QUERY = """
 SELECT DISTINCT coins_money_bag_id AS bag_id, 'coins' AS bag_type,
@@ -139,15 +138,6 @@ BILL_DENOMINATIONS = [
 ]
 
 
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not in ALLOWED_ROLES."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles compteur, admin ou super admin",
-        )
-
-
 @router.get("", response_model=MoneyBagsResponse)
 async def list_money_bags(
     request: FastAPIRequest,
@@ -156,7 +146,7 @@ async def list_money_bags(
 ) -> MoneyBagsResponse:
     """List all money bags (coins and bills) for the user's UL and given year."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     if year is None:
         year = datetime.now().year
@@ -180,7 +170,7 @@ async def get_money_bag_detail(
 ) -> MoneyBagDetail:
     """Return detailed denomination breakdown for a specific money bag."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     if type not in ("coins", "bills"):
         raise HTTPException(
@@ -241,7 +231,7 @@ async def get_money_bag_troncs(
 ) -> BagTroncsResponse:
     """Return the list of tronc_queteurs contributing to a specific money bag."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     if type not in ("coins", "bills"):
         raise HTTPException(

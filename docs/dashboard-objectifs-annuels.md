@@ -12,7 +12,7 @@ Dashboard Superset embedded affichant l'objectif vs le réalisé pour l'année c
 
 ## Accès
 
-- Rôles : tous (1, 2, 3, 4, 9)
+- Rôles : 3 (Compteur), 4 (Admin), 9 (Super Admin)
 - Route : `/dashboards/kpi`
 
 ## Dataset SQL

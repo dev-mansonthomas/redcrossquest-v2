@@ -9,14 +9,12 @@ from sqlalchemy.orm import Session
 from ..cache import cache_delete, cache_get, cache_set
 from ..database import get_rcq_db
 from ..routers.auth import get_authenticated_user
+from ..roles import ROLES_COMPTEUR_AND_ABOVE, check_role
 from ..schemas.repartition_jours import DailyAmount, RepartitionJoursResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["repartition-jours"])
-
-# Roles allowed: 3 (trésorier), 4 (admin UL) and 9 (super admin)
-ALLOWED_ROLES = {"3", "4", "9"}
 
 # Cache TTLs
 TTL_PAST_YEAR = 31_536_000  # 1 year in seconds
@@ -55,15 +53,6 @@ ORDER BY year, jour_num
 """
 
 
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not allowed."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles trésorier, admin ou super admin",
-        )
-
-
 @router.get("/repartition-jours", response_model=RepartitionJoursResponse)
 async def get_repartition_jours(
     request: Request,
@@ -78,7 +67,7 @@ async def get_repartition_jours(
     current year data.
     """
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     current_year = datetime.now().year

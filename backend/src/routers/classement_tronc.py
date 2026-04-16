@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
+from ..roles import ROLES_ADMIN_AND_ABOVE, check_role
 from ..schemas.classement_tronc import (
     QueteurBestTronc,
     ClassementTroncResponse,
@@ -16,17 +17,6 @@ from ..utils import build_secteur_filter, build_year_filter
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/classement-tronc", tags=["classement-tronc"])
-
-ALLOWED_ROLES = {"4", "9"}
-
-
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not in ALLOWED_ROLES."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
 
 
 TRONC_LEADERBOARD_QUERY = """
@@ -87,7 +77,7 @@ async def get_classement_tronc(
 ) -> ClassementTroncResponse:
     """Return tronc classement ranked by total amount collected."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_ADMIN_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
     secteur_clause, secteur_params = build_secteur_filter(secteur)
@@ -113,7 +103,7 @@ async def get_troncs_champions(
     tronc wins multiple metrics, it appears once with all champion_types.
     """
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_ADMIN_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
     secteur_clause, secteur_params = build_secteur_filter(secteur)

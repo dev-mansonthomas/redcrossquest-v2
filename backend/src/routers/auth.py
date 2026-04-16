@@ -21,6 +21,7 @@ from slowapi.util import get_remote_address
 from ..cache import _get_client as _get_cache_client
 from ..config import settings
 from ..database import get_rcq_db
+from ..roles import ROLE_NAMES
 from ..schemas.user import UserResponse
 
 limiter = Limiter(key_func=get_remote_address)
@@ -32,14 +33,6 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 SESSION_COOKIE_NAME = "rcq_session"
 OAUTH_STATE_COOKIE_NAME = "rcq_oauth_state"
-
-ROLE_NAMES: dict[str, str] = {
-    "1": "Lecture seul",
-    "2": "Opérateur",
-    "3": "Compteur",
-    "4": "Admin",
-    "9": "Super Admin",
-}
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -180,14 +173,13 @@ def get_user_profile_by_email(db: Session, email: str) -> dict[str, Any]:
     # Un seul compte trouvé
     user_data = results[0]
     role_int = int(user_data["role"]) if user_data["role"] is not None else 0
-    role_key = str(role_int)
     return {
         "user_id": user_data["user_id"],
         "email": user_data["email"],
         "role": role_int,
         "ul_id": user_data["ul_id"],
         "ul_name": user_data["ul_name"],
-        "role_name": ROLE_NAMES.get(role_key, ""),
+        "role_name": ROLE_NAMES.get(role_int, ""),
     }
 
 
@@ -293,10 +285,10 @@ def get_authenticated_user(request: FastAPIRequest, db: Session) -> dict[str, An
             override_role_int = int(override_role)
             real_role = int(user_profile.get("role", 0))
             # Security: override role must be <= real role (hierarchy: 1 < 2 < 3 < 4 < 9)
-            if override_role_int <= real_role and str(override_role_int) in ROLE_NAMES:
+            if override_role_int <= real_role and override_role_int in ROLE_NAMES:
                 user_profile["real_role"] = real_role
                 user_profile["role"] = override_role_int
-                user_profile["role_name"] = ROLE_NAMES[str(override_role_int)]
+                user_profile["role_name"] = ROLE_NAMES[override_role_int]
         except (ValueError, TypeError):
             pass
 

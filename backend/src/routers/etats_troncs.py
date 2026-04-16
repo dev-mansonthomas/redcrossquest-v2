@@ -8,13 +8,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
+from ..roles import ROLES_COMPTEUR_AND_ABOVE, check_role
 from ..schemas.etats_troncs import EtatsTroncsResponse, TroncEtatDetail
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/etats-troncs", tags=["etats-troncs"])
-
-ALLOWED_ROLES = {"3", "4", "9"}
-
 
 class TroncStatus(str, Enum):
     """Allowed status values for the tronc state filter."""
@@ -34,14 +32,6 @@ STATUS_FILTERS: dict[TroncStatus, str] = {
     TroncStatus.missing_bags: "AND tq.comptage IS NOT NULL AND (tq.coins_money_bag_id IS NULL OR tq.coins_money_bag_id = '' OR tq.bills_money_bag_id IS NULL OR tq.bills_money_bag_id = '')",
 }
 
-
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not in ALLOWED_ROLES."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
 
 
 def _build_year_filter(year: Optional[int]) -> tuple[str, dict]:
@@ -178,7 +168,7 @@ async def get_etats_troncs(
 ) -> EtatsTroncsResponse:
     """Return troncs matching the requested state."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     year_clause, year_params = _build_year_filter(year)
 
