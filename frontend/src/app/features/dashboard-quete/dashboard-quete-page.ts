@@ -15,6 +15,59 @@ import { ENV_HEADER_BG } from '../../core/utils/env-header';
 const DEFAULT_CENTER: L.LatLngExpression = [46.603354, 1.888334]; // France center
 const DEFAULT_ZOOM = 6;
 
+function formatDuration(departIso: string): string {
+  const diff = Date.now() - new Date(departIso).getTime();
+  if (diff < 0) return '0h 00min';
+  const totalMinutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}min`;
+}
+
+function getDurationColor(departIso: string): string {
+  const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
+  if (hours < 2) return '#4caf50';
+  if (hours < 4) return '#ff9800';
+  return '#f44336';
+}
+
+function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
+  const color = getDurationColor(q.depart);
+  const icon = '🔴';
+  const pointLabel = q.point_name || '';
+  const label = `${icon} ${q.first_name} ${q.last_name} – ${pointLabel} – ${formatDuration(q.depart)}`;
+  const html = `<div style="
+    display: inline-block;
+    background: ${color};
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    line-height: 1.4;
+  ">${label}</div>`;
+  return L.divIcon({
+    className: 'queteur-label',
+    html,
+    iconSize: [0, 0],
+    iconAnchor: [0, 14],
+  });
+}
+
+function getOffsetPosition(lat: number, lng: number, index: number, total: number): [number, number] {
+  const OFFSET = 0.002; // ~200m at Paris latitude
+  if (total === 1) {
+    return [lat + OFFSET * 0.7, lng + OFFSET * 0.7];
+  }
+  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+  return [
+    lat + OFFSET * Math.sin(angle),
+    lng + OFFSET * Math.cos(angle),
+  ];
+}
+
 @Component({
   selector: 'app-dashboard-quete-page',
   standalone: true,
@@ -149,6 +202,12 @@ const DEFAULT_ZOOM = 6;
   `,
   styles: [`
     :host { display: block; height: 100%; width: 100%; }
+    :host ::ng-deep .queteur-label {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+    }
   `],
 })
 export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
@@ -255,19 +314,40 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
     this.markersLayer.clearLayers();
     const bounds: L.LatLngExpression[] = [];
 
-    for (const q of queteurs) {
-      if (q.latitude == null || q.longitude == null) continue;
-      const latLng: L.LatLngExpression = [q.latitude, q.longitude];
-      bounds.push(latLng);
+    const valid = queteurs.filter((q) => q.latitude != null && q.longitude != null);
 
-      const departTime = new Date(q.depart);
-      const timeStr = `${String(departTime.getHours()).padStart(2, '0')}:${String(departTime.getMinutes()).padStart(2, '0')}`;
-      const popupContent = `${q.first_name} ${q.last_name}${q.point_name ? ' — ' + q.point_name : ''} — Départ: ${timeStr}`;
-
-      const marker = L.marker(latLng);
-      marker.bindPopup(popupContent);
-      this.markersLayer.addLayer(marker);
+    // Group quêteurs by lat/lng so labels at the same point can be offset in a circle
+    const grouped = new Map<string, ActiveQueteur[]>();
+    for (const q of valid) {
+      const key = `${q.latitude},${q.longitude}`;
+      const group = grouped.get(key) || [];
+      group.push(q);
+      grouped.set(key, group);
     }
+
+    grouped.forEach((group) => {
+      group.forEach((q, index) => {
+        const pqLat = q.latitude!;
+        const pqLng = q.longitude!;
+        bounds.push([pqLat, pqLng]);
+
+        const [offsetLat, offsetLng] = getOffsetPosition(pqLat, pqLng, index, group.length);
+        const color = getDurationColor(q.depart);
+
+        // Solid leader line from the point to the label position
+        const line = L.polyline(
+          [[pqLat, pqLng], [offsetLat, offsetLng]],
+          { color, weight: 2, opacity: 0.8 },
+        );
+        this.markersLayer.addLayer(line);
+
+        const marker = L.marker([offsetLat, offsetLng], {
+          icon: getQueteurLabelIcon(q),
+          zIndexOffset: 1000,
+        });
+        this.markersLayer.addLayer(marker);
+      });
+    });
 
     if (this.map && bounds.length > 0) {
       this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
