@@ -89,8 +89,8 @@ const DEFAULT_ZOOM = 6;
         <div class="bg-white rounded-lg shadow relative">
           <div #mapContainer class="h-[400px] rounded-lg"></div>
           @if (activeQueteurs().length === 0 && !loading()) {
-            <div class="absolute inset-0 flex items-center justify-center bg-white/70 rounded-lg">
-              <p class="text-gray-400 text-lg font-medium">Aucun quêteur actif actuellement</p>
+            <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-center py-2 text-sm font-medium rounded-b-lg">
+              Aucun quêteur dehors actuellement
             </div>
           }
         </div>

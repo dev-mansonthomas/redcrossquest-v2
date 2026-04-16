@@ -17,11 +17,10 @@ from .auth import get_authenticated_user
 router = APIRouter(prefix="/api/dashboard-quete", tags=["dashboard-quete"])
 
 
-KPIS_QUERY = """
+KPIS_COUNTED_QUERY = """
     SELECT
         COALESCE(SUM(tqe.duration_minutes), 0) AS total_temps_minutes,
         COUNT(DISTINCT tqe.queteur_id) AS nb_queteurs,
-        COUNT(*) AS nb_sorties,
         COALESCE(SUM(tqe.total_amount), 0) AS montant_total
     FROM v_tronc_queteur_enriched tqe
     WHERE tqe.ul_id = :ul_id
@@ -29,6 +28,14 @@ KPIS_QUERY = """
       AND tqe.deleted = 0
       AND tqe.comptage IS NOT NULL
       AND tqe.total_amount > 0
+"""
+
+NB_SORTIES_QUERY = """
+    SELECT COUNT(*) AS nb_sorties
+    FROM tronc_queteur
+    WHERE ul_id = :ul_id
+      AND YEAR(COALESCE(depart, depart_theorique)) = YEAR(CURDATE())
+      AND deleted = 0
 """
 
 PUBLIC_DASHBOARD_QUERY = """
@@ -89,13 +96,14 @@ async def get_summary(
     ul_id = user["ul_id"]
 
     # KPIs
-    kpi_row = db.execute(text(KPIS_QUERY), {"ul_id": ul_id}).mappings().first()
+    kpi_row = db.execute(text(KPIS_COUNTED_QUERY), {"ul_id": ul_id}).mappings().first()
+    sorties_row = db.execute(text(NB_SORTIES_QUERY), {"ul_id": ul_id}).mappings().first()
     show_montant = _get_show_montant(db, ul_id)
 
     kpis = KPIs(
         total_temps_minutes=int(kpi_row["total_temps_minutes"]),
         nb_queteurs=int(kpi_row["nb_queteurs"]),
-        nb_sorties=int(kpi_row["nb_sorties"]),
+        nb_sorties=int(sorties_row["nb_sorties"]),
         montant_total=float(kpi_row["montant_total"]),
         show_montant=show_montant,
     )
