@@ -1,39 +1,46 @@
 # 5.2 Classement Global
 
 ## Description
+
 Classement des quêteurs pour une année donnée, avec drill-down sur les troncs individuels.
 
 ## Accès
+
 - Rôles : 4 (Admin UL), 9 (Super Admin)
 
 ## Interface
 
 ### Header
+
 - Titre : "🏆 Classement Global"
 - Sélecteur de secteur (Tous secteurs | Bénévole | Bénévole d'un jour | Ancien bénévole | Commerçant | Spécial)
 - Sélecteur d'année (par défaut : année courante)
 - Bouton refresh 🔄
 
 ### Tableau principal — Classement
+
 Colonnes :
+
 | Rang | Nom | Prénom | Total € | Heures | Nb sorties | Poids (kg) | Efficacité (€/h) |
-|------|-----|--------|---------|--------|------------|------------|-------------------|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 
 - Tri par défaut : Total € desc
 - Colonnes triables en cliquant sur l'en-tête (Total €, Heures, Nb sorties, Poids, Efficacité)
 - Le rang se recalcule selon la colonne de tri active
 
 ### Drill-down — Troncs d'un quêteur
+
 Au clic sur une ligne du classement, afficher en dessous (expand) la liste des tronc_queteur du quêteur :
 
 | ID TQ | Total € | Temps de quête | Poids (kg) | Point de quête |
-|-------|---------|----------------|------------|----------------|
+| --- | --- | --- | --- | --- |
 
 Lien vers RCQ v1 au clic sur un tronc (ouvre dans une nouvelle fenêtre).
 
 ## Données
 
 ### Classement (agrégé par quêteur)
+
 ```sql
 SELECT
   q.id AS queteur_id,
@@ -52,6 +59,7 @@ ORDER BY total_euro DESC
 ```
 
 ### Drill-down (troncs d'un quêteur)
+
 ```sql
 SELECT
   tqe.id AS tronc_queteur_id,
@@ -68,10 +76,12 @@ ORDER BY tqe.depart DESC
 ```
 
 ## Calculs
+
 - **Heures** : champ `duration_minutes` de `v_tronc_queteur_enriched` (en minutes, converti en heures via `/ 60.0`)
 - **Poids** : champ `weight` de `v_tronc_queteur_enriched` (en grammes, affiché en kg)
 - **Efficacité** : total_euro / total_hours (€/h)
 
 ## Réactivité
+
 - Changement d'année → recharge le classement, ferme le drill-down
 - UL Override (Super Admin) → recharge via effect()
