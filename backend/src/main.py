@@ -10,7 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from .config import settings
-from .routers import health, auth, config, comptage_pieces_billets, controle_donnees, embed, classement, classement_tronc, etats_troncs, mailing_stats, map, merci, money_bags, repartition_jours, stats_journalieres, superset, ul, yearly_goals
+from .routers import health, auth, config, comptage_pieces_billets, controle_donnees, dashboard_quete, embed, classement, classement_tronc, etats_troncs, mailing_stats, map, merci, money_bags, repartition_jours, stats_journalieres, superset, ul, yearly_goals
 
 # Rate limiter (keyed by remote IP)
 limiter = Limiter(key_func=get_remote_address)
@@ -77,6 +77,7 @@ app.include_router(comptage_pieces_billets.router)
 app.include_router(classement.router)
 app.include_router(classement_tronc.router)
 app.include_router(mailing_stats.router)
+app.include_router(dashboard_quete.router)
 app.include_router(map.router)
 app.include_router(money_bags.router)
 app.include_router(superset.router)
