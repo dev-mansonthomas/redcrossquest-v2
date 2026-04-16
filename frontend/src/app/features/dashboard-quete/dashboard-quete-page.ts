@@ -124,11 +124,11 @@ const DEFAULT_ZOOM = 6;
                         Montant {{ sortIndicator('montant') }}
                       </th>
                     }
-                    <th (click)="onSort('temps_minutes')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
-                      Temps {{ sortIndicator('temps_minutes') }}
+                    <th (click)="onSort('temps')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
+                      Temps {{ sortIndicator('temps') }}
                     </th>
-                    <th (click)="onSort('nb_sorties')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
-                      Sorties {{ sortIndicator('nb_sorties') }}
+                    <th (click)="onSort('sorties')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
+                      Sorties {{ sortIndicator('sorties') }}
                     </th>
                   </tr>
                 </thead>
