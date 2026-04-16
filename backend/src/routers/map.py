@@ -43,6 +43,7 @@ async def get_active_queteurs(
 ) -> ActiveQueteursResponse:
     """Return quêteurs currently out collecting, filtered by the user's ul_id."""
     user = get_authenticated_user(request, db)
+    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(ACTIVE_QUETEURS_QUERY), {"ul_id": ul_id}).mappings().all()
