@@ -9,18 +9,8 @@ export interface KPIs {
   show_montant: boolean;
 }
 
-export interface ActiveQueteur {
-  first_name: string;
-  last_name: string;
-  latitude: number;
-  longitude: number;
-  point_name: string | null;
-  depart: string;
-}
-
 export interface DashboardSummaryResponse {
   kpis: KPIs;
-  active_queteurs: ActiveQueteur[];
 }
 
 export interface TopQueteur {

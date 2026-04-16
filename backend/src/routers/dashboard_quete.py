@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from ..database import get_rcq_db
 from ..roles import ROLES_ALL, check_role
 from ..schemas.dashboard_quete import (
-    ActiveQueteur,
     DashboardSummaryResponse,
     KPIs,
     Top10Response,
@@ -50,20 +49,6 @@ PUBLIC_DASHBOARD_QUERY = """
     SELECT publicDashboard FROM ul WHERE id = :ul_id
 """
 
-ACTIVE_QUETEURS_QUERY = """
-    SELECT
-        q.first_name, q.last_name,
-        pq.latitude, pq.longitude, pq.name AS point_name,
-        tq.depart
-    FROM tronc_queteur tq
-    JOIN queteur q ON q.id = tq.queteur_id
-    LEFT JOIN point_quete pq ON pq.id = tq.point_quete_id
-    WHERE tq.deleted = 0
-      AND tq.depart IS NOT NULL
-      AND tq.retour IS NULL
-      AND tq.ul_id = :ul_id
-"""
-
 # Whitelist for sort columns (SQL injection prevention)
 SORT_COLUMNS = {"montant": "montant", "temps": "temps_minutes", "sorties": "nb_sorties"}
 
@@ -97,7 +82,7 @@ async def get_summary(
     request: FastAPIRequest,
     db: Session = Depends(get_rcq_db),
 ) -> DashboardSummaryResponse:
-    """Return KPIs (current year) and currently active quêteurs."""
+    """Return KPIs for the current year."""
     user = get_authenticated_user(request, db)
     check_role(user, ROLES_ALL)
     ul_id = user["ul_id"]
@@ -116,11 +101,7 @@ async def get_summary(
         show_montant=show_montant,
     )
 
-    # Active quêteurs
-    rows = db.execute(text(ACTIVE_QUETEURS_QUERY), {"ul_id": ul_id}).mappings().all()
-    active_queteurs = [ActiveQueteur(**row) for row in rows]
-
-    return DashboardSummaryResponse(kpis=kpis, active_queteurs=active_queteurs)
+    return DashboardSummaryResponse(kpis=kpis)
 
 
 @router.get("/top10", response_model=Top10Response)

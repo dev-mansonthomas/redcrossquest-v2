@@ -1,7 +1,4 @@
 """Dashboard quête schemas for API responses."""
-from datetime import datetime
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -15,22 +12,10 @@ class KPIs(BaseModel):
     show_montant: bool
 
 
-class ActiveQueteur(BaseModel):
-    """A quêteur currently out collecting (dashboard view)."""
-
-    first_name: str
-    last_name: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    point_name: Optional[str] = None
-    depart: datetime | str
-
-
 class DashboardSummaryResponse(BaseModel):
     """Response for the dashboard summary endpoint."""
 
     kpis: KPIs
-    active_queteurs: list[ActiveQueteur]
 
 
 class TopQueteur(BaseModel):

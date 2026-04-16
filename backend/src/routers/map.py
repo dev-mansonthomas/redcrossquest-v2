@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
-from ..roles import ROLES_OPERATEUR_AND_ABOVE, check_role
+from ..roles import ROLES_ALL, ROLES_OPERATEUR_AND_ABOVE, check_role
 from ..schemas.map import (
     ActiveQueteur,
     ActiveQueteursResponse,
@@ -43,7 +43,7 @@ async def get_active_queteurs(
 ) -> ActiveQueteursResponse:
     """Return quêteurs currently out collecting, filtered by the user's ul_id."""
     user = get_authenticated_user(request, db)
-    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
+    check_role(user, ROLES_ALL)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(ACTIVE_QUETEURS_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -68,7 +68,7 @@ async def get_points_quete(
 ) -> PointsQueteResponse:
     """Return all enabled points de quête for the user's UL."""
     user = get_authenticated_user(request, db)
-    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
+    check_role(user, ROLES_ALL)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(POINTS_QUETE_QUERY), {"ul_id": ul_id}).mappings().all()
