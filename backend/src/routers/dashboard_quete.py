@@ -49,7 +49,7 @@ ACTIVE_QUETEURS_QUERY = """
         tq.depart
     FROM tronc_queteur tq
     JOIN queteur q ON q.id = tq.queteur_id
-    JOIN point_quete pq ON pq.id = tq.point_quete_id
+    LEFT JOIN point_quete pq ON pq.id = tq.point_quete_id
     WHERE tq.deleted = 0
       AND tq.depart IS NOT NULL
       AND tq.retour IS NULL

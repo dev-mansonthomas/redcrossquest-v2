@@ -1,4 +1,5 @@
 """Dashboard quête schemas for API responses."""
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ class ActiveQueteur(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     point_name: Optional[str] = None
-    depart: str
+    depart: datetime | str
 
 
 class DashboardSummaryResponse(BaseModel):
