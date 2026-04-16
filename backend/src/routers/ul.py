@@ -52,7 +52,8 @@ async def search_ul(
     """Search for ULs by name. Restricted to Super Admin (role=9)."""
     user_profile = get_authenticated_user(request, db)
 
-    if str(user_profile.get("role")) != "9":
+    real_role = user_profile.get("real_role") or user_profile.get("role")
+    if str(real_role) != "9":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Accès réservé au Super Admin",
