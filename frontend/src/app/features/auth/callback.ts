@@ -2,6 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { RoleOverrideService } from '../../core/services/role-override.service';
+import { UlOverrideService } from '../../core/services/ul-override.service';
 
 @Component({
   selector: 'app-callback',
@@ -26,6 +28,8 @@ export class CallbackComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   private readonly authService = inject(AuthService);
+  private readonly roleOverrideService = inject(RoleOverrideService);
+  private readonly ulOverrideService = inject(UlOverrideService);
 
   error = '';
 
@@ -37,6 +41,10 @@ export class CallbackComponent implements OnInit {
       this.error = 'Erreur d\'authentification. Veuillez réessayer.';
       return;
     }
+
+    // Clear any stale overrides before fetching real profile
+    this.roleOverrideService.clearOverride();
+    this.ulOverrideService.clearOverride();
 
     // Session token is in httpOnly cookie — fetch user info from /api/me
     this.api.get<{ email: string; role: number; ul_id: number; ul_name: string; role_name: string }>('/api/me')

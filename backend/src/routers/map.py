@@ -1,9 +1,10 @@
 """Map endpoints for quêteur geolocation."""
-from fastapi import APIRouter, Depends, Request as FastAPIRequest
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
+from ..roles import ROLES_OPERATEUR_AND_ABOVE, check_role
 from ..schemas.map import (
     ActiveQueteur,
     ActiveQueteursResponse,
@@ -16,6 +17,7 @@ from ..schemas.map import (
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/map", tags=["map"])
+
 
 ACTIVE_QUETEURS_QUERY = """
     SELECT
@@ -41,6 +43,7 @@ async def get_active_queteurs(
 ) -> ActiveQueteursResponse:
     """Return quêteurs currently out collecting, filtered by the user's ul_id."""
     user = get_authenticated_user(request, db)
+    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(ACTIVE_QUETEURS_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -65,6 +68,7 @@ async def get_points_quete(
 ) -> PointsQueteResponse:
     """Return all enabled points de quête for the user's UL."""
     user = get_authenticated_user(request, db)
+    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(POINTS_QUETE_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -88,6 +92,7 @@ async def get_available_years(
 ) -> AvailableYearsResponse:
     """Return distinct years with collection data for the user's UL."""
     user = get_authenticated_user(request, db)
+    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     rows = db.execute(text(AVAILABLE_YEARS_QUERY), {"ul_id": ul_id}).mappings().all()
@@ -106,6 +111,7 @@ async def get_points_quete_stats(
     from datetime import datetime
 
     user = get_authenticated_user(request, db)
+    check_role(user, ROLES_OPERATEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     # Build query with conditional year filtering

@@ -1,4 +1,8 @@
 """FastAPI application entry point."""
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -24,13 +28,42 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# ---------------------------------------------------------------------------
+# Security headers middleware
+# ---------------------------------------------------------------------------
+
+# Build Content-Security-Policy dynamically based on superset_url
+_superset_url = settings.superset_url.rstrip("/") if settings.superset_url else ""
+if _superset_url:
+    _csp = f"default-src 'self'; frame-src {_superset_url}; frame-ancestors 'self'"
+else:
+    _csp = "default-src 'self'; frame-ancestors 'self'"
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Inject standard security headers into every response."""
+
+    async def dispatch(self, request: StarletteRequest, call_next) -> StarletteResponse:
+        response: StarletteResponse = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = _csp
+        return response
+
+
+# Middleware registration order matters: outermost first.
+# SecurityHeaders wraps CORS so headers are present on every response.
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Override-UL-Id", "X-Override-Role"],
 )
 
 # Include routers

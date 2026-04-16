@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_rcq_db
+from ..roles import ROLES_COMPTEUR_AND_ABOVE, check_role
 from ..schemas.controle_donnees import (
     ControleDonneesResponse,
     QueteurControleSummary,
@@ -16,17 +17,6 @@ from ..utils import build_year_filter
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/controle-donnees", tags=["controle-donnees"])
-
-ALLOWED_ROLES = {"3", "4", "9"}
-
-
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not in ALLOWED_ROLES."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
 
 
 def _build_days_filter(days: Optional[str]) -> tuple[str, dict]:
@@ -111,7 +101,7 @@ async def get_controle_donnees(
 ) -> ControleDonneesResponse:
     """Return aggregated data per quêteur for data-quality control."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
     days_clause, days_params = _build_days_filter(days)
@@ -135,7 +125,7 @@ async def get_queteur_troncs_controle(
 ) -> TroncsControleResponse:
     """Return tronc details for a specific quêteur (drill-down)."""
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
     days_clause, days_params = _build_days_filter(days)

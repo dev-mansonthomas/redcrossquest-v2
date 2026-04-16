@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..cache import cache_delete, cache_get, cache_set
 from ..database import get_rcq_db
 from ..routers.auth import get_authenticated_user
+from ..roles import ROLES_ADMIN_AND_ABOVE, ROLES_SUPER_ADMIN_ONLY, check_role, check_role_real
 from ..schemas.ul import (
     ActivityYear,
     FinancialYear,
@@ -32,10 +33,6 @@ SECTEUR_LABELS: dict[int, str] = {
     6: "Spécial",
 }
 
-# Roles allowed to access UL overview and settings
-OVERVIEW_ALLOWED_ROLES = {"4", "9"}
-SETTINGS_ALLOWED_ROLES = {"4", "9"}
-
 # Cache TTL for UL overview (1 hour)
 UL_OVERVIEW_CACHE_TTL = 3600
 
@@ -51,12 +48,7 @@ async def search_ul(
 ) -> UlSearchResponse:
     """Search for ULs by name. Restricted to Super Admin (role=9)."""
     user_profile = get_authenticated_user(request, db)
-
-    if str(user_profile.get("role")) != "9":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé au Super Admin",
-        )
+    check_role_real(user_profile, ROLES_SUPER_ADMIN_ONLY)
 
     rows = db.execute(
         text(
@@ -152,15 +144,6 @@ ACTIVITY_QUERY = """
 """
 
 
-def _check_overview_role(user: dict) -> None:
-    """Raise 403 if the user role is not allowed."""
-    if str(user.get("role")) not in OVERVIEW_ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
-
-
 @router.get("/ul/overview", response_model=UlOverviewResponse)
 async def get_ul_overview(
     request: Request,
@@ -173,7 +156,7 @@ async def get_ul_overview(
     Results are cached in Valkey for 1 hour.
     """
     user = get_authenticated_user(request, db)
-    _check_overview_role(user)
+    check_role(user, ROLES_ADMIN_AND_ABOVE)
     ul_id = user["ul_id"]
 
     cache_key = f"rcq:ul_overview:{ul_id}"
@@ -268,15 +251,6 @@ SETTINGS_QUERY = """
 """
 
 
-def _check_settings_role(user: dict) -> None:
-    """Raise 403 if the user role is not allowed for settings."""
-    if str(user.get("role")) not in SETTINGS_ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
-
-
 @router.get("/ul/settings", response_model=UlSettingsResponse)
 async def get_ul_settings(
     request: Request,
@@ -284,7 +258,7 @@ async def get_ul_settings(
 ) -> UlSettingsResponse:
     """Return the UL's thank-you message settings."""
     user = get_authenticated_user(request, db)
-    _check_settings_role(user)
+    check_role(user, ROLES_ADMIN_AND_ABOVE)
     ul_id = user["ul_id"]
 
     row = db.execute(text(SETTINGS_QUERY), {"ul_id": ul_id}).mappings().first()
@@ -312,7 +286,7 @@ async def update_ul_settings(
 ) -> UlSettingsResponse:
     """Update the UL's thank-you message settings."""
     user = get_authenticated_user(request, db)
-    _check_settings_role(user)
+    check_role(user, ROLES_ADMIN_AND_ABOVE)
     ul_id = user["ul_id"]
     user_id = user["user_id"]
 

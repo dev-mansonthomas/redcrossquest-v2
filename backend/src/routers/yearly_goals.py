@@ -9,14 +9,12 @@ from sqlalchemy.orm import Session
 from ..cache import cache_delete, cache_get, cache_set
 from ..database import get_rcq_db
 from ..routers.auth import get_authenticated_user
+from ..roles import ROLES_COMPTEUR_AND_ABOVE, check_role
 from ..schemas.yearly_goals import YearlyGoalDataPoint, YearlyGoalsResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["yearly-goals"])
-
-# Roles allowed: 4 (admin UL) and 9 (super admin)
-ALLOWED_ROLES = {"4", "9"}
 
 # Cache TTLs
 TTL_PAST_YEAR = 31_536_000  # 1 year in seconds
@@ -76,14 +74,6 @@ WHERE year = :year
 """
 
 
-def _check_role(user: dict) -> None:
-    """Raise 403 if the user role is not allowed."""
-    if str(user.get("role")) not in ALLOWED_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux rôles admin ou super admin",
-        )
-
 
 def _build_objectif_series(row: dict) -> list[dict]:
     """Expand a yearly_goal row into 9 cumulative data points."""
@@ -128,7 +118,7 @@ async def get_yearly_goals(
     Past years use a 1-year TTL; the current year uses 60 s.
     """
     user = get_authenticated_user(request, db)
-    _check_role(user)
+    check_role(user, ROLES_COMPTEUR_AND_ABOVE)
     ul_id = user["ul_id"]
 
     current_year = datetime.now().year
