@@ -56,9 +56,8 @@ ACTIVE_QUETEURS_QUERY = """
       AND tq.ul_id = :ul_id
 """
 
-# Whitelist for sort columns and directions (SQL injection prevention)
+# Whitelist for sort columns (SQL injection prevention)
 SORT_COLUMNS = {"montant": "montant", "temps": "temps_minutes", "sorties": "nb_sorties"}
-SORT_DIRS = {"asc": "ASC", "desc": "DESC"}
 
 TOP10_QUERY_TEMPLATE = """
     SELECT q.first_name, q.last_name,
@@ -72,7 +71,7 @@ TOP10_QUERY_TEMPLATE = """
       AND tqe.deleted = 0
       AND tqe.comptage IS NOT NULL
     GROUP BY tqe.queteur_id, q.first_name, q.last_name
-    ORDER BY {sort_col} {sort_dir}
+    ORDER BY {sort_col} DESC
     LIMIT 10
 """
 
@@ -119,18 +118,16 @@ async def get_summary(
 async def get_top10(
     request: FastAPIRequest,
     sort: str = Query(default="montant", description="Colonne de tri"),
-    dir: str = Query(default="desc", description="Direction du tri"),
     db: Session = Depends(get_rcq_db),
 ) -> Top10Response:
-    """Return top 10 quêteurs of the day, sorted by the given column."""
+    """Return top 10 quêteurs of the day, sorted descending by the given column."""
     user = get_authenticated_user(request, db)
     check_role(user, ROLES_ALL)
     ul_id = user["ul_id"]
 
     sort_col = SORT_COLUMNS.get(sort, "montant")
-    sort_dir = SORT_DIRS.get(dir, "DESC")
 
-    query = TOP10_QUERY_TEMPLATE.format(sort_col=sort_col, sort_dir=sort_dir)
+    query = TOP10_QUERY_TEMPLATE.format(sort_col=sort_col)
     rows = db.execute(text(query), {"ul_id": ul_id}).mappings().all()
 
     queteurs = [TopQueteur(**row) for row in rows]

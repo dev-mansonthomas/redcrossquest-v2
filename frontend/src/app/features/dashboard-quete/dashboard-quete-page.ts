@@ -119,11 +119,9 @@ const DEFAULT_ZOOM = 6;
                 <thead>
                   <tr class="text-left text-gray-500 border-b bg-gray-50">
                     <th class="px-4 py-3 font-semibold">Nom</th>
-                    @if (showMontantTop10()) {
-                      <th (click)="onSort('montant')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
-                        Montant {{ sortIndicator('montant') }}
-                      </th>
-                    }
+                    <th (click)="onSort('montant')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
+                      Montant {{ sortIndicator('montant') }}
+                    </th>
                     <th (click)="onSort('temps')" class="px-4 py-3 font-semibold text-right cursor-pointer select-none hover:bg-gray-100">
                       Temps {{ sortIndicator('temps') }}
                     </th>
@@ -136,9 +134,7 @@ const DEFAULT_ZOOM = 6;
                   @for (q of topQueteurs(); track q.last_name + q.first_name) {
                     <tr class="hover:bg-gray-50">
                       <td class="px-4 py-2">{{ q.first_name }} {{ q.last_name }}</td>
-                      @if (showMontantTop10()) {
-                        <td class="px-4 py-2 text-right font-mono">{{ formatCurrency(q.montant) }}</td>
-                      }
+                      <td class="px-4 py-2 text-right font-mono">{{ formatCurrency(q.montant) }}</td>
                       <td class="px-4 py-2 text-right font-mono">{{ formatMinutes(q.temps_minutes) }}</td>
                       <td class="px-4 py-2 text-right font-mono">{{ q.nb_sorties }}</td>
                     </tr>
@@ -175,10 +171,8 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
   });
   readonly activeQueteurs = signal<ActiveQueteur[]>([]);
   readonly topQueteurs = signal<TopQueteur[]>([]);
-  readonly showMontantTop10 = signal(true);
 
   private sortColumn = 'montant';
-  private sortDir = 'desc';
 
   async ngAfterViewInit(): Promise<void> {
     this.initMap();
@@ -197,18 +191,12 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
   }
 
   onSort(column: string): void {
-    if (this.sortColumn === column) {
-      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortColumn = column;
-      this.sortDir = 'desc';
-    }
+    this.sortColumn = column;
     this.loadTop10();
   }
 
   sortIndicator(column: string): string {
-    if (this.sortColumn !== column) return '';
-    return this.sortDir === 'asc' ? '▲' : '▼';
+    return this.sortColumn === column ? '▼' : '';
   }
 
   formatMinutes(minutes: number): string {
@@ -253,10 +241,9 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
     this.tableLoading.set(true);
     try {
       const resp = await firstValueFrom(
-        this.service.getTop10(this.sortColumn, this.sortDir),
+        this.service.getTop10(this.sortColumn),
       );
       this.topQueteurs.set(resp.queteurs);
-      this.showMontantTop10.set(resp.show_montant);
     } catch (err) {
       console.error('Failed to load top 10', err);
     } finally {

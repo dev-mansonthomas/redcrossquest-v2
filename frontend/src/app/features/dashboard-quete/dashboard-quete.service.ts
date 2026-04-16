@@ -44,7 +44,7 @@ export class DashboardQueteService {
     return this.api.get<DashboardSummaryResponse>('/api/dashboard-quete/summary');
   }
 
-  getTop10(sort = 'montant', dir = 'desc') {
-    return this.api.get<Top10Response>(`/api/dashboard-quete/top10?sort=${sort}&dir=${dir}`);
+  getTop10(sort = 'montant') {
+    return this.api.get<Top10Response>(`/api/dashboard-quete/top10?sort=${sort}`);
   }
 }
