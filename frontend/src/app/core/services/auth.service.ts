@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { ApiService } from './api.service';
 import { UlOverrideService } from './ul-override.service';
+import { RoleOverrideService } from './role-override.service';
 
 export interface User {
   email: string;
@@ -17,6 +18,7 @@ export class AuthService {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly ulOverrideService = inject(UlOverrideService);
+  private readonly roleOverrideService = inject(RoleOverrideService);
 
   private readonly _user = signal<User | null>(null);
   readonly user = this._user.asReadonly();
@@ -51,6 +53,7 @@ export class AuthService {
     localStorage.removeItem('rcq_user');
     localStorage.removeItem('rcq_token');
     this.ulOverrideService.clearOverride();
+    this.roleOverrideService.clearOverride();
     this.router.navigate(['/login']);
   }
 
