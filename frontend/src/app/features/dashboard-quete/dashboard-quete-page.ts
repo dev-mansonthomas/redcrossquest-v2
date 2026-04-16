@@ -140,7 +140,7 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
 
         <!-- Map -->
         <div class="bg-white rounded-lg shadow relative">
-          <div #mapContainer class="h-[400px] rounded-lg"></div>
+          <div #mapContainer class="h-[60vh] rounded-lg"></div>
           @if (activeQueteurs().length === 0 && !loading()) {
             <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-center py-2 text-sm font-medium rounded-b-lg">
               Aucun quêteur dehors actuellement
@@ -235,6 +235,7 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
 
   async ngAfterViewInit(): Promise<void> {
     this.initMap();
+    setTimeout(() => this.map?.invalidateSize(), 100);
     await this.loadAll();
   }
 
