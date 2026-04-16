@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import Any
 
+import nh3
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,6 +23,28 @@ from ..schemas.ul import (
 from ..schemas.ul_settings import UlSettingsResponse, UlSettingsUpdate
 
 router = APIRouter(prefix="/api", tags=["ul"])
+
+# ---------------------------------------------------------------------------
+# HTML sanitisation for thank-you messages (XSS prevention)
+# ---------------------------------------------------------------------------
+ALLOWED_TAGS = {
+    "p", "br", "strong", "em", "b", "i", "u",
+    "ul", "ol", "li", "a",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "img", "span", "div",
+    "table", "tr", "td", "th", "thead", "tbody",
+}
+ALLOWED_ATTRIBUTES: dict[str, set[str]] = {
+    "a": {"href", "title", "target"},
+    "img": {"src", "alt", "width", "height"},
+}
+
+
+def _sanitize_html(html: str | None) -> str | None:
+    """Strip dangerous HTML tags/attributes while keeping safe formatting."""
+    if html is None:
+        return None
+    return nh3.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
 
 # Secteur labels — convention du projet
 SECTEUR_LABELS: dict[int, str] = {
@@ -293,9 +316,9 @@ async def update_ul_settings(
     # Build SET clause with only provided (non-None) fields
     updates: dict[str, Any] = {}
     if body.thanks_mail_benevole is not None:
-        updates["thanks_mail_benevole"] = body.thanks_mail_benevole
+        updates["thanks_mail_benevole"] = _sanitize_html(body.thanks_mail_benevole)
     if body.thanks_mail_benevole1j is not None:
-        updates["thanks_mail_benevole1j"] = body.thanks_mail_benevole1j
+        updates["thanks_mail_benevole1j"] = _sanitize_html(body.thanks_mail_benevole1j)
 
     if updates:
         set_parts = [f"{col} = :{col}" for col in updates]
