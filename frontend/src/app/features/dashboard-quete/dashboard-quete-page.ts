@@ -33,7 +33,7 @@ const DEFAULT_ZOOM = 6;
 
       <div class="p-4 space-y-6">
         <!-- KPI Cards -->
-        @if (loading() && !kpis()) {
+        @if (initialLoading()) {
           <div class="flex flex-wrap gap-4">
             @for (i of [1,2,3,4]; track i) {
               <div class="flex-1 min-w-[200px] bg-white rounded-lg shadow p-6 animate-pulse">
@@ -42,13 +42,13 @@ const DEFAULT_ZOOM = 6;
               </div>
             }
           </div>
-        } @else if (kpis()) {
+        } @else {
           <div class="flex flex-wrap gap-4">
             <div class="flex-1 min-w-[200px] bg-white rounded-lg shadow p-6">
               <div class="flex items-center gap-3">
                 <span class="text-3xl">⏱️</span>
                 <div>
-                  <p class="text-3xl font-bold text-gray-900">{{ formatMinutes(kpis()!.total_temps_minutes) }}</p>
+                  <p class="text-3xl font-bold text-gray-900">{{ formatMinutes(kpis().total_temps_minutes) }}</p>
                   <p class="text-sm text-gray-500">Temps total de quête</p>
                 </div>
               </div>
@@ -57,7 +57,7 @@ const DEFAULT_ZOOM = 6;
               <div class="flex items-center gap-3">
                 <span class="text-3xl">👥</span>
                 <div>
-                  <p class="text-3xl font-bold text-gray-900">{{ kpis()!.nb_queteurs }}</p>
+                  <p class="text-3xl font-bold text-gray-900">{{ kpis().nb_queteurs }}</p>
                   <p class="text-sm text-gray-500">Nombre de quêteurs</p>
                 </div>
               </div>
@@ -66,17 +66,17 @@ const DEFAULT_ZOOM = 6;
               <div class="flex items-center gap-3">
                 <span class="text-3xl">🚶</span>
                 <div>
-                  <p class="text-3xl font-bold text-gray-900">{{ kpis()!.nb_sorties }}</p>
+                  <p class="text-3xl font-bold text-gray-900">{{ kpis().nb_sorties }}</p>
                   <p class="text-sm text-gray-500">Nombre de sorties</p>
                 </div>
               </div>
             </div>
-            @if (kpis()!.show_montant) {
+            @if (kpis().show_montant) {
               <div class="flex-1 min-w-[200px] bg-white rounded-lg shadow p-6">
                 <div class="flex items-center gap-3">
                   <span class="text-3xl">💰</span>
                   <div>
-                    <p class="text-3xl font-bold text-gray-900">{{ formatCurrency(kpis()!.montant_total) }}</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ formatCurrency(kpis().montant_total) }}</p>
                     <p class="text-sm text-gray-500">Montant total</p>
                   </div>
                 </div>
@@ -165,7 +165,14 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
 
   readonly loading = signal(false);
   readonly tableLoading = signal(false);
-  readonly kpis = signal<KPIs | null>(null);
+  readonly initialLoading = signal(true);
+  readonly kpis = signal<KPIs>({
+    total_temps_minutes: 0,
+    nb_queteurs: 0,
+    nb_sorties: 0,
+    montant_total: 0,
+    show_montant: false,
+  });
   readonly activeQueteurs = signal<ActiveQueteur[]>([]);
   readonly topQueteurs = signal<TopQueteur[]>([]);
   readonly showMontantTop10 = signal(true);
@@ -238,6 +245,7 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
       console.error('Failed to load dashboard summary', err);
     } finally {
       this.loading.set(false);
+      this.initialLoading.set(false);
     }
   }
 
