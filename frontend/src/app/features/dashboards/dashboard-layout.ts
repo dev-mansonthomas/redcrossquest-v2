@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, computed } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
@@ -24,6 +24,14 @@ import { environment } from '../../../environments/environment';
 
         <!-- Navigation -->
         <nav class="flex-1 p-4 space-y-1">
+          <!-- 0. Tableau de bord Quête -->
+          @if ([1, 2, 3, 4, 9].includes(effectiveRole())) {
+            <a routerLink="/dashboards/tableau-quete"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              🏠 Tableau de bord
+            </a>
+          }
           <!-- 1. Carte des quêteurs -->
           @if ([2, 3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/carte-queteurs"
@@ -203,6 +211,7 @@ export class DashboardLayoutComponent implements OnInit {
   protected readonly dashboardService = inject(DashboardService);
   protected readonly ulOverrideService = inject(UlOverrideService);
   protected readonly roleOverrideService = inject(RoleOverrideService);
+  private readonly router = inject(Router);
   protected readonly enableSuperset = environment.enableSuperset;
   protected readonly envLabel = environment.environmentLabel;
   protected readonly envBadgeClass = ['DEV', 'LOCAL'].includes(environment.environmentLabel)
@@ -230,6 +239,13 @@ export class DashboardLayoutComponent implements OnInit {
   ngOnInit(): void {
     if (this.enableSuperset) {
       this.dashboardService.loadDashboards();
+    }
+
+    // Redirect role 1 (Lecture seul / Quêteur) to tableau-quete
+    const role = this.effectiveRole();
+    const url = this.router.url;
+    if (role === 1 && (url === '/dashboards' || url === '/dashboards/welcome')) {
+      this.router.navigate(['/dashboards/tableau-quete']);
     }
   }
 
