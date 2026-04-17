@@ -32,14 +32,6 @@ import { environment } from '../../../environments/environment';
               🏠 Tableau de bord
             </a>
           }
-          <!-- 0.5. Dashboard Admin (Super Admin uniquement) -->
-          @if (effectiveRole() === 9) {
-            <a routerLink="/dashboards/admin-dashboard"
-               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
-               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-              📊 Dashboard Admin
-            </a>
-          }
           <!-- 1. Carte des quêteurs -->
           @if ([2, 3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/carte-queteurs"
@@ -150,6 +142,15 @@ import { environment } from '../../../environments/environment';
                routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
                class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
               📋 Stats journalières
+            </a>
+          }
+          <!-- Séparateur + Dashboard Admin (Super Admin uniquement) -->
+          @if (effectiveRole() === 9) {
+            <hr class="my-2 border-gray-300" />
+            <a routerLink="/dashboards/admin-dashboard"
+               routerLinkActive="bg-red-50 text-red-700 border-l-4 border-red-600"
+               class="block px-3 py-2 rounded-r-md text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              📊 Dashboard Admin
             </a>
           }
         </nav>
