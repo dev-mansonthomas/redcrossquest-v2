@@ -40,6 +40,13 @@ export const DASHBOARD_ROUTES: Routes = [
           import('../admin/admin-page').then((m) => m.AdminPageComponent),
       },
       {
+        path: 'admin-dashboard',
+        loadComponent: () =>
+          import('../dashboard-admin/dashboard-admin-page').then(
+            (m) => m.DashboardAdminPageComponent,
+          ),
+      },
+      {
         path: 'sacs-banque',
         loadComponent: () =>
           import('../money-bags/money-bags-page').then(
