@@ -1,76 +1,17 @@
 import {
   Component,
-  OnDestroy,
   inject,
   signal,
-  ElementRef,
-  ViewChild,
-  AfterViewInit,
 } from '@angular/core';
-import * as L from 'leaflet';
 import { firstValueFrom } from 'rxjs';
-import { DashboardQueteService, KPIs, ActiveQueteur, TopQueteur } from './dashboard-quete.service';
+import { DashboardQueteService, KPIs, TopQueteur } from './dashboard-quete.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
-
-const DEFAULT_CENTER: L.LatLngExpression = [46.603354, 1.888334]; // France center
-const DEFAULT_ZOOM = 6;
-
-function formatDuration(departIso: string): string {
-  const diff = Date.now() - new Date(departIso).getTime();
-  if (diff < 0) return '0h 00min';
-  const totalMinutes = Math.floor(diff / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours}h ${String(minutes).padStart(2, '0')}min`;
-}
-
-function getDurationColor(departIso: string): string {
-  const hours = (Date.now() - new Date(departIso).getTime()) / 3_600_000;
-  if (hours < 2) return '#4caf50';
-  if (hours < 4) return '#ff9800';
-  return '#f44336';
-}
-
-function getQueteurLabelIcon(q: ActiveQueteur): L.DivIcon {
-  const color = getDurationColor(q.depart);
-  const icon = '🔴';
-  const pointLabel = q.point_name || '';
-  const label = `${icon} ${q.first_name} ${q.last_name} – ${pointLabel} – ${formatDuration(q.depart)}`;
-  const html = `<div style="
-    display: inline-block;
-    background: ${color};
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    line-height: 1.4;
-  ">${label}</div>`;
-  return L.divIcon({
-    className: 'queteur-label',
-    html,
-    iconSize: [0, 0],
-    iconAnchor: [0, 14],
-  });
-}
-
-function getOffsetPosition(lat: number, lng: number, index: number, total: number): [number, number] {
-  const OFFSET = 0.002; // ~200m at Paris latitude
-  if (total === 1) {
-    return [lat + OFFSET * 0.7, lng + OFFSET * 0.7];
-  }
-  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
-  return [
-    lat + OFFSET * Math.sin(angle),
-    lng + OFFSET * Math.cos(angle),
-  ];
-}
+import { QueteursMapComponent } from '../../shared/components/queteurs-map';
 
 @Component({
   selector: 'app-dashboard-quete-page',
   standalone: true,
+  imports: [QueteursMapComponent],
   template: `
     <div class="h-full w-full bg-gray-50 overflow-y-auto">
       <!-- Header -->
@@ -139,13 +80,12 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
         }
 
         <!-- Map -->
-        <div class="bg-white rounded-lg shadow relative">
-          <div #mapContainer class="h-[60vh] rounded-lg"></div>
-          @if (activeQueteurs().length === 0 && !loading()) {
-            <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-center py-2 text-sm font-medium rounded-b-lg">
-              Aucun quêteur dehors actuellement
-            </div>
-          }
+        <div class="bg-white rounded-lg shadow">
+          <app-queteurs-map
+            heightClass="h-[60vh]"
+            [showRefreshButton]="false"
+            [showHeader]="false">
+          </app-queteurs-map>
         </div>
 
         <!-- Top 10 Table -->
@@ -202,21 +142,12 @@ function getOffsetPosition(lat: number, lng: number, index: number, total: numbe
   `,
   styles: [`
     :host { display: block; height: 100%; width: 100%; }
-    :host ::ng-deep .queteur-label {
-      background: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      overflow: visible !important;
-    }
   `],
 })
-export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
+export class DashboardQuetePageComponent {
   protected readonly headerBg = ENV_HEADER_BG;
-  @ViewChild('mapContainer') mapContainer!: ElementRef<HTMLElement>;
 
   private readonly service = inject(DashboardQueteService);
-  private map: L.Map | null = null;
-  private markersLayer = L.layerGroup();
 
   readonly loading = signal(false);
   readonly tableLoading = signal(false);
@@ -228,22 +159,12 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
     montant_total: 0,
     show_montant: false,
   });
-  readonly activeQueteurs = signal<ActiveQueteur[]>([]);
   readonly topQueteurs = signal<TopQueteur[]>([]);
 
   private sortColumn = 'montant';
 
-  async ngAfterViewInit(): Promise<void> {
-    this.initMap();
-    setTimeout(() => this.map?.invalidateSize(), 100);
-    await this.loadAll();
-  }
-
-  ngOnDestroy(): void {
-    if (this.map) {
-      this.map.remove();
-      this.map = null;
-    }
+  constructor() {
+    this.loadAll();
   }
 
   async refresh(): Promise<void> {
@@ -269,16 +190,6 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
     return amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   }
 
-  private initMap(): void {
-    if (!this.mapContainer?.nativeElement) return;
-    this.map = L.map(this.mapContainer.nativeElement).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(this.map);
-    this.markersLayer.addTo(this.map);
-  }
-
   private async loadAll(): Promise<void> {
     this.loading.set(true);
     try {
@@ -287,8 +198,6 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
         this.loadTop10(),
       ]);
       this.kpis.set(summary.kpis);
-      this.activeQueteurs.set(summary.active_queteurs);
-      this.updateMapMarkers(summary.active_queteurs);
     } catch (err) {
       console.error('Failed to load dashboard summary', err);
     } finally {
@@ -308,52 +217,6 @@ export class DashboardQuetePageComponent implements AfterViewInit, OnDestroy {
       console.error('Failed to load top 10', err);
     } finally {
       this.tableLoading.set(false);
-    }
-  }
-
-  private updateMapMarkers(queteurs: ActiveQueteur[]): void {
-    this.markersLayer.clearLayers();
-    const bounds: L.LatLngExpression[] = [];
-
-    const valid = queteurs.filter((q) => q.latitude != null && q.longitude != null);
-
-    // Group quêteurs by lat/lng so labels at the same point can be offset in a circle
-    const grouped = new Map<string, ActiveQueteur[]>();
-    for (const q of valid) {
-      const key = `${q.latitude},${q.longitude}`;
-      const group = grouped.get(key) || [];
-      group.push(q);
-      grouped.set(key, group);
-    }
-
-    grouped.forEach((group) => {
-      group.forEach((q, index) => {
-        const pqLat = q.latitude!;
-        const pqLng = q.longitude!;
-        bounds.push([pqLat, pqLng]);
-
-        const [offsetLat, offsetLng] = getOffsetPosition(pqLat, pqLng, index, group.length);
-        const color = getDurationColor(q.depart);
-
-        // Solid leader line from the point to the label position
-        const line = L.polyline(
-          [[pqLat, pqLng], [offsetLat, offsetLng]],
-          { color, weight: 2, opacity: 0.8 },
-        );
-        this.markersLayer.addLayer(line);
-
-        const marker = L.marker([offsetLat, offsetLng], {
-          icon: getQueteurLabelIcon(q),
-          zIndexOffset: 1000,
-        });
-        this.markersLayer.addLayer(marker);
-      });
-    });
-
-    if (this.map && bounds.length > 0) {
-      this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 15 });
-    } else if (this.map) {
-      this.map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
     }
   }
 }
