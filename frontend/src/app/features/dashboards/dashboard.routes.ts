@@ -89,6 +89,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'controle-admin',
+        loadComponent: () =>
+          import('../controle-admin/controle-admin-page').then(
+            (m) => m.ControleAdminPageComponent,
+          ),
+      },
+      {
         path: 'etats-troncs',
         loadComponent: () =>
           import('../etats-troncs/etats-troncs-page').then(
