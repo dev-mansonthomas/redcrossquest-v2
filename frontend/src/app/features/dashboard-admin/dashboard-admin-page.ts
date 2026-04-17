@@ -16,7 +16,8 @@ type MetricKey =
   | 'total_euros'
   | 'total_pieces_euros'
   | 'total_billets_euros'
-  | 'total_cb_euros';
+  | 'total_cb_euros'
+  | 'total_cheques_euros';
 
 interface MetricDef {
   key: MetricKey;
@@ -33,6 +34,7 @@ const METRICS: MetricDef[] = [
   { key: 'total_pieces_euros', label: 'Pièces €',   color: '#EAB308', unit: 'euros' },  // yellow-500
   { key: 'total_billets_euros',label: 'Billets €',  color: '#10B981', unit: 'euros' },  // emerald-500
   { key: 'total_cb_euros',     label: 'CB €',       color: '#A855F7', unit: 'euros' },  // purple-500
+  { key: 'total_cheques_euros',label: 'Chèques €',  color: '#F97316', unit: 'euros' },  // orange-500
 ];
 
 @Component({
@@ -103,8 +105,8 @@ const METRICS: MetricDef[] = [
             </div>
           </div>
 
-          <!-- Row 2: 4 cards -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Row 2: 5 cards -->
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div class="bg-white rounded-lg shadow p-6">
               <div class="flex items-center gap-3">
                 <span class="text-3xl">💰</span>
@@ -138,6 +140,15 @@ const METRICS: MetricDef[] = [
                 <div>
                   <p class="text-3xl font-bold text-gray-900">{{ formatCurrency(kpis().total_cb_euros) }}</p>
                   <p class="text-sm text-gray-500">CB</p>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">📝</span>
+                <div>
+                  <p class="text-3xl font-bold text-gray-900">{{ formatCurrency(kpis().total_cheques_euros) }}</p>
+                  <p class="text-sm text-gray-500">Chèques</p>
                 </div>
               </div>
             </div>
@@ -192,6 +203,7 @@ export class DashboardAdminPageComponent {
     total_pieces_euros: 0,
     total_billets_euros: 0,
     total_cb_euros: 0,
+    total_cheques_euros: 0,
   });
   readonly yearlyStats = signal<YearlyStats[]>([]);
   readonly selectedMetric = signal<MetricKey>('total_euros');
@@ -250,8 +262,10 @@ export class DashboardAdminPageComponent {
     this.selectedMetric.set(key);
   }
 
-  formatNumber(value: number): string {
-    return Number(value ?? 0).toLocaleString('fr-FR');
+  formatNumber(value: number, decimals: number = 0): string {
+    const parts = Number(value ?? 0).toFixed(decimals).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+    return decimals > 0 ? parts.join(',') : parts[0];
   }
 
   formatHours(value: number): string {
@@ -259,10 +273,7 @@ export class DashboardAdminPageComponent {
   }
 
   formatCurrency(value: number): string {
-    return Number(value ?? 0).toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }) + ' €';
+    return this.formatNumber(value, 2) + ' €';
   }
 
   private currentMetric(): MetricDef {

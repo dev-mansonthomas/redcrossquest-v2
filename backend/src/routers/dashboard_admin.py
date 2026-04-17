@@ -41,7 +41,8 @@ _METRICS_SELECT = """
       COALESCE(euro20, 0) * 20 + COALESCE(euro10, 0) * 10 +
       COALESCE(euro5, 0) * 5
   ), 2) AS total_billets_euros,
-  ROUND(SUM(COALESCE(dons_cb_total, 0)), 2) AS total_cb_euros
+  ROUND(SUM(COALESCE(dons_cb_total, 0)), 2) AS total_cb_euros,
+  ROUND(SUM(COALESCE(don_cheque, 0)), 2) AS total_cheques_euros
 """
 
 GLOBAL_KPIS_QUERY = f"""
@@ -71,6 +72,7 @@ def _row_to_global_kpis(row) -> GlobalKPIs:
         total_pieces_euros=float(row["total_pieces_euros"] or 0),
         total_billets_euros=float(row["total_billets_euros"] or 0),
         total_cb_euros=float(row["total_cb_euros"] or 0),
+        total_cheques_euros=float(row["total_cheques_euros"] or 0),
     )
 
 
@@ -84,6 +86,7 @@ def _row_to_yearly_stats(row) -> YearlyStats:
         total_pieces_euros=float(row["total_pieces_euros"] or 0),
         total_billets_euros=float(row["total_billets_euros"] or 0),
         total_cb_euros=float(row["total_cb_euros"] or 0),
+        total_cheques_euros=float(row["total_cheques_euros"] or 0),
     )
 
 
@@ -108,6 +111,7 @@ async def get_global_kpis(
         nb_ul=0, nb_queteurs=0, total_heures=0,
         total_euros=0, total_pieces_euros=0,
         total_billets_euros=0, total_cb_euros=0,
+        total_cheques_euros=0,
     )
 
     cache_set(CACHE_KEY_GLOBAL_KPIS, result.model_dump(), ttl_seconds=CACHE_TTL)
