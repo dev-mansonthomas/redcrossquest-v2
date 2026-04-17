@@ -1,6 +1,7 @@
 import { Component, inject, signal, effect, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
 
@@ -53,6 +54,9 @@ type SortDir = 'asc' | 'desc';
           </select>
           <button (click)="loadData(true)" class="px-3 py-1.5 text-sm rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200">
             🔄 Rafraîchir
+          </button>
+          <button (click)="downloadCsv()" [disabled]="loading()" class="px-3 py-1.5 text-sm rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+            📥 Export CSV
           </button>
         </div>
       </div>
@@ -175,6 +179,7 @@ type SortDir = 'asc' | 'desc';
 export class ComptagePiecesBilletsPageComponent {
   protected readonly headerBg = ENV_HEADER_BG;
   private readonly api = inject(ApiService);
+  private readonly authService = inject(AuthService);
   private readonly ulOverrideService = inject(UlOverrideService);
 
   readonly loading = signal(false);
@@ -272,6 +277,64 @@ export class ComptagePiecesBilletsPageComponent {
       this.loading.set(false);
     }
   }
+
+  // ── CSV Export ─────────────────────────────────────────────────────
+  downloadCsv(): void {
+    const pieces = this.sortedPieces();
+    const billets = this.sortedBillets();
+    const cb = this.sortedCb();
+
+    if (pieces.length === 0 && billets.length === 0 && cb.length === 0) return;
+
+    const BOM = '\uFEFF';
+    const lines: string[] = [];
+
+    lines.push('--- Pièces ---');
+    lines.push('Dénomination,Quantité,Total €');
+    for (const row of pieces) {
+      lines.push(`${row.label},${row.count},${row.total.toFixed(2)}`);
+    }
+    const totalPieces = pieces.reduce((s, r) => s + r.total, 0);
+    lines.push(`TOTAL,,${totalPieces.toFixed(2)}`);
+
+    lines.push('');
+
+    lines.push('--- Billets ---');
+    lines.push('Dénomination,Quantité,Total €');
+    for (const row of billets) {
+      lines.push(`${row.label},${row.count},${row.total.toFixed(2)}`);
+    }
+    const totalBillets = billets.reduce((s, r) => s + r.total, 0);
+    lines.push(`TOTAL,,${totalBillets.toFixed(2)}`);
+
+    lines.push('');
+
+    lines.push('--- Carte Bancaire ---');
+    lines.push('Montant,Quantité,Total €');
+    for (const row of cb) {
+      lines.push(`${row.amount.toFixed(2)},${row.count},${row.total.toFixed(2)}`);
+    }
+    const totalCb = cb.reduce((s, r) => s + r.total, 0);
+    lines.push(`TOTAL,,${totalCb.toFixed(2)}`);
+
+    lines.push('');
+    lines.push(`TOTAL GÉNÉRAL,,${(totalPieces + totalBillets + totalCb).toFixed(2)}`);
+
+    const csv = lines.join('\n');
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const ulName = this.ulOverrideService.override()?.name ?? this.authService.user()?.ul_name ?? 'UL';
+    const safeName = ulName.replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ _-]/g, '').replace(/\s+/g, '_');
+    const filename = `comptage-pieces-billets-${this.selectedYear()}-${safeName}.csv`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
 
   // ── Private helpers ────────────────────────────────────────────────
   private toggleSort(colSignal: ReturnType<typeof signal<string>>, dirSignal: ReturnType<typeof signal<SortDir>>, col: string): void {
