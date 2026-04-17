@@ -74,6 +74,54 @@ export interface UlSearchResponse {
   results: UlSearchResult[];
 }
 
+export interface UlItem {
+  id?: number;
+  ul_id?: number;
+  ul_name?: string | null;
+  name?: string;
+  city?: string | null;
+  postal_code?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  nb_queteurs?: number;
+  nb_users?: number;
+  nb_points?: number;
+  nb_troncs?: number;
+  nb_doublons?: number;
+  registration_id?: number | null;
+  registration_date?: string | null;
+  registration_approved?: number | null;
+  derniere_activite?: string | null;
+  jours_inactivite?: number | null;
+}
+
+export interface UlDetailInfo {
+  id: number;
+  name: string;
+  city: string | null;
+  postal_code: string | null;
+}
+
+export interface UlDetailAdmin {
+  man: boolean | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  mobile: string | null;
+}
+
+export interface UlDetailRegistration {
+  id: number | null;
+  created: string | null;
+  registration_approved: boolean | null;
+}
+
+export interface UlDetailResponse {
+  ul: UlDetailInfo;
+  admin: UlDetailAdmin;
+  registration: UlDetailRegistration;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ControleAdminService {
   private readonly http = inject(HttpClient);
@@ -121,6 +169,19 @@ export class ControleAdminService {
       params: this.buildParams(f),
       responseType: 'blob',
     });
+  }
+
+  getUls(rule: string, f: ControleFilters) {
+    return this.http.get<PaginatedResponse<UlItem>>(
+      this.url(`/api/controle-admin/uls/${rule}`),
+      { params: this.buildParams(f) },
+    );
+  }
+
+  getUlDetail(ulId: number) {
+    return this.http.get<UlDetailResponse>(
+      this.url(`/api/controle-admin/uls/${ulId}/detail`),
+    );
   }
 
   exportUlCsv(rule: string, filters: ControleFilters) {

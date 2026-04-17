@@ -96,6 +96,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'controle-admin/ul/:id',
+        loadComponent: () =>
+          import('../controle-admin/ul-detail-page').then(
+            (m) => m.UlDetailPageComponent,
+          ),
+      },
+      {
         path: 'etats-troncs',
         loadComponent: () =>
           import('../etats-troncs/etats-troncs-page').then(

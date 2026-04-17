@@ -1,6 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { firstValueFrom, Subject, debounceTime } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
@@ -10,16 +11,24 @@ import {
   ControleFilters,
   ControleSettings,
   TroncAnomaly,
+  UlItem,
   UlSearchResult,
 } from './controle-admin.service';
 
 interface Column {
   key: string;
   label: string;
-  format?: 'date' | 'euros' | 'duration' | 'int';
+  format?: 'date' | 'euros' | 'duration' | 'int' | 'bool';
 }
 
 interface TroncRule {
+  key: string;
+  icon: string;
+  label: string;
+  countKey: keyof ControleCounts;
+}
+
+interface UlRule {
   key: string;
   icon: string;
   label: string;
@@ -151,63 +160,126 @@ const DEFAULT_COUNTS: ControleCounts = {
             </button>
           }
         </div>
+      } @else if (activeTab() === 'uls') {
+        <div class="px-4 py-2 flex flex-wrap gap-1 border-b border-gray-200 shrink-0">
+          @for (rule of ulRules; track rule.key) {
+            <button (click)="selectUlRule(rule.key)"
+              [class]="activeUlRule() === rule.key
+                ? 'px-3 py-1.5 text-sm rounded bg-red-600 text-white flex items-center gap-1'
+                : 'px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-1'">
+              <span>{{ rule.icon }} {{ rule.label }}</span>
+              <span [class]="activeUlRule() === rule.key
+                ? 'ml-1 text-xs bg-white text-red-700 px-1.5 py-0.5 rounded-full font-semibold'
+                : 'ml-1 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-semibold'">
+                {{ counts()[rule.countKey] }}
+              </span>
+            </button>
+          }
+        </div>
       }
 
       <!-- Content -->
       <div class="flex-1 overflow-auto p-4">
-        @if (activeTab() === 'uls') {
-          <div class="text-center py-8 text-gray-400 italic">Onglet ULs à venir.</div>
-        } @else if (loading()) {
+        @if (loading()) {
           <div class="text-center py-8 text-gray-400">⏳ Chargement…</div>
-        } @else if (items().length === 0) {
-          <div class="text-center py-8 text-gray-400 italic">Aucune anomalie détectée</div>
-        } @else {
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-left border-b border-gray-200">
-              <tr>
-                @for (col of activeColumns(); track col.key) {
-                  <th (click)="onSort(col.key)"
-                    class="px-3 py-2 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">
-                    {{ col.label }} {{ sortIndicator(col.key) }}
-                  </th>
-                }
-                <th class="px-3 py-2 font-semibold text-gray-600">Lien</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of items(); track item.id) {
-                <tr class="border-b border-gray-100 hover:bg-gray-50">
+        } @else if (activeTab() === 'troncs') {
+          @if (items().length === 0) {
+            <div class="text-center py-8 text-gray-400 italic">Aucune anomalie détectée</div>
+          } @else {
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 text-left border-b border-gray-200">
+                <tr>
                   @for (col of activeColumns(); track col.key) {
-                    <td class="px-3 py-1.5 text-gray-700">{{ formatCell(item, col) }}</td>
+                    <th (click)="onSort(col.key)"
+                      class="px-3 py-2 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">
+                      {{ col.label }} {{ sortIndicator(col.key) }}
+                    </th>
                   }
-                  <td class="px-3 py-1.5">
-                    <a [href]="getTroncLink(item.id)" target="_blank" rel="noopener"
-                      class="text-blue-600 hover:underline text-xs">🔗 Ouvrir</a>
-                  </td>
+                  <th class="px-3 py-2 font-semibold text-gray-600">Lien</th>
                 </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (item of items(); track item.id) {
+                  <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    @for (col of activeColumns(); track col.key) {
+                      <td class="px-3 py-1.5 text-gray-700">{{ formatCell(item, col) }}</td>
+                    }
+                    <td class="px-3 py-1.5">
+                      <a [href]="getTroncLink(item.id)" target="_blank" rel="noopener"
+                        class="text-blue-600 hover:underline text-xs">🔗 Ouvrir</a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
 
-          <div class="flex items-center justify-between mt-4 gap-4 flex-wrap">
-            <span class="text-sm text-gray-500">
-              {{ total() }} résultats — page {{ currentPage() }}/{{ totalPages() }}
-            </span>
-            <div class="flex gap-1">
-              <button (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() <= 1"
-                class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">← Préc</button>
-              @for (p of visiblePages(); track p) {
-                <button (click)="goToPage(p)"
-                  [class]="p === currentPage()
-                    ? 'px-2 py-1 text-sm border border-red-600 rounded bg-red-600 text-white'
-                    : 'px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100'">{{ p }}</button>
-              }
-              <button (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() >= totalPages()"
-                class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">Suiv →</button>
+            <div class="flex items-center justify-between mt-4 gap-4 flex-wrap">
+              <span class="text-sm text-gray-500">
+                {{ total() }} résultats — page {{ currentPage() }}/{{ totalPages() }}
+              </span>
+              <div class="flex gap-1">
+                <button (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() <= 1"
+                  class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">← Préc</button>
+                @for (p of visiblePages(); track p) {
+                  <button (click)="goToPage(p)"
+                    [class]="p === currentPage()
+                      ? 'px-2 py-1 text-sm border border-red-600 rounded bg-red-600 text-white'
+                      : 'px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100'">{{ p }}</button>
+                }
+                <button (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() >= totalPages()"
+                  class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">Suiv →</button>
+              </div>
+              <button (click)="exportCsv()"
+                class="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200">📥 Export CSV</button>
             </div>
-            <button (click)="exportCsv()"
-              class="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200">📥 Export CSV</button>
-          </div>
+          }
+        } @else if (activeTab() === 'uls') {
+          @if (ulItems().length === 0) {
+            <div class="text-center py-8 text-gray-400 italic">Aucune anomalie détectée</div>
+          } @else {
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 text-left border-b border-gray-200">
+                <tr>
+                  @for (col of activeUlColumns(); track col.key) {
+                    <th (click)="onSort(col.key)"
+                      class="px-3 py-2 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none">
+                      {{ col.label }} {{ sortIndicator(col.key) }}
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of ulItems(); track $index) {
+                  <tr (click)="navigateToUl(item)"
+                    class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
+                    @for (col of activeUlColumns(); track col.key) {
+                      <td class="px-3 py-1.5 text-gray-700">{{ formatUlCell(item, col) }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="flex items-center justify-between mt-4 gap-4 flex-wrap">
+              <span class="text-sm text-gray-500">
+                {{ total() }} résultats — page {{ currentPage() }}/{{ totalPages() }}
+              </span>
+              <div class="flex gap-1">
+                <button (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() <= 1"
+                  class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">← Préc</button>
+                @for (p of visiblePages(); track p) {
+                  <button (click)="goToPage(p)"
+                    [class]="p === currentPage()
+                      ? 'px-2 py-1 text-sm border border-red-600 rounded bg-red-600 text-white'
+                      : 'px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100'">{{ p }}</button>
+                }
+                <button (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() >= totalPages()"
+                  class="px-2 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-100">Suiv →</button>
+              </div>
+              <button (click)="exportCsv()"
+                class="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200">📥 Export CSV</button>
+            </div>
+          }
         }
       </div>
     </div>
@@ -216,11 +288,13 @@ const DEFAULT_COUNTS: ControleCounts = {
 export class ControleAdminPageComponent {
   protected readonly headerBg = ENV_HEADER_BG;
   private readonly service = inject(ControleAdminService);
+  private readonly router = inject(Router);
   private readonly rcqBaseUrl = environment.rcqV1Url;
 
   // ── Tabs & rules ──────────────────────────────────────────────────
   readonly activeTab = signal<'troncs' | 'uls'>('troncs');
   readonly activeRule = signal<string>('temps-court');
+  readonly activeUlRule = signal<string>('sans-objectif');
 
   readonly troncRules: TroncRule[] = [
     { key: 'temps-court',          icon: '⏱️', label: 'Temps ~0',      countKey: 'R1_temps_court' },
@@ -296,6 +370,73 @@ export class ControleAdminPageComponent {
 
   readonly activeColumns = computed(() => this.ruleColumns[this.activeRule()] ?? []);
 
+  // ── UL rules & columns ────────────────────────────────────────────
+  readonly ulRules: UlRule[] = [
+    { key: 'sans-objectif', icon: '🎯', label: 'Sans objectif',  countKey: 'R6_sans_objectif' },
+    { key: 'peu-queteurs',  icon: '👥', label: '<10 quêteurs',   countKey: 'R7_peu_queteurs' },
+    { key: 'peu-users',     icon: '👤', label: '<3 users',       countKey: 'R8_peu_users' },
+    { key: 'peu-points',    icon: '📍', label: '<5 points',      countKey: 'R9_peu_points' },
+    { key: 'peu-troncs',    icon: '📦', label: '<20 troncs',     countKey: 'R10_peu_troncs' },
+    { key: 'non-validee',   icon: '❌', label: 'Non validée',    countKey: 'R10b_non_validee' },
+    { key: 'doublons',      icon: '👥', label: 'Doublons',       countKey: 'R13_doublons' },
+    { key: 'dormante',      icon: '😴', label: 'Dormante',       countKey: 'R14_dormante' },
+  ];
+
+  readonly ulRuleColumns: Record<string, Column[]> = {
+    'sans-objectif': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'postal_code', label: 'CP' },
+    ],
+    'peu-queteurs': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'nb_queteurs', label: 'Nb quêteurs', format: 'int' },
+    ],
+    'peu-users': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'nb_users', label: 'Nb users', format: 'int' },
+    ],
+    'peu-points': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'nb_points', label: 'Nb points', format: 'int' },
+    ],
+    'peu-troncs': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'nb_troncs', label: 'Nb troncs', format: 'int' },
+    ],
+    'non-validee': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'registration_date', label: 'Inscription', format: 'date' },
+      { key: 'registration_approved', label: 'Approuvée', format: 'bool' },
+    ],
+    'doublons': [
+      { key: 'ul_name', label: 'UL' },
+      { key: 'first_name', label: 'Prénom' },
+      { key: 'last_name', label: 'Nom' },
+      { key: 'nb_doublons', label: 'Nb doublons', format: 'int' },
+    ],
+    'dormante': [
+      { key: 'id', label: 'ID', format: 'int' },
+      { key: 'name', label: 'Nom' },
+      { key: 'city', label: 'Ville' },
+      { key: 'derniere_activite', label: 'Dernière activité', format: 'date' },
+      { key: 'jours_inactivite', label: 'Jours inactivité', format: 'int' },
+    ],
+  };
+
+  readonly activeUlColumns = computed(() => this.ulRuleColumns[this.activeUlRule()] ?? []);
+
   // ── Filters ───────────────────────────────────────────────────────
   selectedYear = new Date().getFullYear();
   readonly yearOptions: number[] = this.buildYearOptions();
@@ -326,6 +467,7 @@ export class ControleAdminPageComponent {
   // ── Data & paging ─────────────────────────────────────────────────
   readonly counts = signal<ControleCounts>(DEFAULT_COUNTS);
   readonly items = signal<TroncAnomaly[]>([]);
+  readonly ulItems = signal<UlItem[]>([]);
   readonly total = signal(0);
   readonly currentPage = signal(1);
   readonly totalPages = signal(0);
@@ -380,13 +522,20 @@ export class ControleAdminPageComponent {
 
   setTab(tab: 'troncs' | 'uls'): void {
     this.activeTab.set(tab);
-    if (tab === 'troncs') {
-      this.loadItems();
-    }
+    this.currentPage.set(1);
+    this.sortField.set(null);
+    this.loadItems();
   }
 
   selectRule(key: string): void {
     this.activeRule.set(key);
+    this.currentPage.set(1);
+    this.sortField.set(null);
+    this.loadItems();
+  }
+
+  selectUlRule(key: string): void {
+    this.activeUlRule.set(key);
     this.currentPage.set(1);
     this.sortField.set(null);
     this.loadItems();
@@ -463,7 +612,13 @@ export class ControleAdminPageComponent {
   }
 
   private async loadItems(): Promise<void> {
-    if (this.activeTab() !== 'troncs') return;
+    if (this.activeTab() === 'troncs') {
+      return this.loadTroncItems();
+    }
+    return this.loadUlItems();
+  }
+
+  private async loadTroncItems(): Promise<void> {
     this.loading.set(true);
     try {
       const resp = await firstValueFrom(this.service.getTroncs(this.activeRule(), this.getFilters()));
@@ -473,6 +628,23 @@ export class ControleAdminPageComponent {
       this.totalPages.set(resp.total_pages || 0);
     } catch {
       this.items.set([]);
+      this.total.set(0);
+      this.totalPages.set(0);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async loadUlItems(): Promise<void> {
+    this.loading.set(true);
+    try {
+      const resp = await firstValueFrom(this.service.getUls(this.activeUlRule(), this.getFilters()));
+      this.ulItems.set(resp.items || []);
+      this.total.set(resp.total || 0);
+      this.currentPage.set(resp.page || 1);
+      this.totalPages.set(resp.total_pages || 0);
+    } catch {
+      this.ulItems.set([]);
       this.total.set(0);
       this.totalPages.set(0);
     } finally {
@@ -524,6 +696,20 @@ export class ControleAdminPageComponent {
       case 'euros':    return this.formatEuros(Number(raw));
       case 'duration': return this.formatDuration(Number(raw));
       case 'int':      return String(Math.trunc(Number(raw)));
+      case 'bool':     return raw ? '✅' : '❌';
+      default:         return String(raw);
+    }
+  }
+
+  formatUlCell(item: UlItem, col: Column): string {
+    const raw = (item as unknown as Record<string, unknown>)[col.key];
+    if (raw == null) return '—';
+    switch (col.format) {
+      case 'date':     return this.formatDate(String(raw));
+      case 'euros':    return this.formatEuros(Number(raw));
+      case 'duration': return this.formatDuration(Number(raw));
+      case 'int':      return String(Math.trunc(Number(raw)));
+      case 'bool':     return raw ? '✅' : '❌';
       default:         return String(raw);
     }
   }
@@ -557,14 +743,25 @@ export class ControleAdminPageComponent {
     return `${this.rcqBaseUrl}/${RCQ_TRONC_QUETEUR_URI}${id}`;
   }
 
+  navigateToUl(item: UlItem): void {
+    const id = item.id ?? item.ul_id;
+    if (id == null) return;
+    this.router.navigate(['/dashboards/controle-admin/ul', id]);
+  }
+
   // ── CSV export ────────────────────────────────────────────────────
   async exportCsv(): Promise<void> {
+    const isUl = this.activeTab() === 'uls';
+    const rule = isUl ? this.activeUlRule() : this.activeRule();
+    const obs = isUl
+      ? this.service.exportUlCsv(rule, this.getFilters())
+      : this.service.exportCsv(rule, this.getFilters());
     try {
-      const blob = await firstValueFrom(this.service.exportCsv(this.activeRule(), this.getFilters()));
+      const blob = await firstValueFrom(obs);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `controle_${this.activeRule()}.csv`;
+      a.download = `controle_${isUl ? 'ul_' : ''}${rule}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
