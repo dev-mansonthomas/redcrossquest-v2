@@ -77,7 +77,7 @@ def _build_days_filter_tq(days: Optional[str]) -> tuple[str, str, dict]:
     if not days or not days.strip():
         return "", "", {}
     day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
-    if not day_list:
+    if not day_list or len(day_list) >= 9:
         return "", "", {}
     placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
     params = {f"day_{i}": d for i, d in enumerate(day_list)}

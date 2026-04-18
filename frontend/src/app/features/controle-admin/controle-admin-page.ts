@@ -438,7 +438,7 @@ export class ControleAdminPageComponent {
   readonly activeUlColumns = computed(() => this.ulRuleColumns[this.activeUlRule()] ?? []);
 
   // ── Filters ───────────────────────────────────────────────────────
-  selectedYear = new Date().getFullYear();
+  selectedYear = 0;
   readonly yearOptions: number[] = this.buildYearOptions();
 
   dayLabels: DayFilter[] = [
@@ -503,7 +503,8 @@ export class ControleAdminPageComponent {
   }
 
   private getFilters(): ControleFilters {
-    const days = this.dayLabels.filter((d) => d.checked).map((d) => d.num).join(',');
+    const checkedDays = this.dayLabels.filter((d) => d.checked).map((d) => d.num);
+    const days = checkedDays.length === 9 ? undefined : checkedDays.join(',');
     const f: ControleFilters = {
       year: Number(this.selectedYear) || 0,
       days: days || undefined,
