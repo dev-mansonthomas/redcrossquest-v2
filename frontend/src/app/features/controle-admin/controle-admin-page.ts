@@ -56,16 +56,15 @@ const DEFAULT_COUNTS: ControleCounts = {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="h-full w-full bg-white overflow-y-auto flex flex-col">
+    <div class="h-full w-full bg-white overflow-y-auto">
       <!-- Header -->
       <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">🔍 Contrôle de Données Admin</h2>
         <button (click)="toggleSqlDrawer()"
-          [disabled]="!debugSql()"
-          [title]="debugSql() ? 'Afficher la requête SQL exécutée' : 'Aucune requête SQL disponible'"
+          title="Afficher la requête SQL exécutée"
           [class]="sqlDrawerOpen()
-            ? 'px-3 py-1 text-xs rounded bg-red-600 text-white disabled:opacity-50'
-            : 'px-3 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50'">
+            ? 'px-3 py-1 text-xs rounded bg-red-600 text-white'
+            : 'px-3 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200'">
           🔍 SQL
         </button>
       </div>
@@ -187,7 +186,7 @@ const DEFAULT_COUNTS: ControleCounts = {
       }
 
       <!-- Content -->
-      <div class="flex-1 overflow-auto p-4">
+      <div class="p-4">
         @if (loading()) {
           <div class="text-center py-8 text-gray-400">⏳ Chargement…</div>
         } @else if (activeTab() === 'troncs') {
@@ -291,18 +290,25 @@ const DEFAULT_COUNTS: ControleCounts = {
         }
       </div>
 
-      @if (sqlDrawerOpen() && debugSql()) {
-        <div class="border-t border-gray-200 bg-gray-900 text-gray-100 shrink-0 flex flex-col max-h-64">
-          <div class="flex items-center justify-between px-3 py-1.5 border-b border-gray-700 bg-gray-800">
-            <span class="text-xs font-semibold text-gray-300">🔍 Requête SQL exécutée</span>
-            <div class="flex gap-2">
+      @if (sqlDrawerOpen()) {
+        <div class="fixed top-0 right-0 h-full w-[500px] bg-gray-900 text-green-400 shadow-2xl z-[9999] overflow-y-auto flex flex-col">
+          <div class="flex justify-between items-center p-4 border-b border-gray-700 shrink-0">
+            <h3 class="font-semibold text-white">🔍 Requête SQL</h3>
+            <div class="flex gap-2 items-center">
               <button (click)="copySqlToClipboard()"
-                class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-100 hover:bg-gray-600">📋 Copier</button>
+                [disabled]="!debugSql()"
+                class="text-xs px-2 py-1 rounded bg-gray-700 text-gray-100 hover:bg-gray-600 disabled:opacity-50">📋 Copier</button>
               <button (click)="toggleSqlDrawer()"
-                class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-100 hover:bg-gray-600">✕</button>
+                class="text-gray-400 hover:text-white text-xl leading-none">✕</button>
             </div>
           </div>
-          <pre class="flex-1 overflow-auto px-3 py-2 text-xs font-mono whitespace-pre-wrap break-all">{{ debugSql() }}</pre>
+          <div class="p-4 space-y-1 text-xs border-b border-gray-700 shrink-0">
+            <div class="text-gray-400">Filtres actifs :</div>
+            <div>📅 Année : {{ selectedYear === 0 ? 'Toutes' : selectedYear }}</div>
+            <div>📆 Jours : {{ getActiveDaysLabel() }}</div>
+            <div>🏛️ UL : {{ selectedUl()?.name || 'Toutes' }}</div>
+          </div>
+          <pre class="flex-1 p-4 text-xs font-mono whitespace-pre-wrap break-all overflow-y-auto">{{ debugSql() || 'Sélectionnez un onglet pour voir la requête SQL' }}</pre>
         </div>
       }
     </div>
@@ -546,6 +552,13 @@ export class ControleAdminPageComponent {
       f.sort_dir = this.sortDir();
     }
     return f;
+  }
+
+  getActiveDaysLabel(): string {
+    const checked = this.dayLabels.filter((d) => d.checked);
+    if (checked.length === this.dayLabels.length) return 'Tous';
+    if (checked.length === 0) return 'Aucun';
+    return checked.map((d) => d.label).join(', ');
   }
 
   setTab(tab: 'troncs' | 'uls'): void {
