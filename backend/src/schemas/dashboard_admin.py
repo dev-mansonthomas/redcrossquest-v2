@@ -11,6 +11,7 @@ class GlobalKPIs(BaseModel):
     total_billets_euros: float
     total_cb_euros: float
     total_cheques_euros: float
+    poids_kg: float
 
 
 class YearlyStats(BaseModel):
@@ -23,6 +24,7 @@ class YearlyStats(BaseModel):
     total_billets_euros: float
     total_cb_euros: float
     total_cheques_euros: float
+    poids_kg: float
 
 
 class YearlyStatsResponse(BaseModel):

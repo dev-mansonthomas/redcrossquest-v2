@@ -17,13 +17,14 @@ type MetricKey =
   | 'total_pieces_euros'
   | 'total_billets_euros'
   | 'total_cb_euros'
-  | 'total_cheques_euros';
+  | 'total_cheques_euros'
+  | 'poids_kg';
 
 interface MetricDef {
   key: MetricKey;
   label: string;
   color: string; // Tailwind color token used for bar fill
-  unit: 'count' | 'hours' | 'euros';
+  unit: 'count' | 'hours' | 'euros' | 'kg';
 }
 
 const METRICS: MetricDef[] = [
@@ -35,6 +36,7 @@ const METRICS: MetricDef[] = [
   { key: 'total_billets_euros',label: 'Billets €',  color: '#10B981', unit: 'euros' },  // emerald-500
   { key: 'total_cb_euros',     label: 'CB €',       color: '#A855F7', unit: 'euros' },  // purple-500
   { key: 'total_cheques_euros',label: 'Chèques €',  color: '#F97316', unit: 'euros' },  // orange-500
+  { key: 'poids_kg',           label: '⚖️ Poids kg', color: '#64748B', unit: 'kg' },    // slate-500
 ];
 
 @Component({
@@ -105,8 +107,8 @@ const METRICS: MetricDef[] = [
             </div>
           </div>
 
-          <!-- Row 2: 5 cards -->
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <!-- Row 2: 6 cards -->
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div class="bg-white rounded-lg shadow p-6">
               <div class="flex items-center gap-3">
                 <span class="text-3xl">💰</span>
@@ -149,6 +151,15 @@ const METRICS: MetricDef[] = [
                 <div>
                   <p class="text-3xl font-bold text-gray-900">{{ formatCurrency(kpis().total_cheques_euros) }}</p>
                   <p class="text-sm text-gray-500">Chèques</p>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl text-slate-500">⚖️</span>
+                <div>
+                  <p class="text-3xl font-bold text-gray-900">{{ formatWeight(kpis().poids_kg) }}</p>
+                  <p class="text-sm text-gray-500">Poids total{{ kpis().poids_kg > 1000 ? ' (' + formatTonnes(kpis().poids_kg) + ')' : '' }}</p>
                 </div>
               </div>
             </div>
@@ -204,6 +215,7 @@ export class DashboardAdminPageComponent {
     total_billets_euros: 0,
     total_cb_euros: 0,
     total_cheques_euros: 0,
+    poids_kg: 0,
   });
   readonly yearlyStats = signal<YearlyStats[]>([]);
   readonly selectedMetric = signal<MetricKey>('total_euros');
@@ -276,6 +288,14 @@ export class DashboardAdminPageComponent {
     return this.formatNumber(value, 2) + ' €';
   }
 
+  formatWeight(value: number): string {
+    return this.formatNumber(value, 1) + ' kg';
+  }
+
+  formatTonnes(valueKg: number): string {
+    return this.formatNumber(Number(valueKg ?? 0) / 1000, 1) + ' t';
+  }
+
   private currentMetric(): MetricDef {
     return METRICS.find((m) => m.key === this.selectedMetric()) ?? METRICS[3];
   }
@@ -283,6 +303,7 @@ export class DashboardAdminPageComponent {
   private formatMetricValue(value: number, unit: MetricDef['unit']): string {
     if (unit === 'euros') return this.formatCurrency(value);
     if (unit === 'hours') return this.formatHours(value);
+    if (unit === 'kg') return this.formatWeight(value);
     return this.formatNumber(value);
   }
 

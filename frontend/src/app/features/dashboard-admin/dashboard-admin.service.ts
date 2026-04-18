@@ -10,6 +10,7 @@ export interface GlobalKPIs {
   total_billets_euros: number;
   total_cb_euros: number;
   total_cheques_euros: number;
+  poids_kg: number;
 }
 
 export interface YearlyStats {
@@ -22,6 +23,7 @@ export interface YearlyStats {
   total_billets_euros: number;
   total_cb_euros: number;
   total_cheques_euros: number;
+  poids_kg: number;
 }
 
 export interface YearlyStatsResponse {
