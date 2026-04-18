@@ -60,6 +60,14 @@ const DEFAULT_COUNTS: ControleCounts = {
       <!-- Header -->
       <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800">🔍 Contrôle de Données Admin</h2>
+        <button (click)="toggleSqlDrawer()"
+          [disabled]="!debugSql()"
+          [title]="debugSql() ? 'Afficher la requête SQL exécutée' : 'Aucune requête SQL disponible'"
+          [class]="sqlDrawerOpen()
+            ? 'px-3 py-1 text-xs rounded bg-red-600 text-white disabled:opacity-50'
+            : 'px-3 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50'">
+          🔍 SQL
+        </button>
       </div>
 
       <!-- Top tabs : Troncs / ULs -->
@@ -282,6 +290,21 @@ const DEFAULT_COUNTS: ControleCounts = {
           }
         }
       </div>
+
+      @if (sqlDrawerOpen() && debugSql()) {
+        <div class="border-t border-gray-200 bg-gray-900 text-gray-100 shrink-0 flex flex-col max-h-64">
+          <div class="flex items-center justify-between px-3 py-1.5 border-b border-gray-700 bg-gray-800">
+            <span class="text-xs font-semibold text-gray-300">🔍 Requête SQL exécutée</span>
+            <div class="flex gap-2">
+              <button (click)="copySqlToClipboard()"
+                class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-100 hover:bg-gray-600">📋 Copier</button>
+              <button (click)="toggleSqlDrawer()"
+                class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-100 hover:bg-gray-600">✕</button>
+            </div>
+          </div>
+          <pre class="flex-1 overflow-auto px-3 py-2 text-xs font-mono whitespace-pre-wrap break-all">{{ debugSql() }}</pre>
+        </div>
+      }
     </div>
   `,
 })
@@ -476,6 +499,10 @@ export class ControleAdminPageComponent {
   readonly sortField = signal<string | null>(null);
   readonly sortDir = signal<'asc' | 'desc'>('desc');
 
+  // ── SQL debug drawer ──────────────────────────────────────────────
+  readonly debugSql = signal<string | null>(null);
+  readonly sqlDrawerOpen = signal(false);
+
   readonly visiblePages = computed(() => {
     const cur = this.currentPage();
     const total = this.totalPages();
@@ -607,7 +634,8 @@ export class ControleAdminPageComponent {
     try {
       const resp = await firstValueFrom(this.service.getCounts(this.getFilters()));
       this.counts.set(resp);
-    } catch {
+    } catch (err) {
+      console.error('[controle-admin] loadCounts failed', err);
       this.counts.set(DEFAULT_COUNTS);
     }
   }
@@ -627,10 +655,13 @@ export class ControleAdminPageComponent {
       this.total.set(resp.total || 0);
       this.currentPage.set(resp.page || 1);
       this.totalPages.set(resp.total_pages || 0);
-    } catch {
+      this.debugSql.set(resp.debug_sql ?? null);
+    } catch (err) {
+      console.error('[controle-admin] loadTroncItems failed', err);
       this.items.set([]);
       this.total.set(0);
       this.totalPages.set(0);
+      this.debugSql.set(null);
     } finally {
       this.loading.set(false);
     }
@@ -644,13 +675,28 @@ export class ControleAdminPageComponent {
       this.total.set(resp.total || 0);
       this.currentPage.set(resp.page || 1);
       this.totalPages.set(resp.total_pages || 0);
-    } catch {
+      this.debugSql.set(resp.debug_sql ?? null);
+    } catch (err) {
+      console.error('[controle-admin] loadUlItems failed', err);
       this.ulItems.set([]);
       this.total.set(0);
       this.totalPages.set(0);
+      this.debugSql.set(null);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  toggleSqlDrawer(): void {
+    this.sqlDrawerOpen.update((v) => !v);
+  }
+
+  copySqlToClipboard(): void {
+    const sql = this.debugSql();
+    if (!sql) return;
+    void navigator.clipboard?.writeText(sql).catch((err) => {
+      console.error('[controle-admin] clipboard write failed', err);
+    });
   }
 
   private async loadSettings(): Promise<void> {

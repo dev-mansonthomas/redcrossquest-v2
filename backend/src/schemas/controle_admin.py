@@ -44,6 +44,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     page_size: int
     total_pages: int
+    debug_sql: Optional[str] = None
 
 
 class _AnomalieBase(BaseModel):

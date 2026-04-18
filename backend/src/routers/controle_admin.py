@@ -122,6 +122,22 @@ def _order_by(sort: Optional[str], sort_dir: Optional[str],
     return f"ORDER BY {col_sql} {direction}"
 
 
+def _render_sql(sql: str, params: dict[str, Any]) -> str:
+    """Inline :param placeholders with literal values for debug display only."""
+    def _lit(v: Any) -> str:
+        if v is None:
+            return "NULL"
+        if isinstance(v, bool):
+            return "1" if v else "0"
+        if isinstance(v, (int, float)):
+            return str(v)
+        return "'" + str(v).replace("'", "''") + "'"
+    rendered = sql
+    for key in sorted(params.keys(), key=len, reverse=True):
+        rendered = rendered.replace(f":{key}", _lit(params[key]))
+    return " ".join(rendered.split())
+
+
 def _csv_response(rows: list[dict], filename: str) -> StreamingResponse:
     """Serialise rows to UTF-8-BOM CSV (comma separator, Google Sheets friendly)."""
     buffer = StringIO()
@@ -183,15 +199,15 @@ def _run_rule(
         f"SELECT {select_fields} FROM {base_from} "
         f"WHERE {where_sql} {order_by_sql} LIMIT :_lim OFFSET :_off"
     )
-    rows = db.execute(
-        text(query), {**params, "_lim": page_size, "_off": offset}
-    ).mappings().all()
+    page_params = {**params, "_lim": page_size, "_off": offset}
+    rows = db.execute(text(query), page_params).mappings().all()
     return {
         "items": [dict(r) for r in rows],
         "total": total,
         "page": page,
         "page_size": page_size,
         "total_pages": ceil(total / page_size) if total else 0,
+        "debug_sql": _render_sql(query, page_params),
     }
 
 
@@ -251,11 +267,28 @@ _NB_LIGNES_CB_SUBQ = (
     "(SELECT COUNT(*) FROM credit_card cc WHERE cc.tronc_queteur_id = tq.id)"
 )
 
+# tronc_queteur has no `total_amount` column — it is only available on the
+# v_tronc_queteur_enriched view. Reproduce the same formula inline so every
+# rule can reference it as `{_TOTAL_AMOUNT_EXPR}` without joining the view.
+_TOTAL_AMOUNT_EXPR = (
+    "(COALESCE(tq.euro500,0)*500 + COALESCE(tq.euro200,0)*200 "
+    "+ COALESCE(tq.euro100,0)*100 + COALESCE(tq.euro50,0)*50 "
+    "+ COALESCE(tq.euro20,0)*20 + COALESCE(tq.euro10,0)*10 "
+    "+ COALESCE(tq.euro5,0)*5 + COALESCE(tq.euro2,0)*2 "
+    "+ COALESCE(tq.euro1,0)*1 + COALESCE(tq.cents50,0)*0.5 "
+    "+ COALESCE(tq.cents20,0)*0.2 + COALESCE(tq.cents10,0)*0.1 "
+    "+ COALESCE(tq.cents5,0)*0.05 + COALESCE(tq.cents2,0)*0.02 "
+    "+ COALESCE(tq.cent1,0)*0.01 + COALESCE(tq.don_cheque,0) "
+    "+ COALESCE(tq.don_creditcard,0))"
+)
+
+_DURATION_MIN_EXPR = "TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour)"
+
 _WHERE_R1 = (
-    "tq.deleted = 0 AND tq.comptage IS NOT NULL AND tq.total_amount > 0 "
+    f"tq.deleted = 0 AND tq.comptage IS NOT NULL AND {_TOTAL_AMOUNT_EXPR} > 0 "
     "AND tq.retour IS NOT NULL "
-    "AND TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) < :seuil_temps "
-    "AND TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) >= 0"
+    f"AND {_DURATION_MIN_EXPR} < :seuil_temps "
+    f"AND {_DURATION_MIN_EXPR} >= 0"
 )
 
 _WHERE_R2 = (
@@ -266,7 +299,7 @@ _WHERE_R2 = (
 
 _WHERE_R3 = (
     "tq.deleted = 0 AND tq.comptage IS NOT NULL "
-    "AND tq.total_amount > :seuil_montant"
+    f"AND {_TOTAL_AMOUNT_EXPR} > :seuil_montant"
 )
 
 _WHERE_R4 = (
@@ -276,7 +309,7 @@ _WHERE_R4 = (
 
 _WHERE_R5 = (
     "tq.deleted = 0 AND tq.comptage IS NOT NULL "
-    "AND tq.total_amount > :seuil_saisie "
+    f"AND {_TOTAL_AMOUNT_EXPR} > :seuil_saisie "
     "AND ("
     f"({_NB_TYPES_EXPR} = 1 AND COALESCE(tq.don_creditcard,0) = 0 "
     "AND COALESCE(tq.don_cheque,0) = 0)"
@@ -393,19 +426,19 @@ _COMMON_PARAMS_DOC = "Filtres communs year/days/ul_id + pagination + tri + expor
 
 _R1_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.retour, tq.total_amount AS montant, "
-    "TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) AS duration_minutes, "
-    "CASE WHEN TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) > 0 "
-    "THEN ROUND(tq.total_amount / (TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) / 60.0), 2) "
+    f"tq.depart, tq.retour, {_TOTAL_AMOUNT_EXPR} AS montant, "
+    f"{_DURATION_MIN_EXPR} AS duration_minutes, "
+    f"CASE WHEN {_DURATION_MIN_EXPR} > 0 "
+    f"THEN ROUND({_TOTAL_AMOUNT_EXPR} / ({_DURATION_MIN_EXPR} / 60.0), 2) "
     "ELSE 0 END AS taux_horaire"
 )
 
 _R1_SORT = {
     "ul_name": "ul.name",
     "last_name": "q.last_name",
-    "montant": "tq.total_amount",
-    "duration_minutes": "TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour)",
-    "taux_horaire": "(tq.total_amount / (TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) / 60.0))",
+    "montant": _TOTAL_AMOUNT_EXPR,
+    "duration_minutes": _DURATION_MIN_EXPR,
+    "taux_horaire": f"({_TOTAL_AMOUNT_EXPR} / ({_DURATION_MIN_EXPR} / 60.0))",
     "depart": "tq.depart",
 }
 
@@ -433,8 +466,8 @@ async def troncs_temps_court(
         where_base=_WHERE_R1,
         sort_map=_R1_SORT,
         default_order=(
-            "ORDER BY (tq.total_amount / "
-            "(TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) / 60.0)) DESC"
+            f"ORDER BY ({_TOTAL_AMOUNT_EXPR} / "
+            f"({_DURATION_MIN_EXPR} / 60.0)) DESC"
         ),
         year=year, days=days, ul_id=ul_id,
         page=page, page_size=page_size,
@@ -449,14 +482,14 @@ async def troncs_temps_court(
 
 _R2_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.retour, tq.comptage, tq.total_amount AS montant"
+    f"tq.depart, tq.retour, tq.comptage, {_TOTAL_AMOUNT_EXPR} AS montant"
 )
 
 _R2_SORT = {
     "ul_name": "ul.name",
     "last_name": "q.last_name",
     "depart": "tq.depart",
-    "montant": "tq.total_amount",
+    "montant": _TOTAL_AMOUNT_EXPR,
 }
 
 
@@ -494,16 +527,16 @@ async def troncs_sans_retour(
 
 _R3_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.total_amount AS montant, "
-    "TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) AS duration_minutes"
+    f"tq.depart, {_TOTAL_AMOUNT_EXPR} AS montant, "
+    f"{_DURATION_MIN_EXPR} AS duration_minutes"
 )
 
 _R3_SORT = {
     "ul_name": "ul.name",
     "last_name": "q.last_name",
     "depart": "tq.depart",
-    "montant": "tq.total_amount",
-    "duration_minutes": "TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour)",
+    "montant": _TOTAL_AMOUNT_EXPR,
+    "duration_minutes": _DURATION_MIN_EXPR,
 }
 
 
@@ -529,7 +562,7 @@ async def troncs_montant_eleve(
         from_join=_FROM_BASE,
         where_base=_WHERE_R3,
         sort_map=_R3_SORT,
-        default_order="ORDER BY tq.total_amount DESC",
+        default_order=f"ORDER BY {_TOTAL_AMOUNT_EXPR} DESC",
         year=year, days=days, ul_id=ul_id,
         page=page, page_size=page_size,
         sort=sort, sort_dir=sort_dir,
@@ -594,7 +627,7 @@ async def troncs_cb_mismatch(
 
 _R5_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.total_amount AS montant, "
+    f"tq.depart, {_TOTAL_AMOUNT_EXPR} AS montant, "
     f"{_NB_TYPES_EXPR} AS nb_types_remplis, "
     f"{_NB_LIGNES_CB_SUBQ} AS nb_lignes_cb"
 )
@@ -603,7 +636,7 @@ _R5_SORT = {
     "ul_name": "ul.name",
     "last_name": "q.last_name",
     "depart": "tq.depart",
-    "montant": "tq.total_amount",
+    "montant": _TOTAL_AMOUNT_EXPR,
     "nb_types_remplis": _NB_TYPES_EXPR,
 }
 
@@ -630,7 +663,7 @@ async def troncs_saisie_suspecte(
         from_join=_FROM_BASE,
         where_base=_WHERE_R5,
         sort_map=_R5_SORT,
-        default_order="ORDER BY tq.total_amount DESC",
+        default_order=f"ORDER BY {_TOTAL_AMOUNT_EXPR} DESC",
         year=year, days=days, ul_id=ul_id,
         page=page, page_size=page_size,
         sort=sort, sort_dir=sort_dir,
@@ -644,7 +677,7 @@ async def troncs_saisie_suspecte(
 
 _R11_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.retour, tq.total_amount AS montant"
+    f"tq.depart, tq.retour, {_TOTAL_AMOUNT_EXPR} AS montant"
 )
 
 _R11_SORT = {
@@ -652,7 +685,7 @@ _R11_SORT = {
     "last_name": "q.last_name",
     "depart": "tq.depart",
     "retour": "tq.retour",
-    "montant": "tq.total_amount",
+    "montant": _TOTAL_AMOUNT_EXPR,
 }
 
 
@@ -690,14 +723,14 @@ async def troncs_depart_apres_retour(
 
 _R12_SELECT = (
     "tq.id, tq.ul_id, ul.name AS ul_name, q.first_name, q.last_name, "
-    "tq.depart, tq.total_amount AS montant"
+    f"tq.depart, {_TOTAL_AMOUNT_EXPR} AS montant"
 )
 
 _R12_SORT = {
     "ul_name": "ul.name",
     "last_name": "q.last_name",
     "depart": "tq.depart",
-    "montant": "tq.total_amount",
+    "montant": _TOTAL_AMOUNT_EXPR,
 }
 
 
@@ -764,7 +797,7 @@ _UL_R6_SQL = """
       {ul_filter}
 """
 
-_UL_R7_SQL = """
+_UL_R7_SQL = f"""
     SELECT ul.id, ul.name, ul.city, ul.postal_code,
            COUNT(DISTINCT tq.queteur_id) AS nb_queteurs
     FROM ul
@@ -772,10 +805,10 @@ _UL_R7_SQL = """
       ON tq.ul_id = ul.id
      AND tq.deleted = 0
      AND tq.comptage IS NOT NULL
-     AND tq.total_amount > 0
+     AND {_TOTAL_AMOUNT_EXPR} > 0
      AND YEAR(tq.depart) = YEAR(CURDATE())
     WHERE ul.date_demarrage_rcq IS NOT NULL
-      {ul_filter}
+      {{ul_filter}}
     GROUP BY ul.id, ul.name, ul.city, ul.postal_code
     HAVING nb_queteurs < 10
 """
@@ -878,6 +911,7 @@ def _run_ul_rule(
         "page": 1,
         "page_size": total if total else 1,
         "total_pages": 1 if total else 0,
+        "debug_sql": _render_sql(query, ul_params),
     }
 
 

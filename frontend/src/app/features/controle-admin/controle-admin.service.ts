@@ -8,6 +8,7 @@ export interface PaginatedResponse<T> {
   page: number;
   page_size: number;
   total_pages: number;
+  debug_sql?: string | null;
 }
 
 export interface ControleFilters {
