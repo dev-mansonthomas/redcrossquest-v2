@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-multi-account-error',
@@ -28,68 +28,27 @@ import { ActivatedRoute, Router } from '@angular/router';
           </a>
         </div>
 
-        <!-- Account details -->
-        <div class="mb-6">
-          <h2 class="text-sm font-semibold text-gray-700 mb-2">Comptes trouvés :</h2>
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-mono text-gray-600 overflow-x-auto">
-            <pre class="whitespace-pre-wrap">{{ accountDetails }}</pre>
-          </div>
-        </div>
-
-        <!-- Action buttons -->
-        <div class="flex gap-3">
-          <button
-            (click)="copyToClipboard()"
-            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors">
-            {{ copied ? '✅ Copié !' : '📋 Copier les informations' }}
-          </button>
-          <button
-            (click)="goToLogin()"
-            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            🔄 Réessayer
-          </button>
-        </div>
+        <!-- Action button -->
+        <button
+          (click)="goToLogin()"
+          class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+          🔄 Réessayer
+        </button>
       </div>
     </div>
   `,
 })
 export class MultiAccountErrorComponent {
-  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  accountDetails = '';
-  copied = false;
-  mailtoLink = '';
-
-  constructor() {
-    const details = this.route.snapshot.queryParamMap.get('details') || '';
-    this.accountDetails = decodeURIComponent(details);
-    this.mailtoLink = this.buildMailtoLink();
-  }
+  mailtoLink = this.buildMailtoLink();
 
   private buildMailtoLink(): string {
     const subject = encodeURIComponent('Comptes multiples détectés');
     const body = encodeURIComponent(
-      `Bonjour,\n\nJ'ai plusieurs comptes associés à mon email et je ne peux pas me connecter.\n\nDétails des comptes :\n${this.accountDetails}\n\nMerci de votre aide.`
+      `Bonjour,\n\nJ'ai plusieurs comptes associés à mon email et je ne peux pas me connecter.\n\nMerci de votre aide.`
     );
     return `mailto:support.redcrossquest@croix-rouge.fr?subject=${subject}&body=${body}`;
-  }
-
-  async copyToClipboard(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.accountDetails);
-      this.copied = true;
-      setTimeout(() => (this.copied = false), 2000);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = this.accountDetails;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      this.copied = true;
-      setTimeout(() => (this.copied = false), 2000);
-    }
   }
 
   goToLogin(): void {
