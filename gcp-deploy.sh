@@ -1664,7 +1664,6 @@ if $DESTROY_SUPERSET; then
     log_info "Pre-cleanup: Removing Superset IAM bindings via gcloud..."
 
     # Get the API service account email
-    local api_sa
     api_sa=$(gcloud run services describe rcq-api --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format="value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
 
     if [ -n "$api_sa" ]; then
