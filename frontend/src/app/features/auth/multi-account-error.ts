@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-multi-account-error',
@@ -12,7 +12,11 @@ import { Router } from '@angular/router';
           <div class="text-5xl mb-4">⚠️</div>
           <h1 class="text-2xl font-bold text-gray-800">Plusieurs comptes détectés</h1>
           <p class="text-gray-600 mt-2">
-            Votre adresse email est associée à plusieurs comptes actifs.
+            @if (count !== null) {
+              Votre adresse email est associée à <strong>{{ count }}</strong> comptes actifs.
+            } @else {
+              Votre adresse email est associée à plusieurs comptes actifs.
+            }
           </p>
         </div>
 
@@ -40,8 +44,22 @@ import { Router } from '@angular/router';
 })
 export class MultiAccountErrorComponent {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
+  readonly count: number | null = this.readCount();
   mailtoLink = this.buildMailtoLink();
+
+  private readCount(): number | null {
+    const raw = this.route.snapshot.queryParamMap.get('count');
+    if (raw === null) {
+      return null;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 1) {
+      return null;
+    }
+    return parsed;
+  }
 
   private buildMailtoLink(): string {
     const subject = encodeURIComponent('Comptes multiples détectés');
