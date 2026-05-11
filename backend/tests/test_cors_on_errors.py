@@ -7,6 +7,8 @@ misleading "CORS error" instead of the real backend failure. The fix catches
 exceptions inside SecurityHeadersMiddleware and converts them into a 500
 JSONResponse that flows back through CORSMiddleware.
 """
+import logging
+
 from fastapi import APIRouter, HTTPException
 from fastapi.testclient import TestClient
 
@@ -89,3 +91,25 @@ def test_success_response_keeps_security_and_cors_headers():
     assert response.headers.get("x-content-type-options") == "nosniff"
     assert response.headers.get("x-frame-options") == "DENY"
     assert "content-security-policy" in response.headers
+
+
+
+def test_unhandled_exception_is_logged_with_stack_trace(caplog):
+    """The full stack trace must be logged at ERROR level before conversion to 500.
+
+    Without this, swallowing the exception inside SecurityHeadersMiddleware
+    would silently lose observability that Starlette's ServerErrorMiddleware
+    used to provide.
+    """
+    with caplog.at_level(logging.ERROR, logger="src.main"):
+        response = client.get(
+            "/__test_unhandled_exc__",
+            headers={"Origin": ALLOWED_ORIGIN},
+        )
+    assert response.status_code == 500
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert error_records, "expected at least one ERROR log record"
+    record = error_records[0]
+    assert record.exc_info is not None, "exception info (stack trace) must be attached"
+    assert record.exc_info[0] is RuntimeError
+    assert "/__test_unhandled_exc__" in record.getMessage()

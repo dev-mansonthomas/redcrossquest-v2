@@ -1,4 +1,6 @@
 """FastAPI application entry point."""
+import logging
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response as StarletteResponse
@@ -11,6 +13,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from .config import settings
 from .routers import health, auth, config, comptage_pieces_billets, controle_admin, controle_donnees, dashboard_admin, dashboard_quete, embed, classement, classement_tronc, etats_troncs, mailing_stats, map, merci, money_bags, repartition_jours, stats_journalieres, superset, ul, yearly_goals
+
+logger = logging.getLogger(__name__)
 
 # Rate limiter (keyed by remote IP)
 limiter = Limiter(key_func=get_remote_address)
@@ -56,6 +60,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         try:
             response: StarletteResponse = await call_next(request)
         except Exception:
+            # Log the full stack trace before swallowing the exception so that
+            # observability (Cloud Run logs, etc.) is preserved. We must NOT
+            # re-raise here, otherwise the exception would reach Starlette's
+            # ServerErrorMiddleware and CORS headers would be lost again.
+            logger.exception(
+                "Unhandled exception in %s %s", request.method, request.url.path
+            )
             response = JSONResponse(
                 status_code=500,
                 content={"detail": "Internal Server Error"},
