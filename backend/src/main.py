@@ -41,10 +41,25 @@ else:
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Inject standard security headers into every response."""
+    """Inject standard security headers into every response.
+
+    Also catches unhandled exceptions raised by inner middleware/routes and
+    converts them into a 500 JSONResponse. This is required so that outer
+    middleware (CORSMiddleware) can attach CORS headers to error responses:
+    Starlette's built-in ServerErrorMiddleware sits OUTSIDE the user middleware
+    stack and sends its 500 response directly via the ASGI send callable,
+    bypassing CORSMiddleware. Without this catch, browsers see a misleading
+    "CORS error" instead of the real 5xx returned by the backend.
+    """
 
     async def dispatch(self, request: StarletteRequest, call_next) -> StarletteResponse:
-        response: StarletteResponse = await call_next(request)
+        try:
+            response: StarletteResponse = await call_next(request)
+        except Exception:
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal Server Error"},
+            )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -53,13 +68,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Middleware registration order matters: outermost first.
-# SecurityHeaders wraps CORS so headers are present on every response.
-app.add_middleware(SecurityHeadersMiddleware)
-
-# Configure CORS
+# Middleware registration order matters: in Starlette the LAST middleware added
+# is the OUTERMOST wrapper. CORSMiddleware must be added last so it wraps
+# SecurityHeadersMiddleware (and the rest of the app) and can attach CORS
+# headers to every response — including 4xx/5xx error responses.
+# Combined with the try/except inside SecurityHeadersMiddleware (which converts
+# unhandled exceptions into a 500 JSONResponse), this guarantees that browsers
+# receive proper CORS headers on every response and never see a misleading
+# "CORS error" masking the real backend failure.
+app.add_middleware(SecurityHeadersMiddleware)  # inner: adds security headers, catches exceptions
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,                            # outer: attaches CORS headers to all responses
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
