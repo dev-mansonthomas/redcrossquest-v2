@@ -128,6 +128,20 @@ case "$ENV" in
         ;;
 esac
 
+# ── Per-env OpenTofu working dir (isolation) ────────────────
+# Avoids cross-env pollution from a shared infra/.terraform/ when switching envs.
+export TF_DATA_DIR="$SCRIPT_DIR/infra/.terraform-${ENV}"
+
+# One-shot cleanup of legacy shared working dir / lock file.
+if [[ -d "$SCRIPT_DIR/infra/.terraform" ]]; then
+    log_warn "Found legacy infra/.terraform/ directory — removing (state moved to per-env .terraform-${ENV}/)"
+    rm -rf "$SCRIPT_DIR/infra/.terraform"
+fi
+if [[ -f "$SCRIPT_DIR/infra/.terraform.lock.hcl" ]]; then
+    log_warn "Found legacy infra/.terraform.lock.hcl — removing (will be recreated in $TF_DATA_DIR)"
+    rm -f "$SCRIPT_DIR/infra/.terraform.lock.hcl"
+fi
+
 DO_BUILD=false
 DO_INFRA=false
 DO_MIGRATE=false
@@ -562,6 +576,43 @@ ensure_tf_bucket() {
     fi
 }
 
+# ── Sanity check: local backend pointer matches expected per-env GCS bucket ──
+# Reads $TF_DATA_DIR/terraform.tfstate (the LOCAL backend pointer, not the
+# remote state) and verifies its bucket matches rcq-terraform-state-${ENV}.
+# On mismatch / absence, forces `tofu init -reconfigure` to align them.
+check_tofu_backend() {
+    local tf_dir="$1"
+    local expected_bucket="rcq-terraform-state-${ENV}"
+    local pointer_file="$TF_DATA_DIR/terraform.tfstate"
+    local current_bucket=""
+
+    if [[ -f "$pointer_file" ]]; then
+        if command -v jq &>/dev/null; then
+            current_bucket=$(jq -r '.backend.config.bucket // empty' "$pointer_file" 2>/dev/null || echo "")
+        else
+            current_bucket=$(grep '"bucket"' "$pointer_file" 2>/dev/null | head -1 | sed -E 's/.*"bucket"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+        fi
+    fi
+
+    if [[ "$current_bucket" == "$expected_bucket" ]]; then
+        return 0
+    fi
+
+    if [[ -z "$current_bucket" ]]; then
+        log_warn "OpenTofu backend pointer missing — running tofu init -reconfigure for ${expected_bucket}"
+    else
+        log_warn "OpenTofu backend mismatch (current=${current_bucket}, expected=${expected_bucket}) — running tofu init -reconfigure"
+    fi
+
+    local reinit_err
+    if reinit_err=$( (cd "$tf_dir" && tofu init -backend-config="bucket=${expected_bucket}" -input=false -reconfigure -no-color) 2>&1 >/dev/null ); then
+        return 0
+    else
+        log_warn "tofu init -reconfigure failed — error: $reinit_err"
+        return 1
+    fi
+}
+
 # ── Ensure Artifact Registry repository exists (idempotent) ───
 # Reconciles four (GCP × OpenTofu state) cases so that a subsequent
 # `tofu apply` is always safe:
@@ -614,9 +665,18 @@ ensure_ar_repository() {
         return
     fi
 
+    # Verify the local backend pointer matches the per-env GCS bucket before
+    # touching state (defense-in-depth on top of the -reconfigure above).
+    check_tofu_backend "$tf_dir" || true
+
     local state_exists=false
-    if (cd "$tf_dir" && tofu state list 2>/dev/null) | grep -qx "${tf_resource_addr}"; then
-        state_exists=true
+    local state_list_out
+    if state_list_out=$(cd "$tf_dir" && tofu state list 2>&1); then
+        if echo "$state_list_out" | grep -qx "${tf_resource_addr}"; then
+            state_exists=true
+        fi
+    else
+        log_warn "tofu state list failed — assuming resource is not in state. Error: $state_list_out"
     fi
 
     # ── 3. Apply matrix ──
@@ -624,17 +684,21 @@ ensure_ar_repository() {
         log_success "Artifact Registry repository ${AR_REPOSITORY} already exists (in GCP and tofu state)"
     elif $gcp_exists && ! $state_exists; then
         log_info "Repository ${AR_REPOSITORY} exists in GCP but not in tofu state — importing..."
-        if (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id" >/dev/null 2>&1); then
+        local import_err
+        if import_err=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
             log_success "Repository imported into tofu state"
         else
-            log_warn "Could not import into tofu state — you may need to run manually: $manual_hint"
+            log_warn "Could not import into tofu state — error: $import_err"
+            log_warn "Manual command: $manual_hint"
         fi
     elif ! $gcp_exists && $state_exists; then
         log_warn "Ghost in tofu state: ${tf_resource_addr} exists in state but not in GCP — removing from state..."
-        if (cd "$tf_dir" && tofu state rm "$tf_resource_addr" >/dev/null 2>&1); then
+        local rm_err
+        if rm_err=$( (cd "$tf_dir" && tofu state rm "$tf_resource_addr") 2>&1 >/dev/null ); then
             log_success "Ghost removed from tofu state — apply will recreate the repository"
         else
-            log_warn "Could not remove ghost from tofu state — you may need to run: cd infra && tofu state rm ${tf_resource_addr}"
+            log_warn "Could not remove ghost from tofu state — error: $rm_err"
+            log_warn "Manual command: cd infra && tofu state rm ${tf_resource_addr}"
         fi
         log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
         gcloud artifacts repositories create "${AR_REPOSITORY}" \
@@ -644,10 +708,12 @@ ensure_ar_repository() {
             --labels="app=rcq,managed-by=terraform"
         log_success "Repository ${AR_REPOSITORY} created"
         log_info "Importing freshly-created repository into tofu state..."
-        if (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id" >/dev/null 2>&1); then
+        local import_err2
+        if import_err2=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
             log_success "Repository imported into tofu state"
         else
-            log_warn "Could not import into tofu state — you may need to run manually: $manual_hint"
+            log_warn "Could not import into tofu state — error: $import_err2"
+            log_warn "Manual command: $manual_hint"
         fi
     else
         log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
@@ -658,10 +724,12 @@ ensure_ar_repository() {
             --labels="app=rcq,managed-by=terraform"
         log_success "Repository ${AR_REPOSITORY} created"
         log_info "Importing into tofu state so apply won't try to recreate it..."
-        if (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id" >/dev/null 2>&1); then
+        local import_err3
+        if import_err3=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
             log_success "Repository imported into tofu state"
         else
-            log_warn "Could not import into tofu state — you may need to run manually: $manual_hint"
+            log_warn "Could not import into tofu state — error: $import_err3"
+            log_warn "Manual command: $manual_hint"
         fi
     fi
 }
@@ -1472,6 +1540,7 @@ run_infra() {
     # Initialize OpenTofu
     log_info "Initializing OpenTofu..."
     tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    check_tofu_backend "$SCRIPT_DIR/infra" || true
 
     # Untaint any tainted Cloud Run services (from previous failed deploys)
     for svc in module.api.google_cloud_run_v2_service.service module.superset.google_cloud_run_v2_service.service module.frontend.google_cloud_run_v2_service.service; do
@@ -1639,6 +1708,7 @@ if $DESTROY_SUPERSET; then
 
     log_info "Initializing OpenTofu..."
     tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    check_tofu_backend "$SCRIPT_DIR/infra" || true
 
     # Find the latest image tag for tofu (needed for other resources)
     latest_tag=$(gcloud artifacts docker tags list \
