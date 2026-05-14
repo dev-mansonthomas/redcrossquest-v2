@@ -13,7 +13,6 @@ from .auth import get_authenticated_user as resolve_authenticated_user
 
 router = APIRouter(prefix="/api", tags=["embed"])
 
-EMBED_ALGORITHM = "HS256"
 EMBED_TOKEN_TTL_MINUTES = 10
 
 
@@ -62,7 +61,7 @@ def build_embed_url(dashboard_id: str, params: dict[str, str | int]) -> str:
         "params": params,
         "exp": datetime.now(tz=UTC) + timedelta(minutes=EMBED_TOKEN_TTL_MINUTES),
     }
-    token = jwt.encode(payload, settings.superset_admin_password, algorithm=EMBED_ALGORITHM)
+    token = jwt.encode(payload, settings.superset_admin_password, algorithm=settings.jwt_algorithm)
     return f"{settings.superset_url.rstrip('/')}/embed/dashboard/{token}"
 
 
