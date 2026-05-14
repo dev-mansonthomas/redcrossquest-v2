@@ -161,7 +161,6 @@ async def get_points_quete_stats(
             GROUP BY point_quete_id
         ) active ON active.point_quete_id = pq.id
         WHERE pq.ul_id = :ul_id AND pq.enabled = 1
-          AND pq.type NOT IN (3, 5)
     """
 
     rows = db.execute(text(query), params).mappings().all()

@@ -3,6 +3,7 @@ import {
   OnDestroy,
   inject,
   signal,
+  computed,
   ElementRef,
   ViewChild,
   AfterViewInit,
@@ -59,8 +60,14 @@ const DEFAULT_ZOOM = 13;
 const MIN_RADIUS = 8;
 const MAX_RADIUS = 40;
 
+const EMOJI_MIN_RADIUS = 14;
+
+function getPointTypeInfo(type: number): { emoji: string; label: string } {
+  return POINT_TYPE_INFO[type] || { emoji: '📍', label: `Type ${type}` };
+}
+
 function getPointTypeLabel(type: number): string {
-  const info = POINT_TYPE_INFO[type] || { emoji: '📍', label: 'Inconnu' };
+  const info = getPointTypeInfo(type);
   return `${info.emoji} ${info.label}`;
 }
 
@@ -108,6 +115,25 @@ function formatNumber(n: number): string {
                 (click)="toggleYear(year)"
                 class="year-chip">
                 {{ year }}
+              </button>
+            }
+          </div>
+          <!-- Type selector -->
+          <div class="flex gap-1 flex-wrap">
+            <button
+              [class.active]="allTypesSelected()"
+              (click)="toggleAllTypes()"
+              class="year-chip"
+              title="Afficher tous les types">
+              📍 Tous
+            </button>
+            @for (type of availableTypes(); track type) {
+              <button
+                [class.active]="selectedTypes().has(type)"
+                (click)="toggleType(type)"
+                class="year-chip"
+                [title]="getTypeLabel(type)">
+                {{ getTypeEmoji(type) }} {{ getTypeShortLabel(type) }}
               </button>
             }
           </div>
@@ -189,6 +215,13 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
   readonly currentView = signal<ViewMode>('total_amount');
   readonly availableYears = signal<number[]>([]);
   readonly selectedYears = signal<Set<number>>(new Set());
+  readonly availableTypes = signal<number[]>([]);
+  readonly selectedTypes = signal<Set<number>>(new Set());
+  readonly allTypesSelected = computed(() => {
+    const all = this.availableTypes();
+    const sel = this.selectedTypes();
+    return all.length > 0 && all.every(t => sel.has(t));
+  });
   readonly refreshing = signal(false);
 
   private points: PointQueteStats[] = [];
@@ -220,6 +253,38 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
     }
     this.selectedYears.set(current);
     this.loadStats();
+  }
+
+  toggleType(type: number): void {
+    const current = new Set(this.selectedTypes());
+    if (current.has(type)) {
+      current.delete(type);
+    } else {
+      current.add(type);
+    }
+    this.selectedTypes.set(current);
+    this.renderCircles();
+  }
+
+  toggleAllTypes(): void {
+    if (this.allTypesSelected()) {
+      this.selectedTypes.set(new Set());
+    } else {
+      this.selectedTypes.set(new Set(this.availableTypes()));
+    }
+    this.renderCircles();
+  }
+
+  getTypeEmoji(type: number): string {
+    return getPointTypeInfo(type).emoji;
+  }
+
+  getTypeLabel(type: number): string {
+    return getPointTypeInfo(type).label;
+  }
+
+  getTypeShortLabel(type: number): string {
+    return getPointTypeInfo(type).label;
   }
 
   private initMap(): void {
@@ -268,6 +333,7 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
         this.api.get<PointQueteStatsResponse>(`/api/map/points-quete-stats?years=${years}`),
       );
       this.points = response.points_quete.filter(p => p.latitude != null && p.longitude != null);
+      this.refreshAvailableTypes();
       this.renderCircles();
 
       // Fit bounds
@@ -280,22 +346,48 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  private refreshAvailableTypes(): void {
+    const types = Array.from(new Set(this.points.map(p => p.type))).sort((a, b) => a - b);
+    const previous = this.availableTypes();
+    this.availableTypes.set(types);
+    // First load (or new types appeared): select everything by default.
+    const current = this.selectedTypes();
+    if (current.size === 0 && previous.length === 0) {
+      this.selectedTypes.set(new Set(types));
+    } else {
+      // Drop any selected type that is no longer present in the data.
+      const filtered = new Set<number>();
+      for (const t of current) {
+        if (types.includes(t)) filtered.add(t);
+      }
+      // Add any newly appeared type so existing UX (was "all" before) stays consistent.
+      for (const t of types) {
+        if (!previous.includes(t)) filtered.add(t);
+      }
+      this.selectedTypes.set(filtered);
+    }
+  }
+
   private renderCircles(): void {
     this.circlesLayer.clearLayers();
     this.badgesLayer.clearLayers();
     if (this.points.length === 0) return;
 
+    const selected = this.selectedTypes();
+    const visible = this.points.filter(p => selected.has(p.type));
+    if (visible.length === 0) return;
+
     const mode = this.currentView();
-    const values = this.points.map(p => p[mode]);
+    const values = visible.map(p => p[mode]);
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
 
     // Sort for ranking (descending = best first)
-    const sorted = [...this.points].sort((a, b) => b[mode] - a[mode]);
+    const sorted = [...visible].sort((a, b) => b[mode] - a[mode]);
     const rankMap = new Map<number, number>();
     sorted.forEach((p, i) => rankMap.set(p.id, i));
 
-    for (const p of this.points) {
+    for (const p of visible) {
       const latLng: L.LatLngExpression = [p.latitude, p.longitude];
       const value = p[mode];
       const rank = rankMap.get(p.id)!;
@@ -328,6 +420,26 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
       `;
       circle.bindTooltip(tooltip, { direction: 'top', offset: [0, -radius], className: 'pq-stats-tooltip' });
       this.circlesLayer.addLayer(circle);
+
+      // Type emoji overlay (centered on the circle, hidden when too small to be readable)
+      if (radius >= EMOJI_MIN_RADIUS) {
+        const emoji = getPointTypeInfo(p.type).emoji;
+        const fontSize = Math.round(radius * 0.9);
+        const emojiIcon = L.divIcon({
+          className: 'pq-badge',
+          html: `<div style="
+            font-size: ${fontSize}px;
+            line-height: 1;
+            text-align: center;
+            pointer-events: none;
+            text-shadow: 0 0 2px rgba(255,255,255,0.8);
+          ">${emoji}</div>`,
+          iconSize: [fontSize, fontSize],
+          iconAnchor: [fontSize / 2, fontSize / 2],
+        });
+        const emojiMarker = L.marker(latLng, { icon: emojiIcon, interactive: false });
+        this.badgesLayer.addLayer(emojiMarker);
+      }
 
       // Badge for active quêteurs
       if (p.active_queteurs > 0) {
