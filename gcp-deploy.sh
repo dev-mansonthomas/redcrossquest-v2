@@ -132,14 +132,10 @@ esac
 # Avoids cross-env pollution from a shared infra/.terraform/ when switching envs.
 export TF_DATA_DIR="$SCRIPT_DIR/infra/.terraform-${ENV}"
 
-# One-shot cleanup of legacy shared working dir / lock file.
+# One-shot cleanup of legacy shared working dir.
 if [[ -d "$SCRIPT_DIR/infra/.terraform" ]]; then
     log_warn "Found legacy infra/.terraform/ directory — removing (state moved to per-env .terraform-${ENV}/)"
     rm -rf "$SCRIPT_DIR/infra/.terraform"
-fi
-if [[ -f "$SCRIPT_DIR/infra/.terraform.lock.hcl" ]]; then
-    log_warn "Found legacy infra/.terraform.lock.hcl — removing (will be recreated in $TF_DATA_DIR)"
-    rm -f "$SCRIPT_DIR/infra/.terraform.lock.hcl"
 fi
 
 DO_BUILD=false
