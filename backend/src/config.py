@@ -41,7 +41,8 @@ class Settings(BaseSettings):
 
     # Session/JWT (Wave 2)
     jwt_secret_key: str = ""
-    jwt_algorithm: str = "HS256"
+    # Hardening: allow-list explicite — refuse alg: none / RS* / ES* injection au boot.
+    jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_expire_minutes: int = 480
 
     # Frontend

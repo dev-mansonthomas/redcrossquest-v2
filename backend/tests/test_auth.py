@@ -1,11 +1,28 @@
 """Tests for authentication endpoints."""
+import base64
+import json
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from src.main import app
 from src.routers import auth
+
+
+def _b64url(data: bytes) -> str:
+    """URL-safe base64 encoding without padding (JWT segments)."""
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _forge_jwt(alg: str, payload: dict, signature: bytes = b"") -> str:
+    """Build a raw JWT with arbitrary `alg` header — for negative-path tests."""
+    header = _b64url(json.dumps({"alg": alg, "typ": "JWT"}).encode())
+    body = _b64url(json.dumps(payload).encode())
+    sig = _b64url(signature)
+    return f"{header}.{body}.{sig}"
 
 
 @pytest.fixture(autouse=True)
@@ -122,3 +139,47 @@ def test_get_me_returns_authenticated_user(client, monkeypatch, role, ul_id, ul_
         "role_name": role_name,
         "real_role": None,
     }
+
+
+
+# --- JWT algorithm hardening (allow-list) ---
+
+
+def test_decode_session_token_accepts_valid_hs256_token():
+    """A token signed with HS256 (the allow-listed algorithm) must decode successfully."""
+    token = auth.create_session_token(
+        {"email": "user@croix-rouge.fr", "role": 2, "ul_id": 123}
+    )
+    payload = auth.decode_session_token(token)
+    assert payload["email"] == "user@croix-rouge.fr"
+    assert payload["role"] == 2
+    assert payload["ul_id"] == 123
+
+
+def test_decode_session_token_rejects_alg_none_token():
+    """A forged `alg: none` token must be rejected by the allow-list."""
+    token = _forge_jwt("none", {"sub": "evil@example.com", "email": "evil@example.com"})
+    with pytest.raises(HTTPException) as exc_info:
+        auth.decode_session_token(token)
+    assert exc_info.value.status_code == 401
+
+
+def test_decode_session_token_rejects_rs256_token():
+    """A token claiming RS256 in its header must be rejected before signature verification."""
+    token = _forge_jwt(
+        "RS256",
+        {"sub": "evil@example.com", "email": "evil@example.com"},
+        signature=b"fake-signature",
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        auth.decode_session_token(token)
+    assert exc_info.value.status_code == 401
+
+
+def test_settings_rejects_non_hs256_algorithm(monkeypatch):
+    """Setting JWT_ALGORITHM to anything but HS256 must fail at boot (fail-fast)."""
+    monkeypatch.setenv("JWT_ALGORITHM", "RS256")
+    from src.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
