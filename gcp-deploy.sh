@@ -16,6 +16,7 @@
 #   --migrate        Run SQL migrations
 #   --provision      Provision Superset dashboards
 #   --check          Check environment readiness (DB user, secrets, etc.)
+#   --audit          Run dependency security audits (npm + pip-audit)
 #   --all            Do everything (build + infra + migrate + provision)
 #   --plan           Terraform plan only (dry run, no build)
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
@@ -77,6 +78,10 @@ Options:
   --migrate        Run SQL migrations via scripts/run-migrations.sh
   --provision      Provision Superset dashboards
   --check          Check environment readiness (DB user, secrets, etc.)
+  --audit          Run dependency security audits (frontend npm + backend pip-audit).
+                   Frontend HIGH+ vulnerabilities fail the step; backend findings
+                   are reported as warnings (non-blocking). Read-only, no GCP/DB
+                   access required.
   --all            Run all steps: build + infra + migrate + provision
   --plan           Terraform plan only (dry run, no build, no apply)
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
@@ -104,6 +109,7 @@ Examples:
   ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
   ./gcp-deploy.sh prod --dump-prod                     # Dump prod DB to SQL file
   ./gcp-deploy.sh dev --copy-prod                      # Import latest prod dump into dev
+  ./gcp-deploy.sh dev --audit                          # Dependency security audits (npm + pip-audit)
 EOF
     exit 0
 }
@@ -143,6 +149,7 @@ DO_INFRA=false
 DO_MIGRATE=false
 DO_PROVISION=false
 DO_CHECK=false
+DO_AUDIT=false
 PLAN_ONLY=false
 SKIP_CONFIRM=false
 SKIP_BUILD=false
@@ -162,6 +169,7 @@ while [[ $# -gt 0 ]]; do
         --migrate)     DO_MIGRATE=true;   shift ;;
         --provision)   DO_PROVISION=true; shift ;;
         --check)       DO_CHECK=true;     shift ;;
+        --audit)       DO_AUDIT=true;     shift ;;
         --all)
             DO_BUILD=true
             DO_INFRA=true
@@ -201,8 +209,8 @@ if $ENABLE_SUPERSET && $DESTROY_SUPERSET; then
     exit 1
 fi
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_AUDIT && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --audit, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
     echo "Run './gcp-deploy.sh --help' for usage."
     exit 1
 fi
@@ -358,6 +366,7 @@ trap on_exit EXIT
 # Register the pipeline steps requested on the command line so the
 # EXIT trap can report done / skipped / failed for each one (Bug #5).
 $DO_CHECK         && register_step "Environment check"  "--check"
+$DO_AUDIT         && register_step "Security audit"      "--audit"
 $DO_BUILD         && register_step "Build & push"        "--build"
 if $DO_INFRA; then
     if $PLAN_ONLY; then
@@ -492,6 +501,7 @@ $NO_CACHE && echo "    ⚠️  Docker build: no-cache (forced clean build)"
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
+$DO_AUDIT    && echo "    ✦ Dependency security audit (npm + pip-audit)"
 $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
@@ -539,8 +549,14 @@ if [ -f "$TFVARS_FILE" ]; then
     echo ""
 fi
 
-# Skip confirmation for --check (read-only mode), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
-if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET); then
+# Skip confirmation for --check / --audit (read-only modes), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
+_READ_ONLY_ONLY=false
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    if $DO_CHECK || $DO_AUDIT; then
+        _READ_ONLY_ONLY=true
+    fi
+fi
+if ! $SKIP_CONFIRM && ! $_READ_ONLY_ONLY; then
     if [ "$ENV" = "prod" ]; then
         echo -e "${RED}⚠️  WARNING: You are deploying to PRODUCTION!${NC}"
         echo ""
@@ -1011,6 +1027,80 @@ if $DO_CHECK; then
     MIGRATION_DB_HOST="127.0.0.1"
     MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     check_environment
+    complete_step
+fi
+
+# ══════════════════════════════════════════════════════════════
+# Step 0.5: Dependency security audit (npm + pip-audit)
+# ══════════════════════════════════════════════════════════════
+# Frontend: blocks the step on HIGH+ vulnerabilities (npm audit --audit-level=high).
+# Backend:  reports findings as a warning (non-blocking) per project policy.
+# Read-only: no GCP/DB access required.
+security_audit() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Dependency security audit"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    local frontend_status="skipped"
+    local backend_status="skipped"
+    local fe_rc=0
+    local be_rc=0
+
+    # ── Frontend (blocking on HIGH+) ─────────────────────────
+    if [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
+        log_info "Running npm audit (frontend, --audit-level=high)..."
+        if ( cd "$SCRIPT_DIR/frontend" && npm run --silent audit:ci ); then
+            frontend_status="ok"
+            log_success "Frontend audit: no HIGH/CRITICAL findings."
+        else
+            fe_rc=$?
+            frontend_status="failed"
+            log_error "Frontend audit found HIGH/CRITICAL vulnerabilities (exit=$fe_rc)."
+            echo ""
+            log_info "Detailed report:"
+            ( cd "$SCRIPT_DIR/frontend" && npm run --silent audit:report ) || true
+        fi
+    else
+        log_warn "frontend/package.json not found — skipping npm audit."
+    fi
+    echo ""
+
+    # ── Backend (non-blocking warning) ───────────────────────
+    if [ -f "$SCRIPT_DIR/backend/pyproject.toml" ]; then
+        log_info "Running pip-audit (backend, non-blocking warning)..."
+        if ( cd "$SCRIPT_DIR/backend" && poetry run pip-audit ); then
+            backend_status="ok"
+            log_success "Backend audit: no findings."
+        else
+            be_rc=$?
+            backend_status="warning"
+            log_warn "Backend audit found dependency vulnerabilities (pip-audit exit=$be_rc) — reported as a warning."
+            log_warn "Review the table above and open a follow-up task to bump affected packages."
+        fi
+    else
+        log_warn "backend/pyproject.toml not found — skipping pip-audit."
+    fi
+    echo ""
+
+    # ── Summary ──────────────────────────────────────────────
+    echo "═══════════════════════════════════════════════"
+    echo "  🔐 Security audit results"
+    echo "═══════════════════════════════════════════════"
+    printf "    Frontend (npm audit, HIGH+ blocking) : %s\n" "$frontend_status"
+    printf "    Backend  (pip-audit, warn only)      : %s\n" "$backend_status"
+    echo ""
+
+    # Only the frontend audit blocks the step. Backend findings are surfaced as a warning.
+    if [ "$frontend_status" = "failed" ]; then
+        return 1
+    fi
+    return 0
+}
+
+if $DO_AUDIT; then
+    start_step "Security audit"
+    security_audit
     complete_step
 fi
 
