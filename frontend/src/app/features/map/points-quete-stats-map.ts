@@ -57,10 +57,8 @@ const POINT_TYPE_INFO: Record<number, { emoji: string; label: string }> = {
 
 const DEFAULT_CENTER: L.LatLngExpression = [48.8566, 2.3522];
 const DEFAULT_ZOOM = 13;
-const MIN_RADIUS = 8;
+const MIN_RADIUS = 14;
 const MAX_RADIUS = 40;
-
-const EMOJI_MIN_RADIUS = 14;
 
 function getPointTypeInfo(type: number): { emoji: string; label: string } {
   return POINT_TYPE_INFO[type] || { emoji: '📍', label: `Type ${type}` };
@@ -421,25 +419,23 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
       circle.bindTooltip(tooltip, { direction: 'top', offset: [0, -radius], className: 'pq-stats-tooltip' });
       this.circlesLayer.addLayer(circle);
 
-      // Type emoji overlay (centered on the circle, hidden when too small to be readable)
-      if (radius >= EMOJI_MIN_RADIUS) {
-        const emoji = getPointTypeInfo(p.type).emoji;
-        const fontSize = Math.round(radius * 0.9);
-        const emojiIcon = L.divIcon({
-          className: 'pq-badge',
-          html: `<div style="
-            font-size: ${fontSize}px;
-            line-height: 1;
-            text-align: center;
-            pointer-events: none;
-            text-shadow: 0 0 2px rgba(255,255,255,0.8);
-          ">${emoji}</div>`,
-          iconSize: [fontSize, fontSize],
-          iconAnchor: [fontSize / 2, fontSize / 2],
-        });
-        const emojiMarker = L.marker(latLng, { icon: emojiIcon, interactive: false });
-        this.badgesLayer.addLayer(emojiMarker);
-      }
+      // Type emoji overlay (always shown, centered on the circle)
+      const emoji = getPointTypeInfo(p.type).emoji;
+      const fontSize = Math.round(radius * 0.9);
+      const emojiIcon = L.divIcon({
+        className: 'pq-badge',
+        html: `<div style="
+          font-size: ${fontSize}px;
+          line-height: 1;
+          text-align: center;
+          pointer-events: none;
+          text-shadow: 0 0 2px rgba(255,255,255,0.8);
+        ">${emoji}</div>`,
+        iconSize: [fontSize, fontSize],
+        iconAnchor: [fontSize / 2, fontSize / 2],
+      });
+      const emojiMarker = L.marker(latLng, { icon: emojiIcon, interactive: false });
+      this.badgesLayer.addLayer(emojiMarker);
 
       // Badge for active quêteurs
       if (p.active_queteurs > 0) {
