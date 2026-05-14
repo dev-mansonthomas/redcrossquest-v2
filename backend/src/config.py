@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     rcq_tronc_queteur_uri: str = "#!/tronc_queteur/edit/"
     rcq_tronc_uri: str = "#!/troncs/edit/"
 
+    # Yearly Goals — dev/test fallback when no quete_dates row exists for the year
+    # or when the official J1..J9 window yields zero data.
+    # MUST stay False in prod: a precocious tronc would otherwise shift J1.
+    yearly_goals_dynamic_start_date: bool = False
+
     @property
     def rcq_database_url(self) -> str:
         """Construct MySQL database URL for SQLAlchemy."""
