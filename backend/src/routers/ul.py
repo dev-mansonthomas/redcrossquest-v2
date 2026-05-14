@@ -128,11 +128,9 @@ HOURS_BY_SECTOR_QUERY = """
       ROUND(SUM(tqe.duration_minutes) / 60.0, 2) AS total_hours
     FROM v_tronc_queteur_enriched tqe
     JOIN queteur q ON tqe.queteur_id = q.id
-    JOIN point_quete pq ON tqe.point_quete_id = pq.id
     WHERE tqe.ul_id = :ul_id
       AND YEAR(tqe.depart) >= :min_year
       AND tqe.deleted = 0 AND tqe.comptage IS NOT NULL
-      AND pq.type IN (1, 2)
     GROUP BY YEAR(tqe.depart), q.secteur
     ORDER BY year, q.secteur
 """
