@@ -40,6 +40,13 @@ export const DASHBOARD_ROUTES: Routes = [
           import('../admin/admin-page').then((m) => m.AdminPageComponent),
       },
       {
+        path: 'admin-dashboard',
+        loadComponent: () =>
+          import('../dashboard-admin/dashboard-admin-page').then(
+            (m) => m.DashboardAdminPageComponent,
+          ),
+      },
+      {
         path: 'sacs-banque',
         loadComponent: () =>
           import('../money-bags/money-bags-page').then(
@@ -79,6 +86,20 @@ export const DASHBOARD_ROUTES: Routes = [
         loadComponent: () =>
           import('../controle-donnees/controle-donnees-page').then(
             (m) => m.ControleDonneesPageComponent,
+          ),
+      },
+      {
+        path: 'controle-admin',
+        loadComponent: () =>
+          import('../controle-admin/controle-admin-page').then(
+            (m) => m.ControleAdminPageComponent,
+          ),
+      },
+      {
+        path: 'controle-admin/ul/:id',
+        loadComponent: () =>
+          import('../controle-admin/ul-detail-page').then(
+            (m) => m.UlDetailPageComponent,
           ),
       },
       {

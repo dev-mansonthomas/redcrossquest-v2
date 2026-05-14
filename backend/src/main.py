@@ -1,4 +1,6 @@
 """FastAPI application entry point."""
+import logging
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response as StarletteResponse
@@ -10,7 +12,9 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from .config import settings
-from .routers import health, auth, config, comptage_pieces_billets, controle_donnees, dashboard_quete, embed, classement, classement_tronc, etats_troncs, mailing_stats, map, merci, money_bags, repartition_jours, stats_journalieres, superset, ul, yearly_goals
+from .routers import health, auth, config, comptage_pieces_billets, controle_admin, controle_donnees, dashboard_admin, dashboard_quete, embed, classement, classement_tronc, etats_troncs, mailing_stats, map, merci, money_bags, repartition_jours, stats_journalieres, superset, ul, yearly_goals
+
+logger = logging.getLogger(__name__)
 
 # Rate limiter (keyed by remote IP)
 limiter = Limiter(key_func=get_remote_address)
@@ -41,10 +45,32 @@ else:
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Inject standard security headers into every response."""
+    """Inject standard security headers into every response.
+
+    Also catches unhandled exceptions raised by inner middleware/routes and
+    converts them into a 500 JSONResponse. This is required so that outer
+    middleware (CORSMiddleware) can attach CORS headers to error responses:
+    Starlette's built-in ServerErrorMiddleware sits OUTSIDE the user middleware
+    stack and sends its 500 response directly via the ASGI send callable,
+    bypassing CORSMiddleware. Without this catch, browsers see a misleading
+    "CORS error" instead of the real 5xx returned by the backend.
+    """
 
     async def dispatch(self, request: StarletteRequest, call_next) -> StarletteResponse:
-        response: StarletteResponse = await call_next(request)
+        try:
+            response: StarletteResponse = await call_next(request)
+        except Exception:
+            # Log the full stack trace before swallowing the exception so that
+            # observability (Cloud Run logs, etc.) is preserved. We must NOT
+            # re-raise here, otherwise the exception would reach Starlette's
+            # ServerErrorMiddleware and CORS headers would be lost again.
+            logger.exception(
+                "Unhandled exception in %s %s", request.method, request.url.path
+            )
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal Server Error"},
+            )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -53,13 +79,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Middleware registration order matters: outermost first.
-# SecurityHeaders wraps CORS so headers are present on every response.
-app.add_middleware(SecurityHeadersMiddleware)
-
-# Configure CORS
+# Middleware registration order matters: in Starlette the LAST middleware added
+# is the OUTERMOST wrapper. CORSMiddleware must be added last so it wraps
+# SecurityHeadersMiddleware (and the rest of the app) and can attach CORS
+# headers to every response — including 4xx/5xx error responses.
+# Combined with the try/except inside SecurityHeadersMiddleware (which converts
+# unhandled exceptions into a 500 JSONResponse), this guarantees that browsers
+# receive proper CORS headers on every response and never see a misleading
+# "CORS error" masking the real backend failure.
+app.add_middleware(SecurityHeadersMiddleware)  # inner: adds security headers, catches exceptions
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,                            # outer: attaches CORS headers to all responses
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -70,6 +100,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(config.router)
+app.include_router(controle_admin.router)
 app.include_router(controle_donnees.router)
 app.include_router(etats_troncs.router)
 app.include_router(embed.router)
@@ -77,6 +108,7 @@ app.include_router(comptage_pieces_billets.router)
 app.include_router(classement.router)
 app.include_router(classement_tronc.router)
 app.include_router(mailing_stats.router)
+app.include_router(dashboard_admin.router)
 app.include_router(dashboard_quete.router)
 app.include_router(map.router)
 app.include_router(money_bags.router)

@@ -23,6 +23,8 @@ describe('DashboardLayoutComponent', () => {
   });
 
   it('should display navigation links', () => {
+    const authService = TestBed.inject(AuthService);
+    authService.setUser({ email: 'test@test.com', name: 'Jean Dupont', role: 9 });
     const fixture = TestBed.createComponent(DashboardLayoutComponent);
     fixture.detectChanges();
     const el: HTMLElement = fixture.nativeElement;

@@ -16,6 +16,7 @@
 #   --migrate        Run SQL migrations
 #   --provision      Provision Superset dashboards
 #   --check          Check environment readiness (DB user, secrets, etc.)
+#   --audit          Run dependency security audits (npm + pip-audit)
 #   --all            Do everything (build + infra + migrate + provision)
 #   --plan           Terraform plan only (dry run, no build)
 #   --services LIST  Comma-separated list of services to build (frontend,api,superset)
@@ -77,6 +78,10 @@ Options:
   --migrate        Run SQL migrations via scripts/run-migrations.sh
   --provision      Provision Superset dashboards
   --check          Check environment readiness (DB user, secrets, etc.)
+  --audit          Run dependency security audits (frontend npm + backend pip-audit).
+                   Frontend HIGH+ vulnerabilities fail the step; backend findings
+                   are reported as warnings (non-blocking). Read-only, no GCP/DB
+                   access required.
   --all            Run all steps: build + infra + migrate + provision
   --plan           Terraform plan only (dry run, no build, no apply)
   --services LIST  Comma-separated list of services to build (frontend,api,superset)
@@ -104,6 +109,7 @@ Examples:
   ./gcp-deploy.sh prod --all --skip-confirm            # Full prod deploy, no prompts
   ./gcp-deploy.sh prod --dump-prod                     # Dump prod DB to SQL file
   ./gcp-deploy.sh dev --copy-prod                      # Import latest prod dump into dev
+  ./gcp-deploy.sh dev --audit                          # Dependency security audits (npm + pip-audit)
 EOF
     exit 0
 }
@@ -128,11 +134,22 @@ case "$ENV" in
         ;;
 esac
 
+# ── Per-env OpenTofu working dir (isolation) ────────────────
+# Avoids cross-env pollution from a shared infra/.terraform/ when switching envs.
+export TF_DATA_DIR="$SCRIPT_DIR/infra/.terraform-${ENV}"
+
+# One-shot cleanup of legacy shared working dir.
+if [[ -d "$SCRIPT_DIR/infra/.terraform" ]]; then
+    log_warn "Found legacy infra/.terraform/ directory — removing (state moved to per-env .terraform-${ENV}/)"
+    rm -rf "$SCRIPT_DIR/infra/.terraform"
+fi
+
 DO_BUILD=false
 DO_INFRA=false
 DO_MIGRATE=false
 DO_PROVISION=false
 DO_CHECK=false
+DO_AUDIT=false
 PLAN_ONLY=false
 SKIP_CONFIRM=false
 SKIP_BUILD=false
@@ -152,6 +169,7 @@ while [[ $# -gt 0 ]]; do
         --migrate)     DO_MIGRATE=true;   shift ;;
         --provision)   DO_PROVISION=true; shift ;;
         --check)       DO_CHECK=true;     shift ;;
+        --audit)       DO_AUDIT=true;     shift ;;
         --all)
             DO_BUILD=true
             DO_INFRA=true
@@ -191,8 +209,8 @@ if $ENABLE_SUPERSET && $DESTROY_SUPERSET; then
     exit 1
 fi
 
-if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
-    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_CHECK && ! $DO_AUDIT && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    log_error "No action specified. Use --build, --infra, --migrate, --provision, --check, --audit, --dump-prod, --copy-prod, --all, --plan, or --destroy-superset."
     echo "Run './gcp-deploy.sh --help' for usage."
     exit 1
 fi
@@ -208,6 +226,7 @@ if $DO_COPY_PROD && [ "$ENV" = "prod" ]; then
 fi
 
 # ── Load .env file ──────────────────────────────────────────
+# (registration of pipeline steps happens just below, after the trap is set up)
 ENV_FILE="$SCRIPT_DIR/.env.${ENV}"
 if [ ! -f "$ENV_FILE" ]; then
     log_error "Configuration file not found: $ENV_FILE"
@@ -262,7 +281,106 @@ cleanup_cloud_sql_proxy() {
     fi
 }
 
-trap cleanup_cloud_sql_proxy EXIT
+# ── Step status tracking (Bug #5) ─────────────────────────────
+# Tracks each requested step so the EXIT trap can show what was
+# done / skipped / failed even when --all aborts mid-flight.
+STEP_LABELS=()      # human-readable label
+STEP_FLAGS=()       # CLI flag to rerun the step (e.g. --infra)
+STEP_STATUSES=()    # "skipped" | "running" | "done" | "failed"
+CURRENT_STEP_IDX=-1
+
+register_step() {
+    STEP_LABELS+=("$1")
+    STEP_FLAGS+=("$2")
+    STEP_STATUSES+=("skipped")
+}
+
+start_step() {
+    # $1: label of an already-registered step
+    local i=0
+    while [ "$i" -lt "${#STEP_LABELS[@]}" ]; do
+        if [ "${STEP_LABELS[$i]}" = "$1" ]; then
+            CURRENT_STEP_IDX="$i"
+            STEP_STATUSES[i]="running"
+            return
+        fi
+        i=$((i+1))
+    done
+}
+
+complete_step() {
+    if [ "$CURRENT_STEP_IDX" -ge 0 ]; then
+        STEP_STATUSES[CURRENT_STEP_IDX]="done"
+    fi
+    CURRENT_STEP_IDX=-1
+}
+
+print_step_summary() {
+    local code="$1"
+    if [ "$code" -ne 0 ] && [ "$CURRENT_STEP_IDX" -ge 0 ]; then
+        STEP_STATUSES[CURRENT_STEP_IDX]="failed"
+    fi
+    if [ "${#STEP_LABELS[@]}" -eq 0 ]; then
+        return
+    fi
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "  📋 Step Status Summary"
+    echo "═══════════════════════════════════════════════"
+    local i=0
+    local next_flags=()
+    while [ "$i" -lt "${#STEP_LABELS[@]}" ]; do
+        local label="${STEP_LABELS[$i]}"
+        local flag="${STEP_FLAGS[$i]}"
+        local status="${STEP_STATUSES[$i]}"
+        case "$status" in
+            done)    printf "  ✅ %-32s done\n"        "$label" ;;
+            failed)  printf "  ❌ %-32s failed\n"      "$label"; [ -n "$flag" ] && next_flags+=("$flag") ;;
+            running) printf "  ⚠️  %-32s interrupted\n" "$label"; [ -n "$flag" ] && next_flags+=("$flag") ;;
+            skipped) printf "  ⏭️  %-32s skipped\n"     "$label"; [ -n "$flag" ] && next_flags+=("$flag") ;;
+        esac
+        i=$((i+1))
+    done
+    if [ "${#next_flags[@]}" -gt 0 ]; then
+        echo ""
+        echo "  Next steps — re-run the missing/failed steps with:"
+        printf "    ./gcp-deploy.sh %s" "$ENV"
+        local f
+        for f in "${next_flags[@]}"; do
+            printf " %s" "$f"
+        done
+        echo ""
+    fi
+    echo ""
+}
+
+on_exit() {
+    local code=$?
+    cleanup_cloud_sql_proxy
+    print_step_summary "$code"
+    return "$code"
+}
+
+trap on_exit EXIT
+
+# Register the pipeline steps requested on the command line so the
+# EXIT trap can report done / skipped / failed for each one (Bug #5).
+$DO_CHECK         && register_step "Environment check"  "--check"
+$DO_AUDIT         && register_step "Security audit"      "--audit"
+$DO_BUILD         && register_step "Build & push"        "--build"
+if $DO_INFRA; then
+    if $PLAN_ONLY; then
+        register_step "OpenTofu plan"  "--plan"
+    else
+        register_step "OpenTofu apply" "--infra"
+    fi
+fi
+$DESTROY_SUPERSET && register_step "Destroy Superset"   "--destroy-superset"
+$DO_MIGRATE       && register_step "Database migrations" "--migrate"
+$DO_PROVISION     && register_step "Superset provisioning" "--provision"
+$DO_DUMP_PROD     && register_step "Dump production DB"  "--dump-prod"
+$DO_COPY_PROD     && register_step "Copy production data" "--copy-prod"
+true   # ensure overall exit status is 0 even if last register_step returned non-zero
 
 ensure_cloud_sql_proxy() {
     require_var CLOUD_SQL_CONNECTION_NAME "Cloud SQL Proxy"
@@ -315,12 +433,12 @@ validate_prerequisites() {
     done
 
     if $DO_INFRA; then
-        if ! command -v terraform &>/dev/null; then
-            log_error "terraform is not installed or not in PATH (required for --infra)"
+        if ! command -v tofu &>/dev/null; then
+            log_error "tofu is not installed or not in PATH (required for --infra)"
             missing=true
         fi
         if [ ! -f "$TFVARS_FILE" ]; then
-            log_error "Terraform vars file not found: $TFVARS_FILE"
+            log_error "OpenTofu vars file not found: $TFVARS_FILE"
             missing=true
         fi
     fi
@@ -383,6 +501,7 @@ $NO_CACHE && echo "    ⚠️  Docker build: no-cache (forced clean build)"
 echo ""
 echo "  Steps:"
 $DO_CHECK    && echo "    ✦ Check environment readiness"
+$DO_AUDIT    && echo "    ✦ Dependency security audit (npm + pip-audit)"
 $DO_BUILD    && echo "    ✦ Build & push Docker images"
 $DO_INFRA    && { $PLAN_ONLY && echo "    ✦ Terraform plan (dry run)" || { ! $SKIP_BUILD && echo "    ✦ Build & push Docker images (auto)"; echo "    ✦ Terraform apply"; }; }
 $DO_MIGRATE  && echo "    ✦ Run SQL migrations"
@@ -430,8 +549,14 @@ if [ -f "$TFVARS_FILE" ]; then
     echo ""
 fi
 
-# Skip confirmation for --check (read-only mode), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
-if ! $SKIP_CONFIRM && ! ($DO_CHECK && ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET); then
+# Skip confirmation for --check / --audit (read-only modes), --dump-prod/--copy-prod (have their own prompts), or --skip-confirm
+_READ_ONLY_ONLY=false
+if ! $DO_BUILD && ! $DO_INFRA && ! $DO_MIGRATE && ! $DO_PROVISION && ! $DO_DUMP_PROD && ! $DO_COPY_PROD && ! $DESTROY_SUPERSET; then
+    if $DO_CHECK || $DO_AUDIT; then
+        _READ_ONLY_ONLY=true
+    fi
+fi
+if ! $SKIP_CONFIRM && ! $_READ_ONLY_ONLY; then
     if [ "$ENV" = "prod" ]; then
         echo -e "${RED}⚠️  WARNING: You are deploying to PRODUCTION!${NC}"
         echo ""
@@ -463,11 +588,145 @@ ensure_tf_bucket() {
     fi
 }
 
-# ── Ensure Artifact Registry repository exists ────────────────
+# ── Sanity check: local backend pointer matches expected per-env GCS bucket ──
+# Reads $TF_DATA_DIR/terraform.tfstate (the LOCAL backend pointer, not the
+# remote state) and verifies its bucket matches rcq-terraform-state-${ENV}.
+# On mismatch / absence, forces `tofu init -reconfigure` to align them.
+check_tofu_backend() {
+    local tf_dir="$1"
+    local expected_bucket="rcq-terraform-state-${ENV}"
+    local pointer_file="$TF_DATA_DIR/terraform.tfstate"
+    local current_bucket=""
+
+    if [[ -f "$pointer_file" ]]; then
+        if command -v jq &>/dev/null; then
+            current_bucket=$(jq -r '.backend.config.bucket // empty' "$pointer_file" 2>/dev/null || echo "")
+        else
+            current_bucket=$(grep '"bucket"' "$pointer_file" 2>/dev/null | head -1 | sed -E 's/.*"bucket"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+        fi
+    fi
+
+    if [[ "$current_bucket" == "$expected_bucket" ]]; then
+        return 0
+    fi
+
+    if [[ -z "$current_bucket" ]]; then
+        log_warn "OpenTofu backend pointer missing — running tofu init -reconfigure for ${expected_bucket}"
+    else
+        log_warn "OpenTofu backend mismatch (current=${current_bucket}, expected=${expected_bucket}) — running tofu init -reconfigure"
+    fi
+
+    local reinit_err
+    if reinit_err=$( (cd "$tf_dir" && tofu init -backend-config="bucket=${expected_bucket}" -input=false -reconfigure -no-color) 2>&1 >/dev/null ); then
+        return 0
+    else
+        log_warn "tofu init -reconfigure failed — error: $reinit_err"
+        return 1
+    fi
+}
+
+# ── Ensure Artifact Registry repository exists (idempotent) ───
+# Reconciles four (GCP × OpenTofu state) cases so that a subsequent
+# `tofu apply` is always safe:
+#   GCP=✅ State=✅ → nothing
+#   GCP=✅ State=❌ → tofu import
+#   GCP=❌ State=✅ → tofu state rm  (ghost; let apply create it)
+#   GCP=❌ State=❌ → gcloud create + tofu import
 ensure_ar_repository() {
+    local tf_dir="$SCRIPT_DIR/infra"
+    local tf_resource_addr="google_artifact_registry_repository.docker"
+    local tf_resource_id="projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/repositories/${AR_REPOSITORY}"
+    local manual_hint="cd infra && tofu import -var-file=\"env/${ENV}.tfvars\" ${tf_resource_addr} ${tf_resource_id}"
+
+    # ── 1. Detect GCP state ──
+    local gcp_exists=false
     if gcloud artifacts repositories describe "${AR_REPOSITORY}" \
         --location="${GCP_REGION}" --project="${GCP_PROJECT_ID}" &>/dev/null; then
-        log_success "Artifact Registry repository ${AR_REPOSITORY} already exists"
+        gcp_exists=true
+    fi
+
+    # ── 2. Detect OpenTofu state (init first so `state list` is reliable) ──
+    if ! command -v tofu &>/dev/null; then
+        if $gcp_exists; then
+            log_success "Artifact Registry repository ${AR_REPOSITORY} already exists"
+        else
+            log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
+            gcloud artifacts repositories create "${AR_REPOSITORY}" \
+                --repository-format=docker \
+                --location="${GCP_REGION}" \
+                --project="${GCP_PROJECT_ID}" \
+                --labels="app=rcq,managed-by=terraform"
+            log_success "Repository ${AR_REPOSITORY} created"
+        fi
+        log_warn "tofu not installed — skipping state reconciliation. If apply complains, run: $manual_hint"
+        return
+    fi
+
+    log_info "Reconciling Artifact Registry state with OpenTofu (GCP=$gcp_exists)..."
+    if ! (cd "$tf_dir" && tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure -no-color >/dev/null 2>&1); then
+        log_warn "tofu init failed — skipping state reconciliation. If apply complains, run: $manual_hint"
+        if ! $gcp_exists; then
+            log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
+            gcloud artifacts repositories create "${AR_REPOSITORY}" \
+                --repository-format=docker \
+                --location="${GCP_REGION}" \
+                --project="${GCP_PROJECT_ID}" \
+                --labels="app=rcq,managed-by=terraform"
+            log_success "Repository ${AR_REPOSITORY} created"
+        fi
+        return
+    fi
+
+    # Verify the local backend pointer matches the per-env GCS bucket before
+    # touching state (defense-in-depth on top of the -reconfigure above).
+    check_tofu_backend "$tf_dir" || true
+
+    local state_exists=false
+    local state_list_out
+    if state_list_out=$(cd "$tf_dir" && tofu state list 2>&1); then
+        if echo "$state_list_out" | grep -qx "${tf_resource_addr}"; then
+            state_exists=true
+        fi
+    else
+        log_warn "tofu state list failed — assuming resource is not in state. Error: $state_list_out"
+    fi
+
+    # ── 3. Apply matrix ──
+    if $gcp_exists && $state_exists; then
+        log_success "Artifact Registry repository ${AR_REPOSITORY} already exists (in GCP and tofu state)"
+    elif $gcp_exists && ! $state_exists; then
+        log_info "Repository ${AR_REPOSITORY} exists in GCP but not in tofu state — importing..."
+        local import_err
+        if import_err=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
+            log_success "Repository imported into tofu state"
+        else
+            log_warn "Could not import into tofu state — error: $import_err"
+            log_warn "Manual command: $manual_hint"
+        fi
+    elif ! $gcp_exists && $state_exists; then
+        log_warn "Ghost in tofu state: ${tf_resource_addr} exists in state but not in GCP — removing from state..."
+        local rm_err
+        if rm_err=$( (cd "$tf_dir" && tofu state rm "$tf_resource_addr") 2>&1 >/dev/null ); then
+            log_success "Ghost removed from tofu state — apply will recreate the repository"
+        else
+            log_warn "Could not remove ghost from tofu state — error: $rm_err"
+            log_warn "Manual command: cd infra && tofu state rm ${tf_resource_addr}"
+        fi
+        log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
+        gcloud artifacts repositories create "${AR_REPOSITORY}" \
+            --repository-format=docker \
+            --location="${GCP_REGION}" \
+            --project="${GCP_PROJECT_ID}" \
+            --labels="app=rcq,managed-by=terraform"
+        log_success "Repository ${AR_REPOSITORY} created"
+        log_info "Importing freshly-created repository into tofu state..."
+        local import_err2
+        if import_err2=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
+            log_success "Repository imported into tofu state"
+        else
+            log_warn "Could not import into tofu state — error: $import_err2"
+            log_warn "Manual command: $manual_hint"
+        fi
     else
         log_info "Creating Artifact Registry repository ${AR_REPOSITORY}..."
         gcloud artifacts repositories create "${AR_REPOSITORY}" \
@@ -476,29 +735,13 @@ ensure_ar_repository() {
             --project="${GCP_PROJECT_ID}" \
             --labels="app=rcq,managed-by=terraform"
         log_success "Repository ${AR_REPOSITORY} created"
-
-        # Import into Terraform state so 'terraform apply' won't try to recreate it
-        local tf_dir="$SCRIPT_DIR/infra"
-        local repo_location="${GCP_REGION}"
-        local repo_name="${AR_REPOSITORY}"
-        local tf_resource_id="projects/${GCP_PROJECT_ID}/locations/${repo_location}/repositories/${repo_name}"
-
-        if ! command -v terraform &>/dev/null; then
-            log_warning "Terraform not installed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
+        log_info "Importing into tofu state so apply won't try to recreate it..."
+        local import_err3
+        if import_err3=$( (cd "$tf_dir" && tofu import -var-file="env/${ENV}.tfvars" "$tf_resource_addr" "$tf_resource_id") 2>&1 >/dev/null ); then
+            log_success "Repository imported into tofu state"
         else
-            # Ensure terraform is initialized (needed when running --build without --infra)
-            if [ ! -d "$tf_dir/.terraform" ]; then
-                log_info "Terraform not initialized — running terraform init..."
-                (cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure) || \
-                    log_warning "Terraform init failed — skipping import. You may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
-            fi
-
-            if [ -d "$tf_dir/.terraform" ]; then
-                log_info "Importing repository into Terraform state..."
-                (cd "$tf_dir" && terraform import -var-file="env/${ENV}.tfvars" google_artifact_registry_repository.docker "$tf_resource_id") && \
-                    log_success "Repository imported into Terraform state" || \
-                    log_info "Could not import into Terraform state — you may need to run: terraform import google_artifact_registry_repository.docker $tf_resource_id"
-            fi
+            log_warn "Could not import into tofu state — error: $import_err3"
+            log_warn "Manual command: $manual_hint"
         fi
     fi
 }
@@ -603,22 +846,26 @@ check_environment() {
     fi
     echo ""
 
-    # ── Terraform ────────────────────────────────────────────
-    echo "  Terraform"
-    if command -v terraform &>/dev/null; then
+    # ── OpenTofu ─────────────────────────────────────────────
+    echo "  OpenTofu"
+    if command -v tofu &>/dev/null; then
         ensure_tf_bucket
         local tf_dir="$SCRIPT_DIR/infra"
         local tf_init_output
-        tf_init_output=$(cd "$tf_dir" && terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure -no-color 2>&1) && \
-            check_ok "  terraform init — success" || \
-            check_fail "  terraform init — failed: $(echo "$tf_init_output" | tail -1)"
+        if tf_init_output=$(cd "$tf_dir" && tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure -no-color 2>&1); then
+            check_ok "  tofu init — success"
+        else
+            check_fail "  tofu init — failed: $(echo "$tf_init_output" | tail -1)"
+        fi
 
         local tf_validate_output
-        tf_validate_output=$(cd "$tf_dir" && terraform validate -no-color 2>&1) && \
-            check_ok "  terraform validate — success" || \
-            check_fail "  terraform validate — failed: $(echo "$tf_validate_output" | tail -1)"
+        if tf_validate_output=$(cd "$tf_dir" && tofu validate -no-color 2>&1); then
+            check_ok "  tofu validate — success"
+        else
+            check_fail "  tofu validate — failed: $(echo "$tf_validate_output" | tail -1)"
+        fi
     else
-        check_fail "  terraform — not installed"
+        check_fail "  tofu — not installed"
     fi
     echo ""
 
@@ -646,12 +893,22 @@ check_environment() {
     if [ -z "$MYSQL_CMD" ]; then
         check_fail "  mysql client not found — install with: brew install mysql-client"
     else
+        # Use --defaults-extra-file to silence the "[Warning] Using a password
+        # on the command line interface can be insecure." that would otherwise
+        # be captured by 2>"$check_err" and falsely classified as "query failed".
+        local mysql_cnf
+        mysql_cnf=$(mktemp)
+        chmod 600 "$mysql_cnf"
+        printf "[client]\npassword=%s\n" "$MIGRATION_DB_PASSWORD" > "$mysql_cnf"
+        # shellcheck disable=SC2064
+        trap "rm -f \"$mysql_cnf\"" RETURN
+
         local check_err
         check_err=$(mktemp)
 
         # Check user rcq_readonly
         local user_exists
-        user_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        user_exists=$($MYSQL_CMD --defaults-extra-file="$mysql_cnf" -h "$db_host" -P "$db_port" -u "$db_user" \
             --skip-column-names -e "SELECT User FROM mysql.user WHERE User='rcq_readonly'" 2>"$check_err" || true)
         if [ -n "$user_exists" ]; then
             check_ok "  User rcq_readonly exists"
@@ -663,8 +920,8 @@ check_environment() {
 
         # Check user rcq-graph
         local graph_user_exists
-        > "$check_err"
-        graph_user_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        : > "$check_err"
+        graph_user_exists=$($MYSQL_CMD --defaults-extra-file="$mysql_cnf" -h "$db_host" -P "$db_port" -u "$db_user" \
             --skip-column-names -e "SELECT User FROM mysql.user WHERE User='${RCQ_DB_USER:-rcq-graph}'" 2>"$check_err" || true)
         if [ -n "$graph_user_exists" ]; then
             check_ok "  User ${RCQ_DB_USER:-rcq-graph} exists"
@@ -676,11 +933,29 @@ check_environment() {
 
         # Check table schema_migrations
         local table_exists
-        > "$check_err"
-        table_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        : > "$check_err"
+        table_exists=$($MYSQL_CMD --defaults-extra-file="$mysql_cnf" -h "$db_host" -P "$db_port" -u "$db_user" \
             --skip-column-names -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='schema_migrations'" 2>"$check_err" || true)
         if [ -n "$table_exists" ]; then
             check_ok "  Table schema_migrations exists"
+
+            # Count applied migrations vs available SQL files (Bug #2)
+            local expected_migrations
+            expected_migrations=$(find "$SCRIPT_DIR/superset/deploy-sql" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
+            local applied_migrations
+            : > "$check_err"
+            applied_migrations=$($MYSQL_CMD --defaults-extra-file="$mysql_cnf" -h "$db_host" -P "$db_port" -u "$db_user" \
+                --skip-column-names -e "SELECT COUNT(*) FROM \`${MIGRATION_DB_NAME}\`.schema_migrations" 2>"$check_err" || true)
+            applied_migrations=$(echo "$applied_migrations" | tr -d ' ')
+            if [ -z "$applied_migrations" ] && [ -s "$check_err" ]; then
+                check_fail "  Migrations: count failed: $(cat "$check_err")"
+            elif [ -z "$applied_migrations" ]; then
+                check_fail "  Migrations: 0/${expected_migrations} applied — run --migrate"
+            elif [ "$applied_migrations" -eq "$expected_migrations" ] && [ "$expected_migrations" -gt 0 ]; then
+                check_ok "  Migrations: ${applied_migrations}/${expected_migrations} applied"
+            else
+                check_fail "  Migrations: ${applied_migrations}/${expected_migrations} applied — run --migrate"
+            fi
         elif [ -s "$check_err" ]; then
             check_fail "  Table schema_migrations — query failed: $(cat "$check_err")"
         else
@@ -689,8 +964,8 @@ check_environment() {
 
         # Check view v_tronc_queteur_enriched
         local view_exists
-        > "$check_err"
-        view_exists=$($MYSQL_CMD -h "$db_host" -P "$db_port" -u "$db_user" -p"${MIGRATION_DB_PASSWORD}" \
+        : > "$check_err"
+        view_exists=$($MYSQL_CMD --defaults-extra-file="$mysql_cnf" -h "$db_host" -P "$db_port" -u "$db_user" \
             --skip-column-names -e "SELECT 1 FROM information_schema.views WHERE table_schema='${MIGRATION_DB_NAME}' AND table_name='v_tronc_queteur_enriched'" 2>"$check_err" || true)
         if [ -n "$view_exists" ]; then
             check_ok "  View v_tronc_queteur_enriched exists"
@@ -747,10 +1022,86 @@ check_environment() {
 }
 
 if $DO_CHECK; then
+    start_step "Environment check"
     ensure_cloud_sql_proxy
     MIGRATION_DB_HOST="127.0.0.1"
     MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     check_environment
+    complete_step
+fi
+
+# ══════════════════════════════════════════════════════════════
+# Step 0.5: Dependency security audit (npm + pip-audit)
+# ══════════════════════════════════════════════════════════════
+# Frontend: blocks the step on HIGH+ vulnerabilities (npm audit --audit-level=high).
+# Backend:  reports findings as a warning (non-blocking) per project policy.
+# Read-only: no GCP/DB access required.
+security_audit() {
+    echo "═══════════════════════════════════════════════"
+    log_info "Step: Dependency security audit"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+
+    local frontend_status="skipped"
+    local backend_status="skipped"
+    local fe_rc=0
+    local be_rc=0
+
+    # ── Frontend (blocking on HIGH+) ─────────────────────────
+    if [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
+        log_info "Running npm audit (frontend, --audit-level=high)..."
+        if ( cd "$SCRIPT_DIR/frontend" && npm run --silent audit:ci ); then
+            frontend_status="ok"
+            log_success "Frontend audit: no HIGH/CRITICAL findings."
+        else
+            fe_rc=$?
+            frontend_status="failed"
+            log_error "Frontend audit found HIGH/CRITICAL vulnerabilities (exit=$fe_rc)."
+            echo ""
+            log_info "Detailed report:"
+            ( cd "$SCRIPT_DIR/frontend" && npm run --silent audit:report ) || true
+        fi
+    else
+        log_warn "frontend/package.json not found — skipping npm audit."
+    fi
+    echo ""
+
+    # ── Backend (non-blocking warning) ───────────────────────
+    if [ -f "$SCRIPT_DIR/backend/pyproject.toml" ]; then
+        log_info "Running pip-audit (backend, non-blocking warning)..."
+        if ( cd "$SCRIPT_DIR/backend" && poetry run pip-audit ); then
+            backend_status="ok"
+            log_success "Backend audit: no findings."
+        else
+            be_rc=$?
+            backend_status="warning"
+            log_warn "Backend audit found dependency vulnerabilities (pip-audit exit=$be_rc) — reported as a warning."
+            log_warn "Review the table above and open a follow-up task to bump affected packages."
+        fi
+    else
+        log_warn "backend/pyproject.toml not found — skipping pip-audit."
+    fi
+    echo ""
+
+    # ── Summary ──────────────────────────────────────────────
+    echo "═══════════════════════════════════════════════"
+    echo "  🔐 Security audit results"
+    echo "═══════════════════════════════════════════════"
+    printf "    Frontend (npm audit, HIGH+ blocking) : %s\n" "$frontend_status"
+    printf "    Backend  (pip-audit, warn only)      : %s\n" "$backend_status"
+    echo ""
+
+    # Only the frontend audit blocks the step. Backend findings are surfaced as a warning.
+    if [ "$frontend_status" = "failed" ]; then
+        return 1
+    fi
+    return 0
+}
+
+if $DO_AUDIT; then
+    start_step "Security audit"
+    security_audit
+    complete_step
 fi
 
 
@@ -865,7 +1216,9 @@ build_and_push() {
 }
 
 if $DO_BUILD; then
+    start_step "Build & push"
     build_and_push
+    complete_step
 fi
 
 
@@ -1270,19 +1623,20 @@ run_infra() {
     # Ensure GCS bucket for Terraform state exists
     ensure_tf_bucket
 
-    # Initialize Terraform
-    log_info "Initializing Terraform..."
-    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    # Initialize OpenTofu
+    log_info "Initializing OpenTofu..."
+    tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    check_tofu_backend "$SCRIPT_DIR/infra" || true
 
     # Untaint any tainted Cloud Run services (from previous failed deploys)
     for svc in module.api.google_cloud_run_v2_service.service module.superset.google_cloud_run_v2_service.service module.frontend.google_cloud_run_v2_service.service; do
-        if terraform state show "$svc" 2>/dev/null | grep -q 'tainted'; then
+        if tofu state show "$svc" 2>/dev/null | grep -q 'tainted'; then
             log_info "Untainting $svc..."
-            terraform untaint "$svc" || true
+            tofu untaint "$svc" || true
         fi
     done
 
-    # Build images before terraform apply (Cloud Run needs them)
+    # Build images before tofu apply (Cloud Run needs them)
     if ! $PLAN_ONLY && ! $SKIP_BUILD; then
         build_and_push
     fi
@@ -1333,9 +1687,9 @@ run_infra() {
 
     # Plan-only mode: just show the plan and exit
     if $PLAN_ONLY; then
-        log_info "Running terraform plan..."
+        log_info "Running tofu plan..."
         # shellcheck disable=SC2086
-        terraform plan -var-file="env/${ENV}.tfvars" $extra_vars -out=tfplan
+        tofu plan -var-file="env/${ENV}.tfvars" $extra_vars -out=tfplan
         rm -f tfplan
         log_success "Plan complete (dry run — no changes applied)."
         cd "$SCRIPT_DIR"
@@ -1365,7 +1719,7 @@ run_infra() {
     fi
 
     # shellcheck disable=SC2086
-    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" $extra_vars \
+    tofu apply -auto-approve -var-file="env/${ENV}.tfvars" $extra_vars \
         "${secret_targets[@]}" \
         || true
 
@@ -1384,11 +1738,11 @@ run_infra() {
     fi
     cd "$SCRIPT_DIR/infra"
 
-    # Phase 3: Full terraform apply (Cloud Run can now access secret values)
+    # Phase 3: Full tofu apply (Cloud Run can now access secret values)
     log_info "Phase 3: Deploying all infrastructure..."
     # shellcheck disable=SC2086
-    terraform plan -var-file="env/${ENV}.tfvars" $extra_vars -out=tfplan
-    terraform apply tfplan
+    tofu plan -var-file="env/${ENV}.tfvars" $extra_vars -out=tfplan
+    tofu apply tfplan
 
     # Clean up plan file
     rm -f tfplan
@@ -1400,18 +1754,23 @@ run_infra() {
 }
 
 if $DO_INFRA; then
-    if ! $PLAN_ONLY; then
+    if $PLAN_ONLY; then
+        start_step "OpenTofu plan"
+    else
+        start_step "OpenTofu apply"
         ensure_cloud_sql_proxy
         MIGRATION_DB_HOST="127.0.0.1"
         MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     fi
     run_infra
+    complete_step
 fi
 
 # ══════════════════════════════════════════════════════════════
 # Step 2b: Destroy Superset resources
 # ══════════════════════════════════════════════════════════════
 if $DESTROY_SUPERSET; then
+    start_step "Destroy Superset"
     echo "═══════════════════════════════════════════════"
     log_warn "⚠️  This will destroy Superset Cloud Run service and related secrets. Valkey will NOT be affected."
     echo "═══════════════════════════════════════════════"
@@ -1433,10 +1792,11 @@ if $DESTROY_SUPERSET; then
 
     ensure_tf_bucket
 
-    log_info "Initializing Terraform..."
-    terraform init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    log_info "Initializing OpenTofu..."
+    tofu init -backend-config="bucket=rcq-terraform-state-${ENV}" -input=false -reconfigure
+    check_tofu_backend "$SCRIPT_DIR/infra" || true
 
-    # Find the latest image tag for terraform (needed for other resources)
+    # Find the latest image tag for tofu (needed for other resources)
     latest_tag=$(gcloud artifacts docker tags list \
         "${REGISTRY}/rcq-frontend" \
         --project="${GCP_PROJECT_ID}" \
@@ -1460,7 +1820,6 @@ if $DESTROY_SUPERSET; then
     log_info "Pre-cleanup: Removing Superset IAM bindings via gcloud..."
 
     # Get the API service account email
-    local api_sa
     api_sa=$(gcloud run services describe rcq-api --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format="value(spec.template.spec.serviceAccountName)" 2>/dev/null || echo "")
 
     if [ -n "$api_sa" ]; then
@@ -1473,21 +1832,22 @@ if $DESTROY_SUPERSET; then
         log_info "IAM binding removed via gcloud"
     fi
 
-    # Remove from terraform state to prevent terraform from trying to destroy it
-    terraform state rm 'module.iam.google_cloud_run_service_iam_member.api_to_superset[0]' 2>/dev/null || true
-    log_info "IAM binding removed from terraform state"
+    # Remove from tofu state to prevent tofu from trying to destroy it
+    tofu state rm 'module.iam.google_cloud_run_service_iam_member.api_to_superset[0]' 2>/dev/null || true
+    log_info "IAM binding removed from tofu state"
     echo ""
 
     log_info "Step 1/2: Disabling deletion protection on Superset..."
     # shellcheck disable=SC2086
-    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=true -var=allow_resource_destruction=true $destroy_extra_vars
+    tofu apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=true -var=allow_resource_destruction=true $destroy_extra_vars
 
     log_info "Step 2/2: Destroying Superset resources..."
     # shellcheck disable=SC2086
-    terraform apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=false -var=allow_resource_destruction=true $destroy_extra_vars
+    tofu apply -auto-approve -var-file="env/${ENV}.tfvars" -var=enable_superset=false -var=allow_resource_destruction=true $destroy_extra_vars
 
     log_success "Superset resources destroyed."
     cd "$SCRIPT_DIR"
+    complete_step
     echo ""
 fi
 
@@ -1525,10 +1885,12 @@ run_migrations() {
 }
 
 if $DO_MIGRATE; then
+    start_step "Database migrations"
     ensure_cloud_sql_proxy
     MIGRATION_DB_HOST="127.0.0.1"
     MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     run_migrations
+    complete_step
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1543,30 +1905,30 @@ run_provision() {
     require_var SUPERSET_URL "provisioning"
     require_var SUPERSET_ADMIN_PASSWORD "provisioning"
 
-    # If custom domain doesn't resolve, try to get Cloud Run URL from Terraform
+    # If custom domain doesn't resolve, try to get Cloud Run URL from OpenTofu
     local effective_superset_url="$SUPERSET_URL"
     if ! curl -s --connect-timeout 5 -o /dev/null "$SUPERSET_URL" 2>/dev/null; then
-        log_warn "Cannot reach $SUPERSET_URL — trying Cloud Run URL from Terraform..."
+        log_warn "Cannot reach $SUPERSET_URL — trying Cloud Run URL from OpenTofu..."
         cd "$SCRIPT_DIR/infra"
         local tf_url
-        tf_url=$(terraform output -raw superset_url 2>/dev/null || echo "")
+        tf_url=$(tofu output -raw superset_url 2>/dev/null || echo "")
         cd "$SCRIPT_DIR"
         if [ -n "$tf_url" ] && [ "$tf_url" != "N/A" ]; then
             effective_superset_url="$tf_url"
             log_info "Using Cloud Run URL: $effective_superset_url"
         else
-            log_error "Cannot resolve SUPERSET_URL and no Cloud Run URL found in Terraform outputs."
+            log_error "Cannot resolve SUPERSET_URL and no Cloud Run URL found in OpenTofu outputs."
             return 1
         fi
     fi
 
-    # If custom frontend domain doesn't resolve, try to get Cloud Run URL from Terraform
+    # If custom frontend domain doesn't resolve, try to get Cloud Run URL from OpenTofu
     local effective_embedding_domains="${EMBEDDING_ALLOWED_DOMAINS:-}"
     if [ -n "$effective_embedding_domains" ] && ! curl -s --connect-timeout 5 -o /dev/null "$effective_embedding_domains" 2>/dev/null; then
-        log_warn "Cannot reach $effective_embedding_domains — trying Cloud Run URL from Terraform..."
+        log_warn "Cannot reach $effective_embedding_domains — trying Cloud Run URL from OpenTofu..."
         cd "$SCRIPT_DIR/infra"
         local tf_frontend_url
-        tf_frontend_url=$(terraform output -raw frontend_url 2>/dev/null || echo "")
+        tf_frontend_url=$(tofu output -raw frontend_url 2>/dev/null || echo "")
         cd "$SCRIPT_DIR"
         if [ -n "$tf_frontend_url" ] && [ "$tf_frontend_url" != "N/A" ]; then
             effective_embedding_domains="$tf_frontend_url"
@@ -1600,28 +1962,34 @@ run_provision() {
 }
 
 if $DO_PROVISION; then
+    start_step "Superset provisioning"
     if $ENABLE_SUPERSET; then
         run_provision
     else
         log_info "Skipping Superset provisioning (--superset not specified)"
     fi
+    complete_step
 fi
 
 # ══════════════════════════════════════════════════════════════
 # Step 5: Dump / Copy production database
 # ══════════════════════════════════════════════════════════════
 if $DO_DUMP_PROD; then
+    start_step "Dump production DB"
     ensure_cloud_sql_proxy
     MIGRATION_DB_HOST="127.0.0.1"
     MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     dump_prod_database
+    complete_step
 fi
 
 if $DO_COPY_PROD; then
+    start_step "Copy production data"
     ensure_cloud_sql_proxy
     MIGRATION_DB_HOST="127.0.0.1"
     MIGRATION_DB_PORT="${CLOUD_SQL_PROXY_PORT:-3305}"
     copy_prod_to_env
+    complete_step
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -1682,14 +2050,7 @@ echo "  🔧 Superset admin access:"
 echo "    gcloud run services proxy rcq-superset --region ${GCP_REGION} --project ${GCP_PROJECT_ID} --port 8088"
 echo ""
 
-$DO_CHECK    && log_success "Environment check: done"
-$BUILD_DONE  && log_success "Build & push: done"
-$DO_INFRA    && { $PLAN_ONLY && log_success "Terraform plan: done" || log_success "Terraform apply: done"; }
-$DO_MIGRATE  && log_success "Migrations: done"
-$DO_PROVISION && log_success "Provisioning: done"
-$DESTROY_SUPERSET && log_success "Destroy Superset: done"
-$DO_DUMP_PROD && log_success "Dump production DB: done"
-$DO_COPY_PROD && log_success "Copy production data: done"
+# Per-step status is shown by print_step_summary in the EXIT trap (Bug #5).
 
 # ── Restore local environment ────────────────────────────────
 if [ -f "$SCRIPT_DIR/.env" ]; then

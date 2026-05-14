@@ -115,6 +115,7 @@ tfplan*
 !infra/env/*.tfvars
 !infra/env/*.tfvars.example
 .terraform/
+infra/.terraform-*/
 .terraform.lock.hcl
 crash.log
 override.tf

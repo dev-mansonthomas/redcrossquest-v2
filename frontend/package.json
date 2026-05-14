@@ -6,10 +6,12 @@
     "start": "ng serve --port 4210",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "audit:ci": "npm audit --audit-level=high",
+    "audit:report": "npm audit"
   },
   "private": true,
-  "packageManager": "npm@10.9.4",
+  "packageManager": "npm@11.10.0",
   "dependencies": {
     "@angular/common": "^21.2.0",
     "@angular/compiler": "^21.2.0",
@@ -27,17 +29,23 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.3",
+    "@angular/build": "^21.2.7",
     "@angular/cli": "^21.2.3",
     "@angular/compiler-cli": "^21.2.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.2.2",
     "autoprefixer": "^10.4.27",
     "jsdom": "^28.0.0",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.10",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.2",
+    "hono": "^4.12.18",
+    "express-rate-limit": "^8.5.1",
+    "ip-address": "^10.1.1"
   }
 }

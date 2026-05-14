@@ -12,7 +12,11 @@ import { ActivatedRoute, Router } from '@angular/router';
           <div class="text-5xl mb-4">⚠️</div>
           <h1 class="text-2xl font-bold text-gray-800">Plusieurs comptes détectés</h1>
           <p class="text-gray-600 mt-2">
-            Votre adresse email est associée à plusieurs comptes actifs.
+            @if (count !== null) {
+              Votre adresse email est associée à <strong>{{ count }}</strong> comptes actifs.
+            } @else {
+              Votre adresse email est associée à plusieurs comptes actifs.
+            }
           </p>
         </div>
 
@@ -28,68 +32,41 @@ import { ActivatedRoute, Router } from '@angular/router';
           </a>
         </div>
 
-        <!-- Account details -->
-        <div class="mb-6">
-          <h2 class="text-sm font-semibold text-gray-700 mb-2">Comptes trouvés :</h2>
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-mono text-gray-600 overflow-x-auto">
-            <pre class="whitespace-pre-wrap">{{ accountDetails }}</pre>
-          </div>
-        </div>
-
-        <!-- Action buttons -->
-        <div class="flex gap-3">
-          <button
-            (click)="copyToClipboard()"
-            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors">
-            {{ copied ? '✅ Copié !' : '📋 Copier les informations' }}
-          </button>
-          <button
-            (click)="goToLogin()"
-            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            🔄 Réessayer
-          </button>
-        </div>
+        <!-- Action button -->
+        <button
+          (click)="goToLogin()"
+          class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+          🔄 Réessayer
+        </button>
       </div>
     </div>
   `,
 })
 export class MultiAccountErrorComponent {
-  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
-  accountDetails = '';
-  copied = false;
-  mailtoLink = '';
+  readonly count: number | null = this.readCount();
+  mailtoLink = this.buildMailtoLink();
 
-  constructor() {
-    const details = this.route.snapshot.queryParamMap.get('details') || '';
-    this.accountDetails = decodeURIComponent(details);
-    this.mailtoLink = this.buildMailtoLink();
+  private readCount(): number | null {
+    const raw = this.route.snapshot.queryParamMap.get('count');
+    if (raw === null) {
+      return null;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 1) {
+      return null;
+    }
+    return parsed;
   }
 
   private buildMailtoLink(): string {
     const subject = encodeURIComponent('Comptes multiples détectés');
     const body = encodeURIComponent(
-      `Bonjour,\n\nJ'ai plusieurs comptes associés à mon email et je ne peux pas me connecter.\n\nDétails des comptes :\n${this.accountDetails}\n\nMerci de votre aide.`
+      `Bonjour,\n\nJ'ai plusieurs comptes associés à mon email et je ne peux pas me connecter.\n\nMerci de votre aide.`
     );
     return `mailto:support.redcrossquest@croix-rouge.fr?subject=${subject}&body=${body}`;
-  }
-
-  async copyToClipboard(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.accountDetails);
-      this.copied = true;
-      setTimeout(() => (this.copied = false), 2000);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = this.accountDetails;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      this.copied = true;
-      setTimeout(() => (this.copied = false), 2000);
-    }
   }
 
   goToLogin(): void {
