@@ -95,6 +95,7 @@ function formatNumber(n: number): string {
         <h2 class="text-lg font-semibold text-gray-800">📊 Carte analytique des points de quête</h2>
         <div class="flex items-center gap-3">
           <!-- View mode buttons -->
+          <span class="text-xs text-gray-600 font-medium">Vue :</span>
           <div class="flex rounded-lg overflow-hidden border border-gray-300 shadow-sm">
             @for (mode of viewModes; track mode) {
               <button
@@ -105,7 +106,9 @@ function formatNumber(n: number): string {
               </button>
             }
           </div>
+          <div class="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
           <!-- Year selector -->
+          <span class="text-xs text-gray-600 font-medium">Années :</span>
           <div class="flex gap-1">
             @for (year of availableYears(); track year) {
               <button
@@ -116,7 +119,9 @@ function formatNumber(n: number): string {
               </button>
             }
           </div>
+          <div class="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
           <!-- Type selector -->
+          <span class="text-xs text-gray-600 font-medium">Types :</span>
           <div class="flex gap-1 flex-wrap">
             <button
               [class.active]="allTypesSelected()"
@@ -135,6 +140,7 @@ function formatNumber(n: number): string {
               </button>
             }
           </div>
+          <div class="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
           <button
             (click)="onRefreshClick()"
             [disabled]="refreshing()"
