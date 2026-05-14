@@ -163,7 +163,13 @@ import { environment } from '../../../environments/environment';
         <!-- Footer avec user info et déconnexion -->
         <div class="p-4 border-t border-gray-200">
           <div class="space-y-1 mb-3">
-            <p class="px-3 text-sm text-gray-700">👤 {{ authService.user()?.name }}</p>
+            <p class="px-3 text-sm text-gray-700 break-words">
+              👤 @if (userLocal()) {
+                <span>{{ userLocal() }}&#64;</span><br/><span>{{ userDomain() }}</span>
+              } @else {
+                {{ authService.user()?.name }}
+              }
+            </p>
             <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }} (id:{{ authService.user()?.ul_id }})</p>
             @if ([4, 9].includes(effectiveRole())) {
               <a routerLink="/dashboards/settings"
@@ -240,6 +246,18 @@ export class DashboardLayoutComponent implements OnInit {
       return roleOverride.role;
     }
     return this.authService.user()?.role ?? 0;
+  });
+
+  protected readonly userLocal = computed(() => {
+    const n = this.authService.user()?.name ?? '';
+    const i = n.indexOf('@');
+    return i > 0 ? n.slice(0, i) : '';
+  });
+
+  protected readonly userDomain = computed(() => {
+    const n = this.authService.user()?.name ?? '';
+    const i = n.indexOf('@');
+    return i > 0 ? n.slice(i + 1) : '';
   });
 
   private readonly ROLE_EMOJIS: Record<string, string> = {
