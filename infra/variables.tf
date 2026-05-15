@@ -116,6 +116,12 @@ variable "allow_resource_destruction" {
   default     = false
 }
 
+variable "yearly_goals_dynamic_start_date" {
+  type        = bool
+  description = "If true, /api/yearly-goals falls back to MIN(depart) when official period yields no rows. Dev/test only — NEVER set true in prod."
+  default     = false
+}
+
 # ─── Valkey (Memorystore) ────────────────────────────────────────────
 
 variable "valkey_node_type" {

@@ -29,3 +29,4 @@ superset_domain        = "test.superset.graph.redcrossquest.com"
 # Feature flags
 enable_superset = false
 
+yearly_goals_dynamic_start_date = true
