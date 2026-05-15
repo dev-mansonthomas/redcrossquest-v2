@@ -84,6 +84,7 @@ $(write_var SUPERSET_DASHBOARD_YEARLY_GOAL)
 $(write_var CORS_ORIGINS)
 FRONTEND_URL=${BACKEND_FRONTEND_URL}
 $(write_var DEBUG)
+$(write_var YEARLY_GOALS_DYNAMIC_START_DATE)
 $(write_var VALKEY_HOST)
 $(write_var VALKEY_PORT)
 $(write_var VALKEY_DB)
