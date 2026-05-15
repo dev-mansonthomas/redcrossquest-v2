@@ -48,12 +48,16 @@ export class AuthService {
     localStorage.setItem('rcq_user', JSON.stringify(user));
   }
 
-  logout(): void {
+  clearSession(): void {
     this._user.set(null);
     localStorage.removeItem('rcq_user');
     localStorage.removeItem('rcq_token');
     this.ulOverrideService.clearOverride();
     this.roleOverrideService.clearOverride();
+  }
+
+  logout(): void {
+    this.clearSession();
     this.router.navigate(['/login']);
   }
 
