@@ -114,6 +114,7 @@ module "api" {
     VALKEY_HOST                  = local.valkey_host
     VALKEY_PORT                  = "6379"
     VALKEY_DB                    = "0"
+    YEARLY_GOALS_DYNAMIC_START_DATE = var.yearly_goals_dynamic_start_date ? "true" : "false"
   }
 
   secrets = {
