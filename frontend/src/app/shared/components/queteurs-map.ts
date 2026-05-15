@@ -16,6 +16,10 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { environment } from '../../../environments/environment';
+
+// ── RCQ V1 URL constants ─────────────────────────────────────────────
+const RCQ_POINTS_QUETE_URI = '#!/pointsQuetes/edit/';
 
 export interface ActiveQueteur {
   first_name: string;
@@ -263,6 +267,12 @@ export class QueteursMapComponent implements AfterViewInit, OnDestroy {
         if (p.name) {
           marker.bindTooltip(p.name, { direction: 'top', offset: [0, -14] });
         }
+        const pointId = p.id;
+        marker.on('click', () => {
+          if (environment.rcqV1Url) {
+            window.open(`${environment.rcqV1Url}/${RCQ_POINTS_QUETE_URI}${pointId}`, '_blank');
+          }
+        });
         this.pointsQueteLayer.addLayer(marker);
       }
 

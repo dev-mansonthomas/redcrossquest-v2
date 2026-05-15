@@ -13,7 +13,11 @@ import * as L from 'leaflet';
 import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { environment } from '../../../environments/environment';
 import { firstValueFrom } from 'rxjs';
+
+// ── RCQ V1 URL constants ─────────────────────────────────────────────
+const RCQ_POINTS_QUETE_URI = '#!/pointsQuetes/edit/';
 
 interface PointQueteStats {
   id: number;
@@ -189,6 +193,9 @@ function formatNumber(n: number): string {
     }
     :host ::ng-deep .pq-stats-tooltip {
       max-width: 300px;
+    }
+    :host ::ng-deep .pq-clickable {
+      cursor: pointer;
     }
     .animate-spin-slow { animation: spin 1s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -405,6 +412,7 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
         color: '#fff',
         weight: 2,
         opacity: 1.0,
+        className: 'pq-clickable',
       });
 
       // Rich tooltip
@@ -423,6 +431,12 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
         </div>
       `;
       circle.bindTooltip(tooltip, { direction: 'top', offset: [0, -radius], className: 'pq-stats-tooltip' });
+      const pointId = p.id;
+      circle.on('click', () => {
+        if (environment.rcqV1Url) {
+          window.open(`${environment.rcqV1Url}/${RCQ_POINTS_QUETE_URI}${pointId}`, '_blank');
+        }
+      });
       this.circlesLayer.addLayer(circle);
 
       // Type emoji overlay (always shown, centered on the circle)
