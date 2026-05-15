@@ -163,12 +163,15 @@ import { environment } from '../../../environments/environment';
         <!-- Footer avec user info et déconnexion -->
         <div class="p-4 border-t border-gray-200">
           <div class="space-y-1 mb-3">
-            <p class="px-3 text-sm text-gray-700 break-words">
-              👤 @if (userLocal()) {
-                <span>{{ userLocal() }}&#64;</span><br/><span>{{ userDomain() }}</span>
-              } @else {
-                {{ authService.user()?.name }}
-              }
+            <p class="px-3 text-sm text-gray-700 flex items-start gap-2">
+              <span class="shrink-0">👤</span>
+              <span class="min-w-0 break-words">
+                @if (userLocal()) {
+                  <span>{{ userLocal() }}&#64;</span><br/><span>{{ userDomain() }}</span>
+                } @else {
+                  {{ authService.user()?.name }}
+                }
+              </span>
             </p>
             <p class="px-3 text-sm text-gray-600">🏛️ {{ authService.user()?.ul_name || 'UL inconnue' }} (id:{{ authService.user()?.ul_id }})</p>
             @if ([4, 9].includes(effectiveRole())) {
