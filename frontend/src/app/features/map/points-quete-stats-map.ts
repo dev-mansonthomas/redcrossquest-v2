@@ -3,7 +3,6 @@ import {
   OnDestroy,
   inject,
   signal,
-  computed,
   ElementRef,
   ViewChild,
   AfterViewInit,
@@ -95,11 +94,11 @@ function formatNumber(n: number): string {
   standalone: true,
   template: `
     <div class="h-full w-full flex flex-col bg-white">
-      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
-        <h2 class="text-lg font-semibold text-gray-800">📊 Carte analytique des points de quête</h2>
-        <div class="flex items-center gap-3">
+      <div [class]="'min-h-14 px-4 py-2 border-b border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-y-2 shrink-0 ' + headerBg">
+        <h2 class="text-lg font-semibold text-gray-800 whitespace-nowrap">Points de Quête</h2>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
           <!-- View mode buttons -->
-          <span class="text-xs text-gray-600 font-medium">Vue :</span>
+          <span class="hidden sm:inline text-xs text-gray-600 font-medium">Vue :</span>
           <div class="flex rounded-lg overflow-hidden border border-gray-300 shadow-sm">
             @for (mode of viewModes; track mode) {
               <button
@@ -112,8 +111,8 @@ function formatNumber(n: number): string {
           </div>
           <div class="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
           <!-- Year selector -->
-          <span class="text-xs text-gray-600 font-medium">Années :</span>
-          <div class="flex gap-1">
+          <span class="hidden sm:inline text-xs text-gray-600 font-medium">Années :</span>
+          <div class="flex gap-1 flex-wrap">
             @for (year of availableYears(); track year) {
               <button
                 [class.active]="selectedYears().has(year)"
@@ -125,15 +124,8 @@ function formatNumber(n: number): string {
           </div>
           <div class="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
           <!-- Type selector -->
-          <span class="text-xs text-gray-600 font-medium">Types :</span>
+          <span class="hidden sm:inline text-xs text-gray-600 font-medium">Types :</span>
           <div class="flex gap-1 flex-wrap">
-            <button
-              [class.active]="allTypesSelected()"
-              (click)="toggleAllTypes()"
-              class="year-chip"
-              title="Afficher tous les types">
-              📍 Tous
-            </button>
             @for (type of availableTypes(); track type) {
               <button
                 [class.active]="selectedTypes().has(type)"
@@ -228,11 +220,6 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
   readonly selectedYears = signal<Set<number>>(new Set());
   readonly availableTypes = signal<number[]>([]);
   readonly selectedTypes = signal<Set<number>>(new Set());
-  readonly allTypesSelected = computed(() => {
-    const all = this.availableTypes();
-    const sel = this.selectedTypes();
-    return all.length > 0 && all.every(t => sel.has(t));
-  });
   readonly refreshing = signal(false);
 
   private points: PointQueteStats[] = [];
@@ -277,15 +264,6 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
     this.renderCircles();
   }
 
-  toggleAllTypes(): void {
-    if (this.allTypesSelected()) {
-      this.selectedTypes.set(new Set());
-    } else {
-      this.selectedTypes.set(new Set(this.availableTypes()));
-    }
-    this.renderCircles();
-  }
-
   getTypeEmoji(type: number): string {
     return getPointTypeInfo(type).emoji;
   }
@@ -324,8 +302,8 @@ export class PointsQueteStatsMapComponent implements AfterViewInit, OnDestroy {
         this.api.get<AvailableYearsResponse>('/api/map/available-years'),
       );
       const years = response.years.sort((a, b) => b - a); // descending
-      this.availableYears.set(years);
-      // Select the 5 most recent years by default
+      // Keep only the 5 most recent years, both for display and default selection
+      this.availableYears.set(years.slice(0, 5));
       this.selectedYears.set(new Set(years.slice(0, 5)));
     } catch (err) {
       console.error('Failed to load available years', err);
