@@ -1,8 +1,9 @@
 """Contrôle admin schemas — règles d'anomalie sur les troncs et ULs."""
-from datetime import datetime
 from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel
+
+from ._base import UTCDateTime
 
 
 T = TypeVar("T")
@@ -55,21 +56,21 @@ class _AnomalieBase(BaseModel):
     ul_name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    depart: Optional[datetime] = None
+    depart: Optional[UTCDateTime] = None
 
     model_config = {"from_attributes": True}
 
 
 class AnomalieTroncTempsCourt(_AnomalieBase):
-    retour: Optional[datetime] = None
+    retour: Optional[UTCDateTime] = None
     montant: float
     duration_minutes: Optional[int] = None
     taux_horaire: float
 
 
 class AnomalieTroncSansRetour(_AnomalieBase):
-    retour: Optional[datetime] = None
-    comptage: Optional[datetime] = None
+    retour: Optional[UTCDateTime] = None
+    comptage: Optional[UTCDateTime] = None
     montant: Optional[float] = None
 
 
@@ -91,7 +92,7 @@ class AnomalieTroncSaisieSuspecte(_AnomalieBase):
 
 
 class AnomalieTroncDepartApresRetour(_AnomalieBase):
-    retour: Optional[datetime] = None
+    retour: Optional[UTCDateTime] = None
     montant: Optional[float] = None
 
 
@@ -148,7 +149,7 @@ class UlNonValidee(_UlBase):
     """R10b — UL dont l'inscription n'est pas approuvée."""
 
     registration_id: Optional[int] = None
-    registration_date: Optional[datetime] = None
+    registration_date: Optional[UTCDateTime] = None
     registration_approved: Optional[int] = None
 
 
@@ -167,7 +168,7 @@ class UlDoublons(BaseModel):
 class UlDormante(_UlBase):
     """R14 — UL sans tronc_queteur depuis > 2 ans."""
 
-    derniere_activite: Optional[datetime] = None
+    derniere_activite: Optional[UTCDateTime] = None
     jours_inactivite: Optional[int] = None
 
 
@@ -193,7 +194,7 @@ class UlDetailAdmin(BaseModel):
 
 class UlDetailRegistration(BaseModel):
     id: Optional[int] = None
-    created: Optional[datetime] = None
+    created: Optional[UTCDateTime] = None
     registration_approved: Optional[bool] = None
 
 

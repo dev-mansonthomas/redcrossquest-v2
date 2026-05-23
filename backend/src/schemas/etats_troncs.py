@@ -1,8 +1,9 @@
 """États des troncs schemas for API responses."""
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
+
+from ._base import UTCDateTime
 
 
 class TroncEtatDetail(BaseModel):
@@ -13,9 +14,9 @@ class TroncEtatDetail(BaseModel):
     tronc_id: int
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    depart_theorique: Optional[datetime] = None
-    depart: Optional[datetime] = None
-    retour: Optional[datetime] = None
+    depart_theorique: Optional[UTCDateTime] = None
+    depart: Optional[UTCDateTime] = None
+    retour: Optional[UTCDateTime] = None
     point_quete_name: Optional[str] = None
     quete_day_num: Optional[int] = None
     total_amount: Optional[float] = None
