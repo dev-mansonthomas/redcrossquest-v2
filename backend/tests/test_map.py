@@ -1,5 +1,5 @@
 """Tests for map endpoints."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -127,6 +127,85 @@ def test_active_queteurs_returns_data(client, monkeypatch, auth_token):
         assert data["queteurs"][0]["latitude"] == 48.8566
         assert data["queteurs"][1]["first_name"] == "Marie"
         assert data["queteurs"][1]["point_name"] == "Gare"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_active_queteurs_depart_serialized_as_utc_z(client, monkeypatch, auth_token):
+    """Datetime fields must be serialized as ISO 8601 UTC with a ``Z`` suffix.
+
+    Frontend code uses ``new Date(iso)`` which treats values without ``Z`` as
+    local time, shifting durations on the map by the local TZ offset.
+    """
+    _mock_authenticated_user(monkeypatch)
+
+    naive_depart = datetime(2026, 4, 8, 9, 0, 0)
+    aware_utc_depart = datetime(2026, 4, 8, 10, 30, 0, tzinfo=timezone.utc)
+    cest = timezone(timedelta(hours=2))
+    aware_cest_depart = datetime(2026, 4, 8, 14, 0, 0, tzinfo=cest)
+
+    mock_rows = [
+        {
+            "first_name": "Naive",
+            "last_name": "Db",
+            "man": True,
+            "latitude": 48.0,
+            "longitude": 2.0,
+            "point_name": "P1",
+            "address": "addr",
+            "depart": naive_depart,
+            "point_quete_id": 1,
+            "point_code": None,
+        },
+        {
+            "first_name": "Aware",
+            "last_name": "Utc",
+            "man": False,
+            "latitude": 48.0,
+            "longitude": 2.0,
+            "point_name": "P2",
+            "address": "addr",
+            "depart": aware_utc_depart,
+            "point_quete_id": 2,
+            "point_code": None,
+        },
+        {
+            "first_name": "Aware",
+            "last_name": "Cest",
+            "man": False,
+            "latitude": 48.0,
+            "longitude": 2.0,
+            "point_name": "P3",
+            "address": "addr",
+            "depart": aware_cest_depart,
+            "point_quete_id": 3,
+            "point_code": None,
+        },
+    ]
+
+    mock_db = MagicMock()
+    mock_db.execute.return_value.mappings.return_value.all.return_value = mock_rows
+
+    from src.database import get_rcq_db
+    app.dependency_overrides[get_rcq_db] = lambda: mock_db
+
+    try:
+        response = client.get(
+            "/api/map/active-queteurs",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status_code == 200
+        queteurs = response.json()["queteurs"]
+        assert len(queteurs) == 3
+
+        for q in queteurs:
+            assert q["depart"].endswith("Z"), f"Expected Z suffix, got {q['depart']!r}"
+            assert "+" not in q["depart"]
+            assert "-" not in q["depart"].split("T", 1)[1]
+
+        assert queteurs[0]["depart"] == "2026-04-08T09:00:00Z"
+        assert queteurs[1]["depart"] == "2026-04-08T10:30:00Z"
+        assert queteurs[2]["depart"] == "2026-04-08T12:00:00Z"
     finally:
         app.dependency_overrides.clear()
 

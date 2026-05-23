@@ -1,8 +1,9 @@
 """Map schemas for API responses."""
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
+
+from ._base import UTCDateTime
 
 
 class ActiveQueteur(BaseModel):
@@ -16,7 +17,7 @@ class ActiveQueteur(BaseModel):
     longitude: Optional[float] = None
     point_name: Optional[str] = None
     address: Optional[str] = None
-    depart: datetime
+    depart: UTCDateTime
     point_quete_id: int
     point_code: Optional[str] = None
 
