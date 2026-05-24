@@ -51,6 +51,7 @@ const DAY_LABELS = [
   selector: 'app-etats-troncs-page',
   standalone: true,
   imports: [DatePipe, DecimalPipe],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
