@@ -104,7 +104,7 @@ Une fois le dump rapatrié, les fichiers SQL suivants sont importés dans l'ordr
 
 | Fichier | Description |
 |---------|-------------|
-| `superset/dev-sql-import/prod-data/*-RCQ-FR-PROD.sql` (le plus récent) | Dump principal de la base, sélectionné via `ls -t ... \| head -1` |
+| `superset/dev-sql-import/prod-data/*-RCQ-FR-PROD.sql` (le plus récent) | Dump principal de la base, sélectionné via `ls -t ... \| head -1`. Le schéma est renommé à la volée (`sed` sur les noms entre backticks) : `${RCQ_DB_NAME}` (lu dans `.env.prod`) → `${MYSQL_DATABASE}` local, sinon le `USE` du dump enverrait tout vers le schéma prod. |
 | `superset/dev-sql-import/02-add-trigger.sql` | Trigger `tronc_queteur_update` |
 | `superset/dev-sql-import/03-anonymise.sql` | Anonymisation des données sensibles |
 | `superset/deploy-sql/01-quete-dates.sql` | Table `quete_dates` |

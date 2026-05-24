@@ -447,8 +447,32 @@ init_database() {
             echo "❌ Erreur: aucun dump *-RCQ-FR-PROD.sql trouvé dans superset/dev-sql-import/prod-data/"
             exit 1
         fi
+
+        # The Cloud SQL dump contains `CREATE DATABASE` + `USE` statements
+        # pinned to the prod schema name (RCQ_DB_NAME from .env.prod), so
+        # piping it straight into mysql would create/populate that schema
+        # instead of the local ${MYSQL_DATABASE}. Rewrite the backticked
+        # schema name on the fly via sed before sending to mysql.
+        local prod_db_name
+        prod_db_name=$(grep -E '^RCQ_DB_NAME=' "$SCRIPT_DIR/.env.prod" | head -1 | cut -d= -f2-)
+        prod_db_name="${prod_db_name%\"}"
+        prod_db_name="${prod_db_name#\"}"
+        prod_db_name="${prod_db_name%\'}"
+        prod_db_name="${prod_db_name#\'}"
+        if [ -z "$prod_db_name" ]; then
+            echo "❌ Erreur: RCQ_DB_NAME vide ou absent dans $SCRIPT_DIR/.env.prod (requis pour le rename de schéma)"
+            exit 1
+        fi
+
         echo "   📥 Importing $latest_dump..."
-        docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < "$latest_dump"
+        echo "   🔄 Renaming schema in dump: ${prod_db_name} → ${MYSQL_DATABASE}"
+        # Scope pipefail to this subshell so a sed/mysql failure mid-pipe
+        # propagates under set -e (parent shell doesn't have pipefail set).
+        (
+            set -o pipefail
+            sed -E "s/\`${prod_db_name}\`/\`${MYSQL_DATABASE}\`/g" "$latest_dump" \
+                | docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}"
+        )
         echo "   ✅ Main SQL dump imported"
 
         # Run trigger (dev setup)
