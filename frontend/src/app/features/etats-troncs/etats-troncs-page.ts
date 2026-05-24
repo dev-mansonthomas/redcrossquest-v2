@@ -51,6 +51,7 @@ const DAY_LABELS = [
   selector: 'app-etats-troncs-page',
   standalone: true,
   imports: [DatePipe, DecimalPipe],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
@@ -108,7 +109,7 @@ const DAY_LABELS = [
       </div>
 
       <!-- Content -->
-      <div class="flex-1 overflow-auto p-4">
+      <div class="flex-1 min-h-0 overflow-auto p-4">
         @if (loading()) {
           <div class="flex items-center justify-center h-64">
             <p class="text-gray-500">⏳ Chargement…</p>
@@ -122,7 +123,7 @@ const DAY_LABELS = [
             <p class="text-gray-500">Aucun tronc trouvé pour ce filtre.</p>
           </div>
         } @else {
-          <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-auto">
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100">
             <table class="min-w-full text-sm">
               <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
