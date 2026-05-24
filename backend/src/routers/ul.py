@@ -56,6 +56,34 @@ SECTEUR_LABELS: dict[int, str] = {
     6: "Spécial",
 }
 
+
+def _aggregate_by_label(rows: list[Any], value_field: str, value_type: type = int) -> list[dict[str, Any]]:
+    """Group rows by ``(year, label)`` summing ``value_field``.
+
+    Secteurs 1 and 2 share the same label ("Bénévole"); without aggregation,
+    the front-end would only keep one of the two rows. Counts/hours are exact
+    additions because ``secteur`` comes from ``queteur.secteur`` (a quêteur has
+    a single secteur), so a quêteur cannot appear under two different secteurs.
+    """
+    bucket: dict[tuple[int, str], dict[str, Any]] = {}
+    for r in rows:
+        year = int(r["year"])
+        secteur = int(r["secteur"])
+        label = SECTEUR_LABELS.get(secteur, f"Secteur {secteur}")
+        key = (year, label)
+        value = value_type(r[value_field] or 0)
+        if key not in bucket:
+            bucket[key] = {
+                "year": year,
+                "secteur": secteur,
+                "label": label,
+                value_field: value,
+            }
+        else:
+            bucket[key][value_field] += value
+            bucket[key]["secteur"] = min(bucket[key]["secteur"], secteur)
+    return list(bucket.values())
+
 # Cache TTL for UL overview (1 hour)
 UL_OVERVIEW_CACHE_TTL = 3600
 
@@ -211,25 +239,15 @@ async def get_ul_overview(
     # --- Query 2: Hours by sector ---
     hrs_rows = db.execute(text(HOURS_BY_SECTOR_QUERY), params).mappings().all()
     hours_by_sector = [
-        HoursBySector(
-            year=int(r["year"]),
-            secteur=int(r["secteur"]),
-            label=SECTEUR_LABELS.get(int(r["secteur"]), f"Secteur {r['secteur']}"),
-            total_hours=float(r["total_hours"] or 0),
-        )
-        for r in hrs_rows
+        HoursBySector(**agg)
+        for agg in _aggregate_by_label(hrs_rows, "total_hours", float)
     ]
 
     # --- Query 3: Quêteurs by sector ---
     q_rows = db.execute(text(QUETEURS_BY_SECTOR_QUERY), params).mappings().all()
     queteurs_by_sector = [
-        QueteursBySector(
-            year=int(r["year"]),
-            secteur=int(r["secteur"]),
-            label=SECTEUR_LABELS.get(int(r["secteur"]), f"Secteur {r['secteur']}"),
-            nb_queteurs=int(r["nb_queteurs"]),
-        )
-        for r in q_rows
+        QueteursBySector(**agg)
+        for agg in _aggregate_by_label(q_rows, "nb_queteurs", int)
     ]
 
     # --- Query 4: Activity metrics ---
