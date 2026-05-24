@@ -9,6 +9,8 @@ Lance l'environnement de développement local complet de RCQ V2 via Docker Compo
 - **Docker** (avec Docker Compose v2)
 - Un fichier `.env` à la racine du projet (configuration locale)
 - **python3** (requis pour `--provision`)
+- **Google Cloud SDK** (`gcloud` et `gsutil`) authentifié, requis pour `--init-db`
+- Un fichier `.env.prod` à la racine du projet contenant `RCQ_DB_NAME=<nom_base_prod>`. Cette variable est utilisée par `--init-db` pour l'export Cloud SQL et n'est pas exportée dans l'environnement local.
 
 ## Usage
 
@@ -21,7 +23,8 @@ Lance l'environnement de développement local complet de RCQ V2 via Docker Compo
 | Option | Description |
 |--------|-------------|
 | *(aucune)* | Démarre tout l'environnement de développement |
-| `--init-db` | Démarre + initialise la base de données avec les dumps SQL |
+| `--init-db` | Démarre + initialise la BDD. Par défaut: déclenche un export Cloud SQL de la prod vers GCS, télécharge le dump, puis l'importe localement (voir [Initialisation de la base de données](#initialisation-de-la-base-de-données---init-db)) |
+| `--use-last-export` | (avec `--init-db`) Skip l'export Cloud SQL et utilise le dump GCS le plus récent déjà présent dans le bucket |
 | `--restart <service>` | Redémarre un service avec `--force-recreate` |
 | `--provision` | Provisionne les dashboards Superset (création) |
 | `--provision --force-update` | Met à jour les dashboards existants |
@@ -43,8 +46,11 @@ Lance l'environnement de développement local complet de RCQ V2 via Docker Compo
 # Démarrer tout l'environnement
 ./run_local.sh
 
-# Démarrer avec initialisation de la base de données
+# Démarrer avec initialisation de la BDD (export prod automatique)
 ./run_local.sh --init-db
+
+# Idem mais en réutilisant le dernier dump déjà présent sur GCS (pas de nouvel export)
+./run_local.sh --init-db --use-last-export
 
 # Redémarrer le backend uniquement
 ./run_local.sh --restart backend
@@ -79,11 +85,26 @@ Lance l'environnement de développement local complet de RCQ V2 via Docker Compo
 
 ## Initialisation de la base de données (`--init-db`)
 
-Importe les fichiers SQL suivants dans l'ordre :
+### Récupération du dump prod (automatique)
+
+Avant tout import, `--init-db` télécharge un dump fraîchement exporté depuis la prod :
+
+1. **Pre-flight** 🔍 : vérifie `gcloud`/`gsutil` dans le `PATH` et un compte gcloud actif (`gcloud auth list`).
+2. **Lecture de `RCQ_DB_NAME`** depuis `.env.prod` (lecture isolée, pas d'export global).
+3. **Export Cloud SQL** 📤 :
+   - Par défaut: `gcloud sql export sql rcq-db-inst-fr-prod-0 gs://rcq-fr-prod.appspot.com/$(date +%Y-%m-%d)-RCQ-FR-PROD.sql --database=$RCQ_DB_NAME --project=rcq-fr-prod`
+   - Avec `--use-last-export`: skip l'export, prend le dernier objet `*-RCQ-FR-PROD.sql` du bucket via `gsutil ls | sort -r | head -1`.
+4. **Téléchargement local** 📥 : `gsutil cp` vers `superset/dev-sql-import/prod-data/` (le nom daté est conservé, ce qui construit un historique local).
+
+Toute erreur de `gcloud`/`gsutil` interrompt le script (pas de `|| true`).
+
+### Imports SQL
+
+Une fois le dump rapatrié, les fichiers SQL suivants sont importés dans l'ordre :
 
 | Fichier | Description |
 |---------|-------------|
-| `superset/dev-sql-import/01-rcq_prod_2026.sql` | Dump principal de la base |
+| `superset/dev-sql-import/prod-data/*-RCQ-FR-PROD.sql` (le plus récent) | Dump principal de la base, sélectionné via `ls -t ... \| head -1`. Le schéma est renommé à la volée (`sed` sur les noms entre backticks) : `${RCQ_DB_NAME}` (lu dans `.env.prod`) → `${MYSQL_DATABASE}` local, sinon le `USE` du dump enverrait tout vers le schéma prod. |
 | `superset/dev-sql-import/02-add-trigger.sql` | Trigger `tronc_queteur_update` |
 | `superset/dev-sql-import/03-anonymise.sql` | Anonymisation des données sensibles |
 | `superset/deploy-sql/01-quete-dates.sql` | Table `quete_dates` |

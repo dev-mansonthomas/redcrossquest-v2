@@ -18,7 +18,13 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  (no args)              Démarre tout l'environnement de développement"
-    echo "  --init-db              Démarre + initialise la base de données"
+    echo "  --init-db              Démarre + initialise la base de données."
+    echo "                         Par défaut: déclenche un export Cloud SQL prod vers"
+    echo "                         gs://rcq-fr-prod.appspot.com/, télécharge le dump"
+    echo "                         dans superset/dev-sql-import/prod-data/, puis"
+    echo "                         importe le fichier *-RCQ-FR-PROD.sql le plus récent."
+    echo "  --use-last-export      (avec --init-db) Skip l'export Cloud SQL : prend le"
+    echo "                         dump le plus récent déjà présent dans le bucket GCS."
     echo "  --restart <service>    Redémarre un service avec --force-recreate"
     echo "                         Services: backend, frontend, superset, all"
     echo "  --provision            Provisionne les dashboards Superset (create)"
@@ -28,13 +34,14 @@ show_help() {
     echo "  --help                 Affiche cette aide"
     echo ""
     echo "Exemples:"
-    echo "  ./run_local.sh                    # Démarre tout"
-    echo "  ./run_local.sh --init-db          # Démarre + init DB"
-    echo "  ./run_local.sh --restart backend  # Redémarre le backend (force-recreate)"
-    echo "  ./run_local.sh --restart all      # Redémarre tous les services"
-    echo "  ./run_local.sh --provision             # Provisionne les dashboards"
-    echo "  ./run_local.sh --provision --force-update  # Force la mise à jour"
-    echo "  ./run_local.sh --show-config      # Affiche la config"
+    echo "  ./run_local.sh                              # Démarre tout"
+    echo "  ./run_local.sh --init-db                    # Export prod + init DB"
+    echo "  ./run_local.sh --init-db --use-last-export  # Init DB depuis dernier dump GCS"
+    echo "  ./run_local.sh --restart backend            # Redémarre le backend"
+    echo "  ./run_local.sh --restart all                # Redémarre tous les services"
+    echo "  ./run_local.sh --provision                  # Provisionne les dashboards"
+    echo "  ./run_local.sh --provision --force-update   # Force la mise à jour"
+    echo "  ./run_local.sh --show-config                # Affiche la config"
 }
 
 # --- Show Config ---
@@ -181,6 +188,7 @@ restart_service() {
 
 # --- Parse arguments ---
 INIT_DB=false
+USE_LAST_EXPORT=false
 PROVISION=false
 FORCE_UPDATE=false
 ENABLE_SUPERSET=false
@@ -191,6 +199,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --init-db)
             INIT_DB=true
+            shift
+            ;;
+        --use-last-export)
+            USE_LAST_EXPORT=true
             shift
             ;;
         --restart)
@@ -336,18 +348,132 @@ docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
      GRANT UPDATE ON ${MYSQL_DATABASE}.ul_settings TO '${RCQ_DB_USER}'@'%'; \
      FLUSH PRIVILEGES;" 2>/dev/null || true
 
+# --- Export Prod Dump ---
+# Triggers a Cloud SQL export of the prod database to GCS, then downloads the
+# resulting dump locally. With --use-last-export, skips the export and picks
+# the most recent existing object in the bucket instead. RCQ_DB_NAME is read
+# from .env.prod in a subshell so it does not pollute the local environment.
+export_prod_dump() {
+    local env_file="$SCRIPT_DIR/.env.prod"
+    local bucket="gs://rcq-fr-prod.appspot.com"
+    local instance="rcq-db-inst-fr-prod-0"
+    local project="rcq-fr-prod"
+    local target_dir="superset/dev-sql-import/prod-data"
+
+    echo ""
+    echo "   🔍 Pre-flight checks (gcloud / gsutil / auth)..."
+
+    if ! command -v gcloud >/dev/null 2>&1; then
+        echo "❌ Erreur: gcloud introuvable dans le PATH. Installe le Google Cloud SDK."
+        exit 1
+    fi
+    if ! command -v gsutil >/dev/null 2>&1; then
+        echo "❌ Erreur: gsutil introuvable dans le PATH. Installe le Google Cloud SDK."
+        exit 1
+    fi
+
+    local active_account
+    active_account=$(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+    if [ -z "$active_account" ]; then
+        echo "❌ Erreur: aucun compte gcloud actif. Lance 'gcloud auth login'."
+        exit 1
+    fi
+    echo "   ✅ gcloud compte actif: $active_account"
+
+    local current_project
+    current_project=$(gcloud config get-value project 2>/dev/null || echo "")
+    echo "   ℹ️  gcloud project courant: ${current_project:-<non défini>} (export forcé sur $project)"
+
+    if [ ! -f "$env_file" ]; then
+        echo "❌ Erreur: $env_file introuvable. RCQ_DB_NAME requis pour l'export prod."
+        exit 1
+    fi
+    local rcq_db_name
+    rcq_db_name=$(grep -E '^RCQ_DB_NAME=' "$env_file" | head -1 | cut -d= -f2-)
+    rcq_db_name="${rcq_db_name%\"}"
+    rcq_db_name="${rcq_db_name#\"}"
+    rcq_db_name="${rcq_db_name%\'}"
+    rcq_db_name="${rcq_db_name#\'}"
+    if [ -z "$rcq_db_name" ]; then
+        echo "❌ Erreur: RCQ_DB_NAME vide ou absent dans $env_file"
+        exit 1
+    fi
+    echo "   ✅ RCQ_DB_NAME=$rcq_db_name (lu depuis .env.prod)"
+
+    mkdir -p "$target_dir"
+
+    local gcs_uri
+    if [ "$USE_LAST_EXPORT" = true ]; then
+        echo ""
+        echo "   📤 --use-last-export: skip export, recherche du dump le plus récent dans $bucket..."
+        gcs_uri=$(gsutil ls "$bucket/*-RCQ-FR-PROD.sql" 2>/dev/null | sort -r | head -1)
+        if [ -z "$gcs_uri" ]; then
+            echo "❌ Erreur: aucun dump *-RCQ-FR-PROD.sql trouvé dans $bucket"
+            exit 1
+        fi
+        echo "   ✅ Dump sélectionné: $gcs_uri"
+    else
+        local dump_date
+        dump_date=$(date +%Y-%m-%d)
+        gcs_uri="$bucket/${dump_date}-RCQ-FR-PROD.sql"
+        echo ""
+        echo "   📤 Export Cloud SQL → $gcs_uri (database=$rcq_db_name, instance=$instance)..."
+        gcloud sql export sql "$instance" "$gcs_uri" \
+            --database="$rcq_db_name" \
+            --project="$project"
+        echo "   ✅ Export Cloud SQL terminé"
+    fi
+
+    echo ""
+    echo "   📥 Téléchargement local → $target_dir/..."
+    gsutil cp "$gcs_uri" "$target_dir/"
+    echo "   ✅ Dump téléchargé"
+}
+
 # Initialize database if --init-db flag is passed
 init_database() {
     if [ "$INIT_DB" = true ]; then
         echo ""
         echo "   🗄️  Initializing database (--init-db)..."
 
-        # Import the main SQL dump (dev setup)
-        if [ -f "superset/dev-sql-import/01-rcq_prod_2026.sql" ]; then
-            echo "   📥 Importing 01-rcq_prod_2026.sql..."
-            docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}" < superset/dev-sql-import/01-rcq_prod_2026.sql
-            echo "   ✅ Main SQL dump imported"
+        # Export prod DB to GCS + download locally (before any import)
+        export_prod_dump
+
+        # Import the most recent prod dump from prod-data/
+        local latest_dump
+        # shellcheck disable=SC2012
+        latest_dump=$(ls -t superset/dev-sql-import/prod-data/*-RCQ-FR-PROD.sql 2>/dev/null | head -1)
+        if [ -z "$latest_dump" ]; then
+            echo "❌ Erreur: aucun dump *-RCQ-FR-PROD.sql trouvé dans superset/dev-sql-import/prod-data/"
+            exit 1
         fi
+
+        # The Cloud SQL dump contains `CREATE DATABASE` + `USE` statements
+        # pinned to the prod schema name (RCQ_DB_NAME from .env.prod), so
+        # piping it straight into mysql would create/populate that schema
+        # instead of the local ${MYSQL_DATABASE}. Rewrite the backticked
+        # schema name on the fly via sed before sending to mysql.
+        local prod_db_name
+        prod_db_name=$(grep -E '^RCQ_DB_NAME=' "$SCRIPT_DIR/.env.prod" | head -1 | cut -d= -f2-)
+        prod_db_name="${prod_db_name%\"}"
+        prod_db_name="${prod_db_name#\"}"
+        prod_db_name="${prod_db_name%\'}"
+        prod_db_name="${prod_db_name#\'}"
+        if [ -z "$prod_db_name" ]; then
+            echo "❌ Erreur: RCQ_DB_NAME vide ou absent dans $SCRIPT_DIR/.env.prod (requis pour le rename de schéma)"
+            exit 1
+        fi
+
+        echo "   📥 Importing $latest_dump..."
+        echo "   🔄 Renaming schema in dump: ${prod_db_name} → ${MYSQL_DATABASE}"
+        # Scope pipefail to this subshell so a sed/mysql failure mid-pipe
+        # propagates under set -e (parent shell doesn't have pipefail set).
+        (
+            set -o pipefail
+            sed -E "s/\`${prod_db_name}\`/\`${MYSQL_DATABASE}\`/g" "$latest_dump" \
+                | docker exec -i rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" "${MYSQL_DATABASE}"
+        )
+        echo "   ✅ Main SQL dump imported"
 
         # Run trigger (dev setup)
         if [ -f "superset/dev-sql-import/02-add-trigger.sql" ]; then
