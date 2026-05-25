@@ -45,7 +45,8 @@ SELECT
   COALESCE(SUM(tqe.cents10), 0) AS cents10,
   COALESCE(SUM(tqe.cents5), 0) AS cents5,
   COALESCE(SUM(tqe.cents2), 0) AS cents2,
-  COALESCE(SUM(tqe.cent1), 0) AS cent1
+  COALESCE(SUM(tqe.cent1), 0) AS cent1,
+  COALESCE(SUM(tqe.don_cheque), 0) AS cheques_total
 FROM v_tronc_queteur_enriched tqe
 WHERE tqe.ul_id = :ul_id
   AND YEAR(tqe.depart) = :year
@@ -177,6 +178,7 @@ async def get_comptage_pieces_billets(
     pieces: list[DenominationCount] = []
     billets: list[DenominationCount] = []
     cb_tickets: list[CbTicket] = []
+    cheques_total: float = 0.0
 
     if not skip_totals:
         days_clause, days_params = build_days_filter(days)
@@ -195,6 +197,7 @@ async def get_comptage_pieces_billets(
         if row is not None:
             pieces = _build_denomination_list(dict(row), PIECES)
             billets = _build_denomination_list(dict(row), BILLETS)
+            cheques_total = round(float(row["cheques_total"]), 2)
 
         # --- Query CB tickets ---
         cb_query = CB_TICKETS_QUERY.format(days_filter=days_clause)
@@ -229,6 +232,7 @@ async def get_comptage_pieces_billets(
         pieces=pieces,
         billets=billets,
         cb_tickets=cb_tickets,
+        cheques_total=cheques_total,
         year=year,
         available_years=available_years,
     )
