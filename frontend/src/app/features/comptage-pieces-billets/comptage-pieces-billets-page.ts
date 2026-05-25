@@ -24,6 +24,7 @@ interface ComptagePiecesBilletsResponse {
   pieces: DenominationCount[];
   billets: DenominationCount[];
   cb_tickets: CbTicket[];
+  cheques_total: number;
   year: number;
   available_years: number[];
 }
@@ -175,6 +176,23 @@ type SortDir = 'asc' | 'desc';
         </div>
       }
       </div>
+
+      <!-- Grand total footer -->
+      @if (!loading() && !error()) {
+        <div class="shrink-0 px-4 py-3 bg-white border-t border-gray-200 shadow-inner">
+          <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-700">
+            <span><span class="font-medium text-gray-600">Pièces :</span> {{ formatEur(piecesGrandTotal()) }}</span>
+            <span class="text-gray-300">|</span>
+            <span><span class="font-medium text-gray-600">Billets :</span> {{ formatEur(billetsGrandTotal()) }}</span>
+            <span class="text-gray-300">|</span>
+            <span><span class="font-medium text-gray-600">CB :</span> {{ formatEur(cbGrandTotal()) }}</span>
+            <span class="text-gray-300">|</span>
+            <span><span class="font-medium text-gray-600">Chèques :</span> {{ formatEur(chequesTotal()) }}</span>
+            <span class="text-gray-300">|</span>
+            <span class="text-base font-bold text-red-700"><span class="font-semibold">Grand total :</span> {{ formatEur(grandTotal()) }}</span>
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -189,6 +207,7 @@ export class ComptagePiecesBilletsPageComponent {
   readonly rawPieces = signal<DenominationCount[]>([]);
   readonly rawBillets = signal<DenominationCount[]>([]);
   readonly rawCb = signal<CbTicket[]>([]);
+  readonly chequesTotal = signal<number>(0);
   readonly selectedYear = signal(new Date().getFullYear());
   readonly availableYears = signal<number[]>([new Date().getFullYear()]);
   readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
@@ -217,6 +236,14 @@ export class ComptagePiecesBilletsPageComponent {
       total: data.reduce((s, d) => s + d.total, 0),
     };
   });
+
+  // ── Footer totals (Grand total) ────────────────────────────────────
+  readonly piecesGrandTotal = computed(() => this.rawPieces().reduce((s, d) => s + d.total, 0));
+  readonly billetsGrandTotal = computed(() => this.rawBillets().reduce((s, d) => s + d.total, 0));
+  readonly cbGrandTotal = computed(() => this.rawCb().reduce((s, d) => s + d.total, 0));
+  readonly grandTotal = computed(() =>
+    this.piecesGrandTotal() + this.billetsGrandTotal() + this.cbGrandTotal() + this.chequesTotal()
+  );
 
   // ── UL Override effect ─────────────────────────────────────────────
   private overrideInitialized = false;
@@ -284,6 +311,7 @@ export class ComptagePiecesBilletsPageComponent {
       this.rawPieces.set(resp.pieces || []);
       this.rawBillets.set(resp.billets || []);
       this.rawCb.set(resp.cb_tickets || []);
+      this.chequesTotal.set(resp.cheques_total || 0);
       if (resp.available_years?.length) {
         this.availableYears.set(resp.available_years);
       }
@@ -292,6 +320,7 @@ export class ComptagePiecesBilletsPageComponent {
         this.rawPieces.set([]);
         this.rawBillets.set([]);
         this.rawCb.set([]);
+        this.chequesTotal.set(0);
       } else {
         this.error.set('Erreur lors du chargement du comptage pièces et billets.');
       }
@@ -340,7 +369,13 @@ export class ComptagePiecesBilletsPageComponent {
     lines.push(`TOTAL,,${totalCb.toFixed(2)}`);
 
     lines.push('');
-    lines.push(`TOTAL GÉNÉRAL,,${(totalPieces + totalBillets + totalCb).toFixed(2)}`);
+
+    const totalCheques = this.chequesTotal();
+    lines.push('--- Chèques ---');
+    lines.push(`TOTAL,,${totalCheques.toFixed(2)}`);
+
+    lines.push('');
+    lines.push(`TOTAL GÉNÉRAL,,${(totalPieces + totalBillets + totalCb + totalCheques).toFixed(2)}`);
 
     const csv = lines.join('\n');
     const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });

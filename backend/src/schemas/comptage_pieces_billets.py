@@ -22,5 +22,6 @@ class ComptagePiecesBilletsResponse(BaseModel):
     pieces: list[DenominationCount] = []
     billets: list[DenominationCount] = []
     cb_tickets: list[CbTicket] = []
+    cheques_total: float = 0.0
     year: int
     available_years: list[int] = []
