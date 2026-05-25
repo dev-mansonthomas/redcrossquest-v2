@@ -335,18 +335,23 @@ done
 
 # Setup MySQL users
 echo "   🔧 Configuring MySQL users..."
+# CREATE + ALTER = volume-safe upsert: CREATE IF NOT EXISTS ensures the user
+# exists, ALTER USER force-syncs the password with .env on every start so a
+# stale password in an existing rcq_mysql_data volume cannot break backend auth.
 # 1. rcq_readonly — Superset (SELECT only)
 docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
     "CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}'; \
+     ALTER USER '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}'; \
      GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%'; \
-     FLUSH PRIVILEGES;" 2>/dev/null || true
+     FLUSH PRIVILEGES;"
 # 2. rcq-graph — Backend (SELECT + targeted UPDATE)
 docker exec rcq_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e \
     "CREATE USER IF NOT EXISTS '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}'; \
+     ALTER USER '${RCQ_DB_USER}'@'%' IDENTIFIED BY '${RCQ_DB_PASSWORD}'; \
      GRANT SELECT ON ${MYSQL_DATABASE}.* TO '${RCQ_DB_USER}'@'%'; \
      GRANT UPDATE ON ${MYSQL_DATABASE}.queteur_mailing_status TO '${RCQ_DB_USER}'@'%'; \
      GRANT UPDATE ON ${MYSQL_DATABASE}.ul_settings TO '${RCQ_DB_USER}'@'%'; \
-     FLUSH PRIVILEGES;" 2>/dev/null || true
+     FLUSH PRIVILEGES;"
 
 # --- Export Prod Dump ---
 # Triggers a Cloud SQL export of the prod database to GCS, then downloads the
