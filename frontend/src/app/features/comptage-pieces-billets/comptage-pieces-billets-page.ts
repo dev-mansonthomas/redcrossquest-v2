@@ -31,6 +31,19 @@ interface ComptagePiecesBilletsResponse {
 const fmtInt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const fmtEur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 
+// ── Day labels ───────────────────────────────────────────────────────
+const DAY_LABELS = [
+  'J1: Samedi',
+  'J2: Dimanche',
+  'J3: Lundi',
+  'J4: Mardi',
+  'J5: Mercredi',
+  'J6: Jeudi',
+  'J7: Vendredi',
+  'J8: Samedi',
+  'J9: Dimanche',
+];
+
 type SortDir = 'asc' | 'desc';
 
 @Component({
@@ -41,8 +54,23 @@ type SortDir = 'asc' | 'desc';
   template: `
     <div class="h-full flex flex-col overflow-hidden">
       <!-- Header -->
-      <div [class]="'h-14 px-4 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 ' + headerBg">
-        <h2 class="text-lg font-semibold text-gray-800">🪙 Comptage pièces, billets et CB</h2>
+      <div [class]="'min-h-14 px-4 py-2 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 gap-4 ' + headerBg">
+        <h2 class="text-lg font-semibold text-gray-800 whitespace-nowrap">🪙 Comptage pièces, billets et CB</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          @for (label of dayLabels; track label; let i = $index) {
+            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
+              <input type="checkbox"
+                [checked]="selectedDays()[i]"
+                (change)="toggleDay(i)"
+                class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+              {{ label }}
+            </label>
+          }
+          <button (click)="selectAllDays()"
+            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
+          <button (click)="selectNoDays()"
+            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
+        </div>
         <div class="flex items-center gap-2">
           <select
             [value]="selectedYear()"
@@ -189,6 +217,8 @@ export class ComptagePiecesBilletsPageComponent {
   readonly rawCb = signal<CbTicket[]>([]);
   readonly selectedYear = signal(new Date().getFullYear());
   readonly availableYears = signal<number[]>([new Date().getFullYear()]);
+  readonly dayLabels = DAY_LABELS;
+  readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
 
   // Sort state per table
   readonly piecesSortCol = signal<string>('value_cents');
@@ -241,6 +271,23 @@ export class ComptagePiecesBilletsPageComponent {
   onSortBillets(col: string): void { this.toggleSort(this.billetsSortCol, this.billetsSortDir, col); }
   onSortCb(col: string): void { this.toggleSort(this.cbSortCol, this.cbSortDir, col); }
 
+  toggleDay(index: number): void {
+    const current = [...this.selectedDays()];
+    current[index] = !current[index];
+    this.selectedDays.set(current);
+    this.loadData();
+  }
+
+  selectAllDays(): void {
+    this.selectedDays.set(Array(9).fill(true));
+    this.loadData();
+  }
+
+  selectNoDays(): void {
+    this.selectedDays.set(Array(9).fill(false));
+    this.loadData();
+  }
+
   sortIndicator(table: string, col: string): string {
     const current = table === 'pieces' ? this.piecesSortCol()
       : table === 'billets' ? this.billetsSortCol()
@@ -262,6 +309,14 @@ export class ComptagePiecesBilletsPageComponent {
     try {
       const params = [`year=${this.selectedYear()}`];
       if (forceRefresh) params.push('refresh=true');
+      const checked = this.selectedDays();
+      const nbChecked = checked.filter(Boolean).length;
+      if (nbChecked === 0) {
+        params.push('days=');
+      } else if (nbChecked < 9) {
+        const days = checked.map((v, i) => v ? i + 1 : null).filter(x => x !== null).join(',');
+        params.push(`days=${days}`);
+      }
       const resp = await firstValueFrom(
         this.api.get<ComptagePiecesBilletsResponse>(`/api/comptage-pieces-billets?${params.join('&')}`)
       );
@@ -272,7 +327,13 @@ export class ComptagePiecesBilletsPageComponent {
         this.availableYears.set(resp.available_years);
       }
     } catch {
-      this.error.set('Erreur lors du chargement du comptage pièces et billets.');
+      if (this.selectedDays().filter(Boolean).length === 0) {
+        this.rawPieces.set([]);
+        this.rawBillets.set([]);
+        this.rawCb.set([]);
+      } else {
+        this.error.set('Erreur lors du chargement du comptage pièces et billets.');
+      }
     } finally {
       this.loading.set(false);
     }
@@ -326,7 +387,14 @@ export class ComptagePiecesBilletsPageComponent {
 
     const ulName = this.ulOverrideService.override()?.name ?? this.authService.user()?.ul_name ?? 'UL';
     const safeName = ulName.replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ _-]/g, '').replace(/\s+/g, '_');
-    const filename = `comptage-pieces-billets-${this.selectedYear()}-${safeName}.csv`;
+    const checked = this.selectedDays();
+    const nbChecked = checked.filter(Boolean).length;
+    let daysSuffix = '';
+    if (nbChecked > 0 && nbChecked < 9) {
+      const days = checked.map((v, i) => v ? i + 1 : null).filter(x => x !== null).join('-');
+      daysSuffix = `-jours-${days}`;
+    }
+    const filename = `comptage-pieces-billets-${this.selectedYear()}-${safeName}${daysSuffix}.csv`;
 
     const a = document.createElement('a');
     a.href = url;
