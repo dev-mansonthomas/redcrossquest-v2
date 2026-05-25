@@ -2,6 +2,13 @@
 -- Description: Vue MySQL réutilisable qui pré-calcule les colonnes dérivées de tronc_queteur
 --   (montant total, poids, durée, CB total) pour éviter de dupliquer les CTEs dans chaque dataset Superset.
 -- Compatible: MySQL 8 (pas de CTE dans les vues, utilise des sous-requêtes)
+--
+-- Note: total_amount utilise la somme du détail `credit_card` (cc.cc_total) et NON
+--   le cache `tronc_queteur.don_creditcard`. Raison : RCQ V1 peut dédupliquer/modifier
+--   des lignes `credit_card` sans recalculer le cache `don_creditcard`, ce qui produit
+--   des écarts entre la page Comptage (qui lit le détail) et le dashboard Yearly Goals
+--   (qui lit cette vue). En utilisant `cc.cc_total`, la vue reste cohérente avec le
+--   détail credit_card source de vérité.
 
 DROP VIEW IF EXISTS v_tronc_queteur_enriched;
 
@@ -43,8 +50,9 @@ SELECT
     -- dons_cb_total : total CB détaillé depuis la table credit_card
     COALESCE(cc.cc_total, 0) AS dons_cb_total,
 
-    -- total_amount : somme de toutes les pièces/billets + chèques + CB (don_creditcard)
-    -- Note: don_creditcard est un cache de la table credit_card, ne pas additionner les deux
+    -- total_amount : somme de toutes les pièces/billets + chèques + CB (détail credit_card)
+    -- Note: on utilise cc.cc_total (somme du détail credit_card) et NON tq.don_creditcard
+    --   (cache potentiellement obsolète si V1 modifie credit_card sans recalculer le cache).
     COALESCE(tq.euro500, 0) * 500 +
     COALESCE(tq.euro200, 0) * 200 +
     COALESCE(tq.euro100, 0) * 100 +
@@ -61,7 +69,7 @@ SELECT
     COALESCE(tq.cents2, 0) * 0.02 +
     COALESCE(tq.cent1, 0) * 0.01 +
     COALESCE(tq.don_cheque, 0) +
-    COALESCE(tq.don_creditcard, 0) AS total_amount,
+    COALESCE(cc.cc_total, 0) AS total_amount,
 
     -- weight : poids physique des pièces/billets en grammes
     COALESCE(tq.euro500, 0) * 1.1 +
