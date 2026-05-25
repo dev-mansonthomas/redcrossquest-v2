@@ -1,6 +1,7 @@
 """Comptage pièces, billets et CB endpoint with Valkey cache."""
 import logging
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
@@ -47,21 +48,23 @@ SELECT
 FROM v_tronc_queteur_enriched tqe
 WHERE tqe.ul_id = :ul_id
   AND YEAR(tqe.depart) = :year
+  {days_filter}
 """
 
 # ---------------------------------------------------------------------------
 # SQL — CB tickets (grouped by amount)
 # ---------------------------------------------------------------------------
+# Note: v_tronc_queteur_enriched already filters out deleted=0 AND comptage IS NOT NULL,
+# so the JOIN on the view replaces the previous JOIN on tronc_queteur.
 CB_TICKETS_QUERY = """
 SELECT
   cc.amount,
   SUM(cc.quantity) AS count
 FROM credit_card cc
-JOIN tronc_queteur tq ON tq.id = cc.tronc_queteur_id
+JOIN v_tronc_queteur_enriched tqe ON tqe.id = cc.tronc_queteur_id
 WHERE cc.ul_id = :ul_id
-  AND tq.deleted = 0
-  AND tq.comptage IS NOT NULL
-  AND YEAR(tq.depart) = :year
+  AND YEAR(tqe.depart) = :year
+  {days_filter}
 GROUP BY cc.amount
 ORDER BY cc.amount
 """
@@ -115,12 +118,48 @@ def _build_denomination_list(
     ]
 
 
+# Duplicated locally from controle_donnees._build_days_filter — mutualisation
+# vers utils.py est explicitement le sujet d'une PR ultérieure.
+def _build_days_filter(days: Optional[str]) -> tuple[str, dict]:
+    """Return (SQL clause, params dict) for quete_day_num filtering.
+
+    *days* is a comma-separated list of day numbers (e.g. "1,2,3").
+    Returns an empty clause when *days* is ``None`` or empty.
+    """
+    if not days or not days.strip():
+        return "", {}
+    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
+    if not day_list:
+        return "", {}
+    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
+    params = {f"day_{i}": d for i, d in enumerate(day_list)}
+    return f"AND tqe.quete_day_num IN ({placeholders})", params
+
+
+def _compute_days_signature(days: Optional[str]) -> str:
+    """Compute a stable cache-key fragment from the *days* CSV param.
+
+    - ``None`` (param not provided) or all 9 days selected → ``"all"``
+    - empty string / no valid days → ``"none"`` (caches empty-result branch)
+    - otherwise → sorted unique day numbers joined by ``-`` (e.g. ``"1-2-9"``)
+    """
+    if days is None:
+        return "all"
+    day_list = sorted({int(d.strip()) for d in days.split(",") if d.strip()})
+    if not day_list:
+        return "none"
+    if day_list == list(range(1, 10)):
+        return "all"
+    return "-".join(str(d) for d in day_list)
+
+
 @router.get(
     "/comptage-pieces-billets", response_model=ComptagePiecesBilletsResponse
 )
 async def get_comptage_pieces_billets(
     request: Request,
     year: int = Query(default=None, description="Year to query (defaults to current year)"),
+    days: Optional[str] = Query(default=None, description="Jours de quête (ex: 1,2,3)"),
     refresh: bool = Query(default=False, description="Force cache refresh"),
     db: Session = Depends(get_rcq_db),
 ) -> ComptagePiecesBilletsResponse:
@@ -134,7 +173,8 @@ async def get_comptage_pieces_billets(
         year = current_year
 
     is_current = year == current_year
-    cache_key = f"comptage_pieces_billets:{ul_id}:{year}"
+    days_signature = _compute_days_signature(days)
+    cache_key = f"comptage_pieces_billets:{ul_id}:{year}:{days_signature}"
 
     # --- Cache handling ---
     if refresh:
@@ -146,33 +186,51 @@ async def get_comptage_pieces_billets(
     if cached is not None:
         return ComptagePiecesBilletsResponse(**cached)
 
-    # --- Query coins & bills (single row) ---
-    row = (
-        db.execute(text(COINS_BILLS_QUERY), {"ul_id": ul_id, "year": year})
-        .mappings()
-        .first()
-    )
+    # When *days* is provided but resolves to an empty list (e.g. days=""),
+    # skip the totals queries entirely and return empty arrays — but still
+    # compute available_years so the UI can populate its year selector.
+    skip_totals = days is not None and days_signature == "none"
 
     pieces: list[DenominationCount] = []
     billets: list[DenominationCount] = []
-    if row is not None:
-        pieces = _build_denomination_list(dict(row), PIECES)
-        billets = _build_denomination_list(dict(row), BILLETS)
+    cb_tickets: list[CbTicket] = []
 
-    # --- Query CB tickets ---
-    cb_rows = (
-        db.execute(text(CB_TICKETS_QUERY), {"ul_id": ul_id, "year": year})
-        .mappings()
-        .all()
-    )
-    cb_tickets = [
-        CbTicket(
-            amount=float(r["amount"]),
-            count=int(r["count"]),
-            total=round(float(r["amount"]) * int(r["count"]), 2),
+    if not skip_totals:
+        days_clause, days_params = _build_days_filter(days)
+
+        # --- Query coins & bills (single row) ---
+        coins_query = COINS_BILLS_QUERY.format(days_filter=days_clause)
+        row = (
+            db.execute(
+                text(coins_query),
+                {"ul_id": ul_id, "year": year, **days_params},
+            )
+            .mappings()
+            .first()
         )
-        for r in cb_rows
-    ]
+
+        if row is not None:
+            pieces = _build_denomination_list(dict(row), PIECES)
+            billets = _build_denomination_list(dict(row), BILLETS)
+
+        # --- Query CB tickets ---
+        cb_query = CB_TICKETS_QUERY.format(days_filter=days_clause)
+        cb_rows = (
+            db.execute(
+                text(cb_query),
+                {"ul_id": ul_id, "year": year, **days_params},
+            )
+            .mappings()
+            .all()
+        )
+        cb_tickets = [
+            CbTicket(
+                amount=float(r["amount"]),
+                count=int(r["count"]),
+                total=round(float(r["amount"]) * int(r["count"]), 2),
+            )
+            for r in cb_rows
+        ]
 
     # --- Query available years ---
     year_rows = (
