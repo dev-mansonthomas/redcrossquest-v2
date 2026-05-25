@@ -4,6 +4,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { DayFilterComponent } from '../../shared/components/day-filter/day-filter.component';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface DenominationCount {
@@ -31,46 +32,19 @@ interface ComptagePiecesBilletsResponse {
 const fmtInt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const fmtEur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 
-// ── Day labels ───────────────────────────────────────────────────────
-const DAY_LABELS = [
-  'J1: Samedi',
-  'J2: Dimanche',
-  'J3: Lundi',
-  'J4: Mardi',
-  'J5: Mercredi',
-  'J6: Jeudi',
-  'J7: Vendredi',
-  'J8: Samedi',
-  'J9: Dimanche',
-];
-
 type SortDir = 'asc' | 'desc';
 
 @Component({
   selector: 'app-comptage-pieces-billets-page',
   standalone: true,
-  imports: [],
+  imports: [DayFilterComponent],
   styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full flex flex-col overflow-hidden">
       <!-- Header -->
       <div [class]="'min-h-14 px-4 py-2 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 gap-4 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800 whitespace-nowrap">🪙 Comptage pièces, billets et CB</h2>
-        <div class="flex flex-wrap items-center gap-2">
-          @for (label of dayLabels; track label; let i = $index) {
-            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
-              <input type="checkbox"
-                [checked]="selectedDays()[i]"
-                (change)="toggleDay(i)"
-                class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-              {{ label }}
-            </label>
-          }
-          <button (click)="selectAllDays()"
-            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
-          <button (click)="selectNoDays()"
-            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
-        </div>
+        <app-day-filter [selected]="selectedDays()" (selectedChange)="onDaysChanged($event)" />
         <div class="flex items-center gap-2">
           <select
             [value]="selectedYear()"
@@ -217,7 +191,6 @@ export class ComptagePiecesBilletsPageComponent {
   readonly rawCb = signal<CbTicket[]>([]);
   readonly selectedYear = signal(new Date().getFullYear());
   readonly availableYears = signal<number[]>([new Date().getFullYear()]);
-  readonly dayLabels = DAY_LABELS;
   readonly selectedDays = signal<boolean[]>(Array(9).fill(true));
 
   // Sort state per table
@@ -271,20 +244,8 @@ export class ComptagePiecesBilletsPageComponent {
   onSortBillets(col: string): void { this.toggleSort(this.billetsSortCol, this.billetsSortDir, col); }
   onSortCb(col: string): void { this.toggleSort(this.cbSortCol, this.cbSortDir, col); }
 
-  toggleDay(index: number): void {
-    const current = [...this.selectedDays()];
-    current[index] = !current[index];
-    this.selectedDays.set(current);
-    this.loadData();
-  }
-
-  selectAllDays(): void {
-    this.selectedDays.set(Array(9).fill(true));
-    this.loadData();
-  }
-
-  selectNoDays(): void {
-    this.selectedDays.set(Array(9).fill(false));
+  onDaysChanged(days: boolean[]): void {
+    this.selectedDays.set(days);
     this.loadData();
   }
 

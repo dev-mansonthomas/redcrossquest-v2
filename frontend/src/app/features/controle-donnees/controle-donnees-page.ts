@@ -7,6 +7,8 @@ import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { environment } from '../../../environments/environment';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { DAY_LABELS } from '../../shared/constants/day-labels';
+import { DayFilterComponent } from '../../shared/components/day-filter/day-filter.component';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface QueteurControleSummary {
@@ -41,43 +43,16 @@ interface TroncsControleResponse {
 const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
 const RCQ_TRONC_URI = '#!/troncs/edit/';
 
-// ── Day labels ───────────────────────────────────────────────────────
-const DAY_LABELS = [
-  'J1: Samedi',
-  'J2: Dimanche',
-  'J3: Lundi',
-  'J4: Mardi',
-  'J5: Mercredi',
-  'J6: Jeudi',
-  'J7: Vendredi',
-  'J8: Samedi',
-  'J9: Dimanche',
-];
-
 @Component({
   selector: 'app-controle-donnees-page',
   standalone: true,
-  imports: [DecimalPipe, BaseChartDirective],
+  imports: [DecimalPipe, BaseChartDirective, DayFilterComponent],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
       <div [class]="'min-h-14 px-4 py-2 border-b border-gray-200 shadow-sm flex items-center justify-between shrink-0 gap-4 ' + headerBg">
         <h2 class="text-lg font-semibold text-gray-800 whitespace-nowrap">🔍 Contrôle de données</h2>
-        <div class="flex flex-wrap items-center gap-2">
-          @for (label of dayLabels; track label; let i = $index) {
-            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
-              <input type="checkbox"
-                [checked]="selectedDays()[i]"
-                (change)="toggleDay(i)"
-                class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-              {{ label }}
-            </label>
-          }
-          <button (click)="selectAllDays()"
-            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
-          <button (click)="selectNoDays()"
-            class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
-        </div>
+        <app-day-filter [selected]="selectedDays()" (selectedChange)="onDaysChanged($event)" />
         <div class="flex items-center gap-3">
           <select
             [value]="selectedYear()"
@@ -200,7 +175,6 @@ export class ControleDonneesPageComponent {
   private readonly api = inject(ApiService);
   private readonly ulOverrideService = inject(UlOverrideService);
 
-  readonly dayLabels = DAY_LABELS;
   readonly POINT_TYPES = [
     { type: 1, emoji: '🚦', label: 'Voie Publique' },
     { type: 2, emoji: '🚶', label: 'Piétons' },
@@ -312,24 +286,8 @@ export class ControleDonneesPageComponent {
     this.loadData();
   }
 
-  toggleDay(index: number): void {
-    const current = [...this.selectedDays()];
-    current[index] = !current[index];
-    this.selectedDays.set(current);
-    this.selectedQueteur.set(null);
-    this.drilldownData.set([]);
-    this.loadData();
-  }
-
-  selectAllDays(): void {
-    this.selectedDays.set(Array(9).fill(true));
-    this.selectedQueteur.set(null);
-    this.drilldownData.set([]);
-    this.loadData();
-  }
-
-  selectNoDays(): void {
-    this.selectedDays.set(Array(9).fill(false));
+  onDaysChanged(days: boolean[]): void {
+    this.selectedDays.set(days);
     this.selectedQueteur.set(null);
     this.drilldownData.set([]);
     this.loadData();
@@ -371,7 +329,7 @@ export class ControleDonneesPageComponent {
 
   getDayLabel(dayNum: number | null): string {
     if (dayNum == null) return '—';
-    const label = this.dayLabels[dayNum - 1];
+    const label = DAY_LABELS[dayNum - 1];
     const dayName = label ? label.split(': ')[1] : '';
     return `${dayNum} - ${dayName || '?'}`;
   }

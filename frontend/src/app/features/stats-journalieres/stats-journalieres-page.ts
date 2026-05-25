@@ -5,6 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { DAY_LABELS } from '../../shared/constants/day-labels';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface DailyStats {
@@ -21,11 +22,6 @@ interface StatsJournalieresResponse {
   year: number;
   available_years: number[];
 }
-
-const DAY_LABELS = [
-  'J1: Sam', 'J2: Dim', 'J3: Lun', 'J4: Mar', 'J5: Mer',
-  'J6: Jeu', 'J7: Ven', 'J8: Sam', 'J9: Dim',
-];
 
 @Component({
   selector: 'app-stats-journalieres-page',

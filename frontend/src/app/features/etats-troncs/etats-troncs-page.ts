@@ -5,6 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { environment } from '../../../environments/environment';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
+import { DayFilterComponent } from '../../shared/components/day-filter/day-filter.component';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface TroncEtatDetail {
@@ -35,22 +36,10 @@ const RCQ_TRONC_QUETEUR_URI = '#!/tronc_queteur/edit/';
 const RCQ_TRONC_URI = '#!/troncs/edit/';
 const RCQ_QUETEUR_URI = '#!/queteurs/edit/';
 
-const DAY_LABELS = [
-  'J1: Sam',
-  'J2: Dim',
-  'J3: Lun',
-  'J4: Mar',
-  'J5: Mer',
-  'J6: Jeu',
-  'J7: Ven',
-  'J8: Sam',
-  'J9: Dim',
-];
-
 @Component({
   selector: 'app-etats-troncs-page',
   standalone: true,
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, DayFilterComponent],
   styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
@@ -93,19 +82,7 @@ const DAY_LABELS = [
       <!-- Day filter bar -->
       <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-center gap-3 shrink-0">
         <span class="text-sm font-medium text-gray-700 whitespace-nowrap">Jour :</span>
-        @for (label of dayLabels; track label; let i = $index) {
-          <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer select-none">
-            <input type="checkbox"
-              [checked]="selectedDays()[i]"
-              (change)="toggleDay(i)"
-              class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-            {{ label }}
-          </label>
-        }
-        <button (click)="selectAllDays()"
-          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Tous</button>
-        <button (click)="selectNoDays()"
-          class="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors">Aucun</button>
+        <app-day-filter [selected]="selectedDays()" (selectedChange)="onDaysChanged($event)" />
       </div>
 
       <!-- Content -->
@@ -193,7 +170,6 @@ export class EtatsTroncsPageComponent {
     { value: 'missing_bags', label: '🏷️ Sans sacs' },
   ];
 
-  readonly dayLabels = DAY_LABELS;
   readonly selectedFilter = signal<TroncStatusFilter>('prepared');
   readonly selectedYear = signal(new Date().getFullYear());
   readonly yearOptions = signal<number[]>(this.buildYearOptions());
@@ -311,18 +287,8 @@ export class EtatsTroncsPageComponent {
     this.loadData();
   }
 
-  toggleDay(index: number): void {
-    const current = [...this.selectedDays()];
-    current[index] = !current[index];
-    this.selectedDays.set(current);
-  }
-
-  selectAllDays(): void {
-    this.selectedDays.set(Array(9).fill(true));
-  }
-
-  selectNoDays(): void {
-    this.selectedDays.set(Array(9).fill(false));
+  onDaysChanged(days: boolean[]): void {
+    this.selectedDays.set(days);
   }
 
   onSort(column: string): void {
