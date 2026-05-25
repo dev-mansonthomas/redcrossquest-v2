@@ -16,6 +16,7 @@ from ..schemas.comptage_pieces_billets import (
     ComptagePiecesBilletsResponse,
     DenominationCount,
 )
+from ..utils import build_days_filter
 
 logger = logging.getLogger(__name__)
 
@@ -118,24 +119,6 @@ def _build_denomination_list(
     ]
 
 
-# Duplicated locally from controle_donnees._build_days_filter — mutualisation
-# vers utils.py est explicitement le sujet d'une PR ultérieure.
-def _build_days_filter(days: Optional[str]) -> tuple[str, dict]:
-    """Return (SQL clause, params dict) for quete_day_num filtering.
-
-    *days* is a comma-separated list of day numbers (e.g. "1,2,3").
-    Returns an empty clause when *days* is ``None`` or empty.
-    """
-    if not days or not days.strip():
-        return "", {}
-    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
-    if not day_list:
-        return "", {}
-    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
-    params = {f"day_{i}": d for i, d in enumerate(day_list)}
-    return f"AND tqe.quete_day_num IN ({placeholders})", params
-
-
 def _compute_days_signature(days: Optional[str]) -> str:
     """Compute a stable cache-key fragment from the *days* CSV param.
 
@@ -196,7 +179,7 @@ async def get_comptage_pieces_billets(
     cb_tickets: list[CbTicket] = []
 
     if not skip_totals:
-        days_clause, days_params = _build_days_filter(days)
+        days_clause, days_params = build_days_filter(days)
 
         # --- Query coins & bills (single row) ---
         coins_query = COINS_BILLS_QUERY.format(days_filter=days_clause)

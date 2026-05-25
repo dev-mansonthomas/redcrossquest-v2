@@ -37,6 +37,7 @@ from ..schemas.controle_admin import (
     UlPeuUsers,
     UlSansObjectif,
 )
+from ..utils import build_days_filter_with_tq_join
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/controle-admin", tags=["controle-admin"])
@@ -72,20 +73,6 @@ def _build_year_filter_tq(year: Optional[int]) -> tuple[str, dict]:
     return "AND YEAR(tq.depart) = :year", {"year": year}
 
 
-def _build_days_filter_tq(days: Optional[str]) -> tuple[str, str, dict]:
-    """Return (join_clause, where_clause, params) for days filter on tq.depart."""
-    if not days or not days.strip():
-        return "", "", {}
-    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
-    if not day_list or len(day_list) >= 9:
-        return "", "", {}
-    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
-    params = {f"day_{i}": d for i, d in enumerate(day_list)}
-    join = "JOIN quete_dates qd ON qd.year = YEAR(tq.depart)"
-    where = f"AND DATEDIFF(DATE(tq.depart), qd.start_date) + 1 IN ({placeholders})"
-    return join, where, params
-
-
 def _build_ul_filter_tq(ul_id: Optional[int]) -> tuple[str, dict]:
     """UL filter on tq.ul_id (None → all ULs)."""
     if ul_id is None:
@@ -96,7 +83,7 @@ def _build_ul_filter_tq(ul_id: Optional[int]) -> tuple[str, dict]:
 def _common_filters(year, days, ul_id) -> tuple[str, str, dict]:
     """Return (extra_join, extra_where, params) for year/days/ul."""
     year_clause, year_params = _build_year_filter_tq(year)
-    days_join, days_clause, days_params = _build_days_filter_tq(days)
+    days_join, days_clause, days_params = build_days_filter_with_tq_join(days)
     ul_clause, ul_params = _build_ul_filter_tq(ul_id)
     extra_where = " ".join(c for c in (year_clause, days_clause, ul_clause) if c)
     return days_join, extra_where, {**year_params, **days_params, **ul_params}

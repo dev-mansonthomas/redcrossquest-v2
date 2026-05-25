@@ -13,26 +13,10 @@ from ..schemas.controle_donnees import (
     TroncControleDetail,
     TroncsControleResponse,
 )
-from ..utils import build_year_filter
+from ..utils import build_days_filter, build_year_filter
 from .auth import get_authenticated_user
 
 router = APIRouter(prefix="/api/controle-donnees", tags=["controle-donnees"])
-
-
-def _build_days_filter(days: Optional[str]) -> tuple[str, dict]:
-    """Return (SQL clause, params dict) for quete_day_num filtering.
-
-    *days* is a comma-separated list of day numbers (e.g. "1,2,3").
-    Returns an empty clause when *days* is ``None`` or empty.
-    """
-    if not days or not days.strip():
-        return "", {}
-    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
-    if not day_list:
-        return "", {}
-    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
-    params = {f"day_{i}": d for i, d in enumerate(day_list)}
-    return f"AND tqe.quete_day_num IN ({placeholders})", params
 
 
 def _build_point_types_filter(point_types: Optional[str]) -> tuple[str, dict]:
@@ -104,7 +88,7 @@ async def get_controle_donnees(
     check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
-    days_clause, days_params = _build_days_filter(days)
+    days_clause, days_params = build_days_filter(days)
     pt_clause, pt_params = _build_point_types_filter(point_types)
     query = CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause, point_types_filter=pt_clause)
     params = {"ul_id": user["ul_id"], **year_params, **days_params, **pt_params}
@@ -128,7 +112,7 @@ async def get_queteur_troncs_controle(
     check_role(user, ROLES_COMPTEUR_AND_ABOVE)
 
     year_clause, year_params = build_year_filter(year)
-    days_clause, days_params = _build_days_filter(days)
+    days_clause, days_params = build_days_filter(days)
     pt_clause, pt_params = _build_point_types_filter(point_types)
     query = TRONCS_CONTROLE_QUERY.format(year_filter=year_clause, days_filter=days_clause, point_types_filter=pt_clause)
     params = {

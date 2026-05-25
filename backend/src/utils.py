@@ -46,3 +46,44 @@ def build_year_filter(year: Optional[int]) -> tuple[str, dict]:
     if year == 0:
         return "", {}
     return "AND YEAR(tqe.depart) = :year", {"year": year}
+
+
+def build_days_filter(days: Optional[str]) -> tuple[str, dict]:
+    """Return (SQL clause, params dict) for ``quete_day_num`` filtering.
+
+    *days* is a comma-separated list of day numbers (e.g. ``"1,2,3"``).
+    Returns an empty clause when *days* is ``None`` or empty.
+
+    The clause is of the form ``AND tqe.quete_day_num IN (...)`` and is meant
+    to be appended to queries that already alias the enriched view as ``tqe``.
+    """
+    if not days or not days.strip():
+        return "", {}
+    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
+    if not day_list:
+        return "", {}
+    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
+    params = {f"day_{i}": d for i, d in enumerate(day_list)}
+    return f"AND tqe.quete_day_num IN ({placeholders})", params
+
+
+def build_days_filter_with_tq_join(days: Optional[str]) -> tuple[str, str, dict]:
+    """Return (join_clause, where_clause, params) for days filter on ``tq.depart``.
+
+    Variant of :func:`build_days_filter` for queries that use ``tronc_queteur tq``
+    directly (without the enriched view). It joins ``quete_dates qd`` on the
+    year of ``tq.depart`` and filters on the day number derived from
+    ``DATEDIFF(DATE(tq.depart), qd.start_date) + 1``.
+
+    Returns empty clauses when *days* is ``None``, empty, or selects all 9 days.
+    """
+    if not days or not days.strip():
+        return "", "", {}
+    day_list = [int(d.strip()) for d in days.split(",") if d.strip()]
+    if not day_list or len(day_list) >= 9:
+        return "", "", {}
+    placeholders = ", ".join(f":day_{i}" for i in range(len(day_list)))
+    params = {f"day_{i}": d for i, d in enumerate(day_list)}
+    join = "JOIN quete_dates qd ON qd.year = YEAR(tq.depart)"
+    where = f"AND DATEDIFF(DATE(tq.depart), qd.start_date) + 1 IN ({placeholders})"
+    return join, where, params
