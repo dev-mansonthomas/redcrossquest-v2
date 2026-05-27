@@ -27,6 +27,19 @@ STATS_QUERY = """
 SELECT
   DATEDIFF(DATE(tqe.depart), qd.start_date) + 1 AS jour_num,
   ROUND(SUM(tqe.total_amount), 2) AS montant_jour,
+  ROUND(SUM(
+    COALESCE(tqe.euro2, 0) * 2 + COALESCE(tqe.euro1, 0) * 1 +
+    COALESCE(tqe.cents50, 0) * 0.5 + COALESCE(tqe.cents20, 0) * 0.2 +
+    COALESCE(tqe.cents10, 0) * 0.1 + COALESCE(tqe.cents5, 0) * 0.05 +
+    COALESCE(tqe.cents2, 0) * 0.02 + COALESCE(tqe.cent1, 0) * 0.01
+  ), 2) AS montant_pieces,
+  ROUND(SUM(
+    COALESCE(tqe.euro500, 0) * 500 + COALESCE(tqe.euro200, 0) * 200 +
+    COALESCE(tqe.euro100, 0) * 100 + COALESCE(tqe.euro50, 0) * 50 +
+    COALESCE(tqe.euro20, 0) * 20 + COALESCE(tqe.euro10, 0) * 10 +
+    COALESCE(tqe.euro5, 0) * 5
+  ), 2) AS montant_billets,
+  ROUND(SUM(COALESCE(tqe.don_cheque, 0)), 2) AS montant_cheque,
   ROUND(SUM(COALESCE(tqe.dons_cb_total, 0)), 2) AS montant_cb,
   COUNT(DISTINCT tqe.queteur_id) AS nb_benevoles,
   COUNT(DISTINCT CASE WHEN q.secteur = 3 THEN tqe.queteur_id END) AS nb_benevoles_1j,
@@ -74,7 +87,7 @@ async def get_stats_journalieres(
         year = current_year
 
     is_current = year == current_year
-    cache_key = f"stats_journalieres:{ul_id}:{year}"
+    cache_key = f"stats_journalieres:v2:{ul_id}:{year}"
 
     # --- Cache handling ---
     if refresh:
@@ -96,6 +109,9 @@ async def get_stats_journalieres(
         DailyStats(
             jour_num=int(r["jour_num"]),
             montant_jour=float(r["montant_jour"]),
+            montant_pieces=float(r["montant_pieces"] or 0),
+            montant_billets=float(r["montant_billets"] or 0),
+            montant_cheque=float(r["montant_cheque"] or 0),
             montant_cb=float(r["montant_cb"]),
             nb_benevoles=int(r["nb_benevoles"]),
             nb_benevoles_1j=int(r["nb_benevoles_1j"]),

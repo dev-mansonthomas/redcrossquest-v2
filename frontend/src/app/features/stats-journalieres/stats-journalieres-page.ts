@@ -5,12 +5,15 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UlOverrideService } from '../../core/services/ul-override.service';
 import { ENV_HEADER_BG } from '../../core/utils/env-header';
-import { DAY_LABELS } from '../../shared/constants/day-labels';
+import { DAY_LABELS_LONG } from '../../shared/constants/day-labels';
 
 // ── Interfaces ───────────────────────────────────────────────────────
 interface DailyStats {
   jour_num: number;
   montant_jour: number;
+  montant_pieces: number;
+  montant_billets: number;
+  montant_cheque: number;
   montant_cb: number;
   nb_benevoles: number;
   nb_benevoles_1j: number;
@@ -87,6 +90,9 @@ interface StatsJournalieresResponse {
                 <tr class="hover:bg-gray-50">
                   <td class="px-4 py-2 text-left font-medium text-gray-700">{{ dayLabel(row.jour_num) }}</td>
                   <td class="px-4 py-2 text-right">{{ row.montant_jour | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ row.montant_pieces | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ row.montant_billets | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ row.montant_cheque | number:'1.2-2' }}</td>
                   <td class="px-4 py-2 text-right">{{ row.montant_cb | number:'1.2-2' }}</td>
                   <td class="px-4 py-2 text-right">{{ row.nb_benevoles }}</td>
                   <td class="px-4 py-2 text-right">{{ row.nb_benevoles_1j }}</td>
@@ -98,6 +104,9 @@ interface StatsJournalieresResponse {
                 <tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
                   <td class="px-4 py-2 text-left">TOTAL</td>
                   <td class="px-4 py-2 text-right">{{ t.montant_jour | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ t.montant_pieces | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ t.montant_billets | number:'1.2-2' }}</td>
+                  <td class="px-4 py-2 text-right">{{ t.montant_cheque | number:'1.2-2' }}</td>
                   <td class="px-4 py-2 text-right">{{ t.montant_cb | number:'1.2-2' }}</td>
                   <td class="px-4 py-2 text-right">{{ t.nb_benevoles }}</td>
                   <td class="px-4 py-2 text-right">{{ t.nb_benevoles_1j }}</td>
@@ -129,6 +138,9 @@ export class StatsJournalieresPageComponent {
   readonly columns = [
     { key: 'jour_num', label: 'Jour', align: 'left' as const },
     { key: 'montant_jour', label: 'Montant (€)', align: 'right' as const },
+    { key: 'montant_pieces', label: 'Pièces (€)', align: 'right' as const },
+    { key: 'montant_billets', label: 'Billets (€)', align: 'right' as const },
+    { key: 'montant_cheque', label: 'Chèques (€)', align: 'right' as const },
     { key: 'montant_cb', label: 'Montant CB (€)', align: 'right' as const },
     { key: 'nb_benevoles', label: 'Bénévoles', align: 'right' as const },
     { key: 'nb_benevoles_1j', label: 'Bénévoles 1j', align: 'right' as const },
@@ -151,6 +163,9 @@ export class StatsJournalieresPageComponent {
     if (data.length === 0) return null;
     return {
       montant_jour: data.reduce((s, d) => s + d.montant_jour, 0),
+      montant_pieces: data.reduce((s, d) => s + (d.montant_pieces ?? 0), 0),
+      montant_billets: data.reduce((s, d) => s + (d.montant_billets ?? 0), 0),
+      montant_cheque: data.reduce((s, d) => s + (d.montant_cheque ?? 0), 0),
       montant_cb: data.reduce((s, d) => s + d.montant_cb, 0),
       nb_benevoles: data.reduce((s, d) => s + d.nb_benevoles, 0),
       nb_benevoles_1j: data.reduce((s, d) => s + d.nb_benevoles_1j, 0),
@@ -193,7 +208,7 @@ export class StatsJournalieresPageComponent {
   }
 
   dayLabel(jourNum: number): string {
-    return DAY_LABELS[jourNum - 1] || `J${jourNum}`;
+    return DAY_LABELS_LONG[jourNum - 1] || `J${jourNum}`;
   }
 
   async loadData(forceRefresh = false): Promise<void> {
@@ -221,10 +236,13 @@ export class StatsJournalieresPageComponent {
     if (data.length === 0) return;
 
     const BOM = '\uFEFF';
-    const headers = ['Jour', 'Montant (€)', 'Montant CB (€)', 'Bénévoles', 'Bénévoles 1j', 'Heures'];
+    const headers = ['Jour', 'Montant (€)', 'Pièces (€)', 'Billets (€)', 'Chèques (€)', 'Montant CB (€)', 'Bénévoles', 'Bénévoles 1j', 'Heures'];
     const rows = data.map(d => [
       this.dayLabel(d.jour_num),
       d.montant_jour.toFixed(2),
+      (d.montant_pieces ?? 0).toFixed(2),
+      (d.montant_billets ?? 0).toFixed(2),
+      (d.montant_cheque ?? 0).toFixed(2),
       d.montant_cb.toFixed(2),
       String(d.nb_benevoles),
       String(d.nb_benevoles_1j),
@@ -237,6 +255,9 @@ export class StatsJournalieresPageComponent {
       rows.push([
         'TOTAL',
         t.montant_jour.toFixed(2),
+        t.montant_pieces.toFixed(2),
+        t.montant_billets.toFixed(2),
+        t.montant_cheque.toFixed(2),
         t.montant_cb.toFixed(2),
         String(t.nb_benevoles),
         String(t.nb_benevoles_1j),
