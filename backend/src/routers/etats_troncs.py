@@ -75,87 +75,49 @@ ETATS_TRONCS_QUERY = """
 
 ETATS_TRONCS_COUNTED_QUERY = """
     SELECT
-      tq.id   AS tronc_queteur_id,
-      tq.queteur_id,
-      tq.tronc_id,
+      tqe.id   AS tronc_queteur_id,
+      tqe.queteur_id,
+      tqe.tronc_id,
       q.first_name,
       q.last_name,
-      tq.depart_theorique,
-      tq.depart,
-      tq.retour,
+      tqe.depart_theorique,
+      tqe.depart,
+      tqe.retour,
       pq.name AS point_quete_name,
-      DATEDIFF(DATE(COALESCE(tq.depart, tq.depart_theorique)), qd.start_date) + 1 AS quete_day_num,
-      COALESCE(tq.euro500, 0) * 500 +
-      COALESCE(tq.euro200, 0) * 200 +
-      COALESCE(tq.euro100, 0) * 100 +
-      COALESCE(tq.euro50, 0) * 50 +
-      COALESCE(tq.euro20, 0) * 20 +
-      COALESCE(tq.euro10, 0) * 10 +
-      COALESCE(tq.euro5, 0) * 5 +
-      COALESCE(tq.euro2, 0) * 2 +
-      COALESCE(tq.euro1, 0) * 1 +
-      COALESCE(tq.cents50, 0) * 0.5 +
-      COALESCE(tq.cents20, 0) * 0.2 +
-      COALESCE(tq.cents10, 0) * 0.1 +
-      COALESCE(tq.cents5, 0) * 0.05 +
-      COALESCE(tq.cents2, 0) * 0.02 +
-      COALESCE(tq.cent1, 0) * 0.01 +
-      COALESCE(tq.don_cheque, 0) +
-      COALESCE(tq.don_creditcard, 0) AS total_amount,
-      ROUND(TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) / 60.0, 2) AS total_hours
-    FROM tronc_queteur tq
-    JOIN queteur q        ON tq.queteur_id   = q.id
-    LEFT JOIN point_quete pq ON tq.point_quete_id = pq.id
-    LEFT JOIN quete_dates qd ON qd.year = YEAR(COALESCE(tq.depart, tq.depart_theorique))
-    WHERE tq.ul_id   = :ul_id
-      AND tq.deleted = 0
-      AND tq.comptage IS NOT NULL
+      tqe.quete_day_num,
+      tqe.total_amount,
+      ROUND(tqe.duration_minutes / 60.0, 2) AS total_hours
+    FROM v_tronc_queteur_enriched tqe
+    JOIN queteur q        ON tqe.queteur_id   = q.id
+    LEFT JOIN point_quete pq ON tqe.point_quete_id = pq.id
+    WHERE tqe.ul_id   = :ul_id
       {year_filter}
-    ORDER BY tq.comptage DESC
+    ORDER BY tqe.comptage DESC
 """
 
 ETATS_TRONCS_MISSING_BAGS_QUERY = """
     SELECT
-      tq.id   AS tronc_queteur_id,
-      tq.queteur_id,
-      tq.tronc_id,
+      tqe.id   AS tronc_queteur_id,
+      tqe.queteur_id,
+      tqe.tronc_id,
       q.first_name,
       q.last_name,
-      tq.depart_theorique,
-      tq.depart,
-      tq.retour,
+      tqe.depart_theorique,
+      tqe.depart,
+      tqe.retour,
       pq.name AS point_quete_name,
-      DATEDIFF(DATE(COALESCE(tq.depart, tq.depart_theorique)), qd.start_date) + 1 AS quete_day_num,
-      COALESCE(tq.euro500, 0) * 500 +
-      COALESCE(tq.euro200, 0) * 200 +
-      COALESCE(tq.euro100, 0) * 100 +
-      COALESCE(tq.euro50, 0) * 50 +
-      COALESCE(tq.euro20, 0) * 20 +
-      COALESCE(tq.euro10, 0) * 10 +
-      COALESCE(tq.euro5, 0) * 5 +
-      COALESCE(tq.euro2, 0) * 2 +
-      COALESCE(tq.euro1, 0) * 1 +
-      COALESCE(tq.cents50, 0) * 0.5 +
-      COALESCE(tq.cents20, 0) * 0.2 +
-      COALESCE(tq.cents10, 0) * 0.1 +
-      COALESCE(tq.cents5, 0) * 0.05 +
-      COALESCE(tq.cents2, 0) * 0.02 +
-      COALESCE(tq.cent1, 0) * 0.01 +
-      COALESCE(tq.don_cheque, 0) +
-      COALESCE(tq.don_creditcard, 0) AS total_amount,
-      ROUND(TIMESTAMPDIFF(MINUTE, tq.depart, tq.retour) / 60.0, 2) AS total_hours,
-      tq.coins_money_bag_id,
-      tq.bills_money_bag_id
-    FROM tronc_queteur tq
-    JOIN queteur q        ON tq.queteur_id   = q.id
-    LEFT JOIN point_quete pq ON tq.point_quete_id = pq.id
-    LEFT JOIN quete_dates qd ON qd.year = YEAR(COALESCE(tq.depart, tq.depart_theorique))
-    WHERE tq.ul_id   = :ul_id
-      AND tq.deleted = 0
-      AND tq.comptage IS NOT NULL
-      AND (tq.coins_money_bag_id IS NULL OR tq.coins_money_bag_id = '' OR tq.bills_money_bag_id IS NULL OR tq.bills_money_bag_id = '')
+      tqe.quete_day_num,
+      tqe.total_amount,
+      ROUND(tqe.duration_minutes / 60.0, 2) AS total_hours,
+      tqe.coins_money_bag_id,
+      tqe.bills_money_bag_id
+    FROM v_tronc_queteur_enriched tqe
+    JOIN queteur q        ON tqe.queteur_id   = q.id
+    LEFT JOIN point_quete pq ON tqe.point_quete_id = pq.id
+    WHERE tqe.ul_id   = :ul_id
+      AND (tqe.coins_money_bag_id IS NULL OR tqe.coins_money_bag_id = '' OR tqe.bills_money_bag_id IS NULL OR tqe.bills_money_bag_id = '')
       {year_filter}
-    ORDER BY tq.comptage DESC
+    ORDER BY tqe.comptage DESC
 """
 
 
@@ -176,13 +138,13 @@ async def get_etats_troncs(
         # For missing_bags, use year filter on comptage date
         missing_year_clause = ""
         if year_params:
-            missing_year_clause = "AND YEAR(tq.comptage) = :year"
+            missing_year_clause = "AND YEAR(tqe.comptage) = :year"
         query = ETATS_TRONCS_MISSING_BAGS_QUERY.format(year_filter=missing_year_clause)
     elif status_param == TroncStatus.counted:
         # For counted troncs, use year filter on comptage date instead of depart
         counted_year_clause = ""
         if year_params:
-            counted_year_clause = "AND YEAR(tq.comptage) = :year"
+            counted_year_clause = "AND YEAR(tqe.comptage) = :year"
         query = ETATS_TRONCS_COUNTED_QUERY.format(year_filter=counted_year_clause)
     else:
         status_clause = STATUS_FILTERS[status_param]

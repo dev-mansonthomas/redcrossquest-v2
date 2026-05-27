@@ -41,7 +41,7 @@ _METRICS_SELECT = """
       COALESCE(euro20, 0) * 20 + COALESCE(euro10, 0) * 10 +
       COALESCE(euro5, 0) * 5
   ), 2) AS total_billets_euros,
-  ROUND(SUM(COALESCE(don_creditcard, 0)), 2) AS total_cb_euros,
+  ROUND(SUM(COALESCE(dons_cb_total, 0)), 2) AS total_cb_euros,
   ROUND(SUM(COALESCE(don_cheque, 0)), 2) AS total_cheques_euros,
   ROUND(SUM(COALESCE(weight, 0)) / 1000.0, 1) AS poids_kg
 """
