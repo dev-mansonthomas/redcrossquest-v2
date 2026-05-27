@@ -27,7 +27,7 @@ STATS_QUERY = """
 SELECT
   DATEDIFF(DATE(tqe.depart), qd.start_date) + 1 AS jour_num,
   ROUND(SUM(tqe.total_amount), 2) AS montant_jour,
-  ROUND(SUM(COALESCE(tqe.don_creditcard, 0)), 2) AS montant_cb,
+  ROUND(SUM(COALESCE(tqe.dons_cb_total, 0)), 2) AS montant_cb,
   COUNT(DISTINCT tqe.queteur_id) AS nb_benevoles,
   COUNT(DISTINCT CASE WHEN q.secteur = 3 THEN tqe.queteur_id END) AS nb_benevoles_1j,
   ROUND(SUM(CASE WHEN tqe.duration_minutes >= 30 THEN tqe.duration_minutes ELSE 0 END) / 60.0, 1) AS nb_heures
