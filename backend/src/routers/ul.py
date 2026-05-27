@@ -138,7 +138,7 @@ FINANCIALS_QUERY = """
         COALESCE(tqe.cents10, 0) * 0.1 + COALESCE(tqe.cents5, 0) * 0.05 +
         COALESCE(tqe.cents2, 0) * 0.02 + COALESCE(tqe.cent1, 0) * 0.01
       ), 2) AS total_pieces,
-      ROUND(SUM(COALESCE(tqe.don_creditcard, 0)), 2) AS total_cb,
+      ROUND(SUM(COALESCE(tqe.dons_cb_total, 0)), 2) AS total_cb,
       ROUND(SUM(COALESCE(tqe.don_cheque, 0)), 2) AS total_cheques
     FROM v_tronc_queteur_enriched tqe
     WHERE tqe.ul_id = :ul_id
