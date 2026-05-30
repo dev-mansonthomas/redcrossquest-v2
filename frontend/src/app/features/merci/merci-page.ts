@@ -68,7 +68,7 @@ function formatNumber(n: number): string {
       <div class="min-h-screen flex items-center justify-center bg-red-50/30">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p class="mt-4 text-gray-600">Chargement de tes résultats...</p>
+          <p class="mt-4 text-gray-600">Chargement 🚑</p>
         </div>
       </div>
     } @else if (error()) {
@@ -150,6 +150,10 @@ function formatNumber(n: number): string {
             <div class="bg-gray-100 rounded-xl p-8 text-gray-400">
               📸 Photo des troncs à venir
             </div>
+          </div>
+
+          <div class="max-w-4xl mx-auto px-4 mb-6">
+            <img src="/RCQ-Merci.jpg" alt="Merci de la Croix-Rouge" class="w-full rounded-xl shadow" />
           </div>
         }
 
