@@ -146,12 +146,6 @@ function formatNumber(n: number): string {
             </div>
           </div>
 
-          <div class="max-w-4xl mx-auto px-4 mb-6 text-center">
-            <div class="bg-gray-100 rounded-xl p-8 text-gray-400">
-              📸 Photo des troncs à venir
-            </div>
-          </div>
-
           <div class="max-w-4xl mx-auto px-4 mb-6">
             <img src="/RCQ-Merci.jpg" alt="Merci de la Croix-Rouge" class="w-full rounded-xl shadow" />
           </div>
