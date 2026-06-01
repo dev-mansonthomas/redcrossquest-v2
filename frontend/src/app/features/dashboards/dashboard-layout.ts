@@ -13,7 +13,7 @@ import { environment } from '../../../environments/environment';
   template: `
     <div class="h-screen flex bg-white">
       <!-- Sidebar - Thème clair -->
-      <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
+      <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm overflow-hidden">
         <!-- Header avec logo -->
         <div class="h-14 px-4 border-b border-gray-200 flex items-center justify-between">
           <a routerLink="/dashboards" class="text-lg font-bold text-red-600 hover:text-red-700 transition-colors cursor-pointer">✚ RedCrossQuest</a>
@@ -23,7 +23,7 @@ import { environment } from '../../../environments/environment';
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 p-4 space-y-1">
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto min-h-0">
           <!-- 0. Tableau de bord Quête -->
           @if ([1, 2, 3, 4, 9].includes(effectiveRole())) {
             <a routerLink="/dashboards/tableau-quete"
@@ -161,7 +161,7 @@ import { environment } from '../../../environments/environment';
         </nav>
 
         <!-- Footer avec user info et déconnexion -->
-        <div class="p-4 border-t border-gray-200">
+        <div class="p-4 border-t border-gray-200 flex-shrink-0">
           <div class="space-y-1 mb-3">
             <p class="px-3 text-sm text-gray-700 flex items-start gap-2">
               <span class="shrink-0">👤</span>
