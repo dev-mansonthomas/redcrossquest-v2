@@ -20,8 +20,10 @@ const WARN_CHARS = 7500;
 @Component({
   selector: 'app-settings-page',
   standalone: true,
+  host: { class: 'flex-1 flex flex-col min-h-0 overflow-hidden' },
   template: `
-    <div class="p-6 max-w-4xl mx-auto space-y-6 overflow-y-auto h-full">
+    <div class="h-full overflow-y-auto">
+      <div class="p-6 max-w-4xl mx-auto space-y-6 pb-6">
       <h1 class="text-2xl font-bold text-gray-800">⚙️ Paramètres de l'Unité Locale</h1>
       @if (loading()) {
         <p class="text-gray-500">Chargement…</p>
@@ -58,6 +60,7 @@ const WARN_CHARS = 7500;
           @if (saving()) { Enregistrement… } @else { 💾 Enregistrer }
         </button>
       }
+      </div>
     </div>
   `,
 })

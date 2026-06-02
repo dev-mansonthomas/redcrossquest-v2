@@ -47,6 +47,7 @@ const RCQ_TRONC_URI = '#!/troncs/edit/';
   selector: 'app-controle-donnees-page',
   standalone: true,
   imports: [DecimalPipe, BaseChartDirective, DayFilterComponent],
+  styles: [`:host { display: block; height: 100%; }`],
   template: `
     <div class="h-full w-full flex flex-col bg-white">
       <!-- Header -->
