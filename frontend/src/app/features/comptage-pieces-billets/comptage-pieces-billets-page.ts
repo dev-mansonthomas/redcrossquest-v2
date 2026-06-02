@@ -64,7 +64,7 @@ type SortDir = 'asc' | 'desc';
         </div>
       </div>
 
-      <div class="flex-1 overflow-hidden p-6">
+      <div class="flex-1 overflow-y-auto lg:overflow-hidden p-6">
       <!-- Loading / Error -->
       @if (loading()) {
         <div class="text-center py-12 text-gray-500">Chargement…</div>
@@ -75,12 +75,12 @@ type SortDir = 'asc' | 'desc';
 
       <!-- 3 tables side by side -->
       @if (!loading() && !error()) {
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:h-full">
 
           <!-- Tableau 1 — Pièces -->
-          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+          <div class="bg-white rounded-lg shadow flex flex-col lg:min-h-0">
             <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">🪙 Pièces</div>
-            <div class="overflow-y-auto flex-1 min-h-0">
+            <div class="lg:overflow-y-auto lg:flex-1 lg:min-h-0">
               <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 sticky top-0 z-10">
                   <tr>
@@ -110,9 +110,9 @@ type SortDir = 'asc' | 'desc';
           </div>
 
           <!-- Tableau 2 — Billets -->
-          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+          <div class="bg-white rounded-lg shadow flex flex-col lg:min-h-0">
             <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">💶 Billets</div>
-            <div class="overflow-y-auto flex-1 min-h-0">
+            <div class="lg:overflow-y-auto lg:flex-1 lg:min-h-0">
               <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 sticky top-0 z-10">
                   <tr>
@@ -142,9 +142,9 @@ type SortDir = 'asc' | 'desc';
           </div>
 
           <!-- Tableau 3 — Tickets CB -->
-          <div class="bg-white rounded-lg shadow flex flex-col min-h-0">
+          <div class="bg-white rounded-lg shadow flex flex-col lg:min-h-0">
             <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 shrink-0">💳 Tickets CB</div>
-            <div class="overflow-y-auto flex-1 min-h-0">
+            <div class="lg:overflow-y-auto lg:flex-1 lg:min-h-0">
               <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 sticky top-0 z-10">
                   <tr>
